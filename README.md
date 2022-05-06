@@ -1,2 +1,1 @@
-# yamc
-Yet Another 'Modern C'
+# Yet Another 'Modern C'

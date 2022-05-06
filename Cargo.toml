@@ -1,0 +1,10 @@
+[package]
+name = "yamc"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+clap = { version = "3.1", features = ["derive"] }
+chumsky = "0.8"
+lasso = { version = "0.6", features = ["ahash"] }
+logos = "0.12"
