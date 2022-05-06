@@ -2,10 +2,6 @@ use std::fmt::{Display, Formatter};
 
 use logos::Logos;
 
-use crate::parse::ast::Spanned;
-
-pub type Token = Spanned<TokenKind>;
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Delim {
 	Paren,

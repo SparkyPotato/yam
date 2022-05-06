@@ -1,59 +1,134 @@
 use std::cell::RefCell;
 
-use chumsky::{prelude::*, Parser as CParser, Stream};
-use lasso::Rodeo;
+use ariadne::{Label, Report, ReportKind};
+use chumsky::{error::SimpleReason, prelude::*, Parser as CParser, Stream};
+use lasso::{Rodeo, Spur};
 
 use crate::parse::{
-	ast::{Arg, Module, Block, Fn, Ident, Item, ItemKind, Pat, PatKind, Span, Stmt, StmtKind, Visibility, WhereClause},
-	token::{Delim, Token, TokenKind},
+	ast::{
+		Arg,
+		Block,
+		Expr,
+		ExprKind,
+		Fn,
+		Ident,
+		Item,
+		ItemKind,
+		Lit,
+		LitKind,
+		Module,
+		Pat,
+		PatKind,
+		Span,
+		Stmt,
+		StmtKind,
+		Visibility,
+		WhereClause,
+	},
+	token::{Delim, TokenKind},
 };
 
 pub mod ast;
 mod token;
 
-pub struct ParseContext {
-	rodeo: RefCell<Rodeo>,
-	parser: Box<dyn CParser<TokenKind, Module>>,
-}
+pub fn parse(file: Spur, input: &str, rodeo: &RefCell<Rodeo>, diagnostics: &mut Vec<Report<Span>>) -> Module {
+	let lexer = Lexer {
+		file,
+		lexer: logos::Lexer::new(input),
+	};
 
-impl ParseContext {
-	pub fn
+	let (module, errors) = Parser::new(input, rodeo).parse().parse_recovery(Stream::from_iter(
+		Span {
+			start: input.len() as _,
+			end: input.len() as _,
+			file,
+		},
+		lexer,
+	));
+
+	for error in errors {
+		let mut builder = Report::build(ReportKind::Error, file, 0);
+
+		let mut label = Label::new(error.span());
+		match error.reason() {
+			SimpleReason::Custom(s) => builder.set_message(s),
+			SimpleReason::Unexpected => {
+				builder.set_message(match error.found() {
+					Some(tok) => format!("unexpected `{}`", tok),
+					None => "unexpected `<eof>`".into(),
+				});
+
+				match error.expected().len() {
+					0 => {},
+					1 => {
+						label = label.with_message(match error.expected().next().unwrap() {
+							Some(tok) => format!("expected `{}`", tok),
+							None => "expected `<eof>`".into(),
+						})
+					},
+					_ => {
+						label = label.with_message(format!(
+							"expected one of {}",
+							error
+								.expected()
+								.map(|tok| match tok {
+									Some(tok) => format!("`{}`", tok),
+									None => "`<eof>`".into(),
+								})
+								.collect::<Vec<_>>()
+								.join(", ")
+						))
+					},
+				}
+			},
+			SimpleReason::Unclosed { delimiter, .. } => {
+				builder.set_message(format!("unclosed `{}`", delimiter));
+			},
+		}
+
+		builder.add_label(label);
+
+		diagnostics.push(builder.finish());
+	}
+
+	module.unwrap_or_else(|| Module { items: Vec::new() })
 }
 
 struct Lexer<'a> {
+	file: Spur,
 	lexer: logos::Lexer<'a, TokenKind>,
 }
 
 impl Iterator for Lexer<'_> {
-	type Item = Token;
+	type Item = (TokenKind, Span);
 
 	fn next(&mut self) -> Option<Self::Item> {
-		self.lexer.next().map(|kind| Token {
-			node: kind,
-			span: self.lexer.span().into(),
+		self.lexer.next().map(|kind| {
+			(kind, {
+				let span = self.lexer.span();
+				Span {
+					start: span.start as _,
+					end: span.end as _,
+					file: self.file,
+				}
+			})
 		})
 	}
 }
 
 struct Parser<'a> {
-	lexer: Lexer<'a>,
-	intern: &'a RefCell<Rodeo>,
+	input: &'a str,
+	rodeo: &'a RefCell<Rodeo>,
 }
 
 impl<'a> Parser<'a> {
-	fn new(input: &'a str, intern: &'a RefCell<Rodeo>) -> Self {
-		Self {
-			lexer: Lexer {
-				lexer: logos::Lexer::new(input),
-			},
-			intern,
-		}
-	}
+	fn new(input: &'a str, rodeo: &'a RefCell<Rodeo>) -> Self { Self { input, rodeo } }
 
-	fn parse(mut self) -> (Option<Module>, Vec<Simple<TokenKind, Span>>) {
-		let spur = just(TokenKind::Ident)
-			.map_with_span(|_, span| self.intern.borrow_mut().get_or_intern(&self.lexer.lexer.slice()[span]));
-		let ident = spur.clone().map_with_span(|spur, span| Ident { node: spur, span });
+	fn intern(&self, span: Span) -> Spur { self.rodeo.borrow_mut().get_or_intern(&self.input[span]) }
+
+	fn parse(&'a self) -> impl CParser<TokenKind, Module, Error = Simple<TokenKind, Span>> + 'a {
+		let spur = just(TokenKind::Ident).map_with_span(|_, span| self.intern(span));
+		let ident = spur.map_with_span(|spur, span| Ident { node: spur, span });
 
 		let pat = ident
 			.clone()
@@ -61,13 +136,27 @@ impl<'a> Parser<'a> {
 			.or(just(TokenKind::Underscore).map(|_| PatKind::Ignore))
 			.map_with_span(|node, span| Pat { node, span });
 
-		let expr = todo!();
+		let lit = just(TokenKind::BoolLiteral)
+			.map(|_| LitKind::Bool)
+			.or(just(TokenKind::CharLiteral).map(|_| LitKind::Char))
+			.or(just(TokenKind::IntLiteral).map(|_| LitKind::Int))
+			.or(just(TokenKind::FloatLiteral).map(|_| LitKind::Float))
+			.or(just(TokenKind::StringLiteral).map(|_| LitKind::String))
+			.map_with_span(|kind, span| Lit {
+				kind,
+				spur: self.intern(span),
+			});
+
+		let expr = lit.map_with_span(|lit, span| Expr {
+			node: ExprKind::Lit(lit),
+			span,
+		});
 		let mut item = Recursive::declare();
 
 		let stmt = item
 			.clone()
 			.map(|item: Item| StmtKind::Item(item.visibility, item.kind))
-			.or(expr.clone().map(|expr| StmtKind::Expr(expr.node)))
+			.or(expr.clone().map(|expr: Expr| StmtKind::Expr(expr.node)))
 			.or(expr
 				.clone()
 				.then_ignore(just(TokenKind::Semi))
@@ -101,10 +190,10 @@ impl<'a> Parser<'a> {
 			.ignore_then(
 				expr.clone()
 					.then_ignore(just(TokenKind::Colon))
-					.then(expr.clone())
+					.then(expr.clone().or_not())
+					.map_with_span(|(on, bounds), span| WhereClause { on, bounds, span })
 					.separated_by(just(TokenKind::Comma))
-					.allow_trailing()
-					.map_with_span(|(on, bounds), span| WhereClause { on, bounds, span }),
+					.allow_trailing(),
 			)
 			.or_not()
 			.map(|w| w.unwrap_or(Vec::new()));
@@ -140,14 +229,6 @@ impl<'a> Parser<'a> {
 				}),
 		);
 
-		let parser = item.repeated().map(|items| Module { items });
-
-		parser.parse_recovery(Stream::from_iter(
-			Span {
-				start: self.lexer.lexer.slice().len() as _,
-				end: self.lexer.lexer.slice().len() as _ + 1,
-			},
-			std::iter::from_fn(|| self.lexer.next().map(|Token { node: kind, span }| (kind, span))),
-		))
+		item.repeated().map(|items| Module { items }).then_ignore(end())
 	}
 }
