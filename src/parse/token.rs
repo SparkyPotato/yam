@@ -34,9 +34,9 @@ pub enum TokenKind {
 	#[token("]", |_| Delim::Bracket)]
 	RDelim(Delim),
 	#[token("<")]
-	Le,
+	Lt,
 	#[token(">")]
-	Ge,
+	Gt,
 	#[token("<=")]
 	Leq,
 	#[token(">=")]
@@ -71,16 +71,26 @@ pub enum TokenKind {
 	BitAnd,
 	#[token("&=")]
 	BitAndEq,
-	#[token("&&")]
-	And,
 	#[token("|")]
 	BitOr,
 	#[token("|=")]
 	BitOrEq,
+	#[token("^")]
+	BitXor,
+	#[token("^=")]
+	BitXorEq,
+	#[token("<<")]
+	Shl,
+	#[token("<<=")]
+	ShlEq,
+	#[token(">>")]
+	Shr,
+	#[token(">>=")]
+	ShrEq,
+	#[token("&&")]
+	And,
 	#[token("||")]
 	Or,
-	#[token("^")]
-	Caret,
 	#[token("!")]
 	Not,
 	#[token("~")]
@@ -113,6 +123,8 @@ pub enum TokenKind {
 	Let,
 	#[token("mod")]
 	Mod,
+	#[token("mut")]
+	Mut,
 	#[token("pub")]
 	Pub,
 	#[token("struct")]
@@ -151,8 +163,8 @@ impl Display for TokenKind {
 				TokenKind::RDelim(Delim::Paren) => ")",
 				TokenKind::RDelim(Delim::Brace) => "}",
 				TokenKind::RDelim(Delim::Bracket) => "]",
-				TokenKind::Le => "<",
-				TokenKind::Ge => ">",
+				TokenKind::Lt => "<",
+				TokenKind::Gt => ">",
 				TokenKind::Leq => "<=",
 				TokenKind::Geq => ">=",
 				TokenKind::Eq => "==",
@@ -170,11 +182,16 @@ impl Display for TokenKind {
 				TokenKind::PercentEq => "%=",
 				TokenKind::BitAnd => "&",
 				TokenKind::BitAndEq => "&=",
-				TokenKind::And => "&&",
 				TokenKind::BitOr => "|",
 				TokenKind::BitOrEq => "|=",
+				TokenKind::BitXor => "^",
+				TokenKind::BitXorEq => "^=",
+				TokenKind::And => "&&",
 				TokenKind::Or => "||",
-				TokenKind::Caret => "^",
+				TokenKind::Shl => "<<",
+				TokenKind::ShlEq => "<<=",
+				TokenKind::Shr => ">>",
+				TokenKind::ShrEq => ">>=",
 				TokenKind::Not => "!",
 				TokenKind::Tilde => "~",
 				TokenKind::Dot => ".",
@@ -191,6 +208,7 @@ impl Display for TokenKind {
 				TokenKind::If => "if",
 				TokenKind::Let => "let",
 				TokenKind::Mod => "mod",
+				TokenKind::Mut => "mut",
 				TokenKind::Pub => "pub",
 				TokenKind::Struct => "struct",
 				TokenKind::Type => "type",

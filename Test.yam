@@ -1,1 +1,9 @@
-pub fn main() { 0 }
+pub fn main() -> i32 {
+    const Struct = struct { a: i32, b: i32, };
+    struct Struct {
+        a: i32,
+        b: i32,
+    }
+
+    let s = Struct(a: 1, b: 2);
+}
