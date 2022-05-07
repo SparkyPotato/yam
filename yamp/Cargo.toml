@@ -1,0 +1,11 @@
+[package]
+name = "yamp"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+yamd = { path = "../yamd" }
+
+chumsky = "0.8"
+lasso = { version = "0.6", features = ["ahash"] }
+logos = "0.12"

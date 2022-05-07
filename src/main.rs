@@ -1,11 +1,9 @@
-use ariadne::ReportKind;
 use clap::Parser;
+use yamd::{ariadne::ReportKind, quick_diagnostic};
 
-use crate::{compile::CompileOptions, diagnostic::quick_diagnostic};
+use crate::compile::CompileOptions;
 
 mod compile;
-mod diagnostic;
-mod parse;
 
 fn main() {
 	if let Err(_) = std::panic::catch_unwind(|| {

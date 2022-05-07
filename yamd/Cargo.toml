@@ -1,0 +1,9 @@
+[package]
+name = "yamd"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+ariadne = "0.1"
+chumsky = "0.8"
+lasso = { version = "0.6", features = ["ahash"] }

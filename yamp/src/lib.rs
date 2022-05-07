@@ -1,10 +1,13 @@
 use std::cell::RefCell;
 
-use ariadne::{Label, Report, ReportKind};
 use chumsky::{error::SimpleReason, prelude::*, Parser as CParser, Stream};
 use lasso::{Rodeo, Spur};
+use yamd::{
+	ariadne::{Label, Report, ReportKind},
+	Span,
+};
 
-use crate::parse::{
+use crate::{
 	ast::{
 		Access,
 		Arg,
@@ -25,7 +28,6 @@ use crate::parse::{
 		Module,
 		Pat,
 		PatKind,
-		Span,
 		Stmt,
 		StmtKind,
 		Struct,

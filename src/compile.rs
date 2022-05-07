@@ -1,14 +1,11 @@
 use std::{cell::RefCell, path::PathBuf};
 
-use ariadne::ReportKind;
 use clap::clap_derive::Parser;
 use lasso::Rodeo;
+use yamd::{ariadne::ReportKind, emit_diagnostics, FileCache};
+use yamp::parse;
 
-use crate::{
-	diagnostic::{emit_diagnostics, FileCache},
-	parse::parse,
-	quick_diagnostic,
-};
+use crate::quick_diagnostic;
 
 #[derive(Parser)]
 #[clap(author, version, about)]
