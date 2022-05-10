@@ -1,8 +1,8 @@
-use std::{cell::RefCell, path::PathBuf};
+use std::path::PathBuf;
 
 use clap::clap_derive::Parser;
 use lasso::Rodeo;
-use yamd::{ariadne::ReportKind, emit_diagnostics, FileCache};
+use yamd::{ariadne::ReportKind, emit_diagnostics, FileCacheBuilder};
 use yamp::parse;
 
 use crate::quick_diagnostic;
@@ -15,9 +15,9 @@ pub struct CompileOptions {
 }
 
 pub fn compile(opts: CompileOptions) {
-	let rodeo = RefCell::new(Rodeo::new());
+	let mut rodeo = Rodeo::new();
 
-	let mut cache = FileCache::new(&rodeo);
+	let mut cache = FileCacheBuilder::new();
 	let mut diagnostics = Vec::new();
 
 	let input = match std::fs::read_to_string(&opts.path) {
@@ -27,10 +27,11 @@ pub fn compile(opts: CompileOptions) {
 			return;
 		},
 	};
-	let file = cache.add_file(&opts.path);
-	let module = parse(file, &input, &rodeo, &mut diagnostics);
+	let file = cache.add_file(&mut rodeo, &opts.path);
+	let module = parse(file, &input, &mut rodeo, &mut diagnostics);
 	cache.set_file(file, input);
 	println!("{:#?}", module);
 
+	let cache = cache.finish(&rodeo);
 	emit_diagnostics(&cache, diagnostics);
 }

@@ -97,6 +97,8 @@ pub enum TokenKind {
 	Tilde,
 	#[token(".")]
 	Dot,
+	#[token("..")]
+	DotDot,
 	#[token(":")]
 	Colon,
 	#[token(",")]
@@ -119,6 +121,8 @@ pub enum TokenKind {
 	Fn,
 	#[token("if")]
 	If,
+	#[token("import")]
+	Import,
 	#[token("let")]
 	Let,
 	#[token("mod")]
@@ -127,6 +131,8 @@ pub enum TokenKind {
 	Mut,
 	#[token("pub")]
 	Pub,
+	#[token("static")]
+	Static,
 	#[token("struct")]
 	Struct,
 	#[token("type")]
@@ -195,6 +201,7 @@ impl Display for TokenKind {
 				TokenKind::Not => "!",
 				TokenKind::Tilde => "~",
 				TokenKind::Dot => ".",
+				TokenKind::DotDot => "..",
 				TokenKind::Colon => ":",
 				TokenKind::Comma => ",",
 				TokenKind::Semi => ";",
@@ -206,10 +213,12 @@ impl Display for TokenKind {
 				TokenKind::Enum => "enum",
 				TokenKind::Fn => "fn",
 				TokenKind::If => "if",
+				TokenKind::Import => "import",
 				TokenKind::Let => "let",
 				TokenKind::Mod => "mod",
 				TokenKind::Mut => "mut",
 				TokenKind::Pub => "pub",
+				TokenKind::Static => "static",
 				TokenKind::Struct => "struct",
 				TokenKind::Type => "type",
 				TokenKind::Union => "union",

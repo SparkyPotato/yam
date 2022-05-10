@@ -1,9 +1,5 @@
-pub fn main() -> i32 {
-    const Struct = struct { a: i32, b: i32, };
-    struct Struct {
-        a: i32,
-        b: i32,
-    }
+import std.io.println;
 
-    let s = Struct(a: 1, b: 2);
+pub fn main() {
+    println("Hello, World!");
 }

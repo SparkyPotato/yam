@@ -1,5 +1,4 @@
 use std::{
-	cell::RefCell,
 	collections::HashMap,
 	fmt::{Debug, Display},
 	ops::{Add, Index, Range},
@@ -66,33 +65,37 @@ impl chumsky::Span for Span {
 	fn end(&self) -> Self::Offset { self.end }
 }
 
-pub struct FileCache<'a> {
-	rodeo: &'a RefCell<Rodeo>,
+pub struct FileCacheBuilder {
 	files: HashMap<Spur, Source>,
 }
 
-impl<'a> FileCache<'a> {
-	pub fn new(rodeo: &'a RefCell<Rodeo>) -> Self {
-		Self {
-			rodeo,
-			files: HashMap::new(),
-		}
-	}
+impl FileCacheBuilder {
+	pub fn new() -> Self { Self { files: HashMap::new() } }
 
-	pub fn add_file(&mut self, path: &Path) -> Spur {
-		self.rodeo
-			.borrow_mut()
-			.get_or_intern(path.as_os_str().to_str().unwrap())
+	pub fn add_file(&mut self, rodeo: &mut Rodeo, path: &Path) -> Spur {
+		rodeo.get_or_intern(path.as_os_str().to_str().unwrap())
 	}
 
 	pub fn set_file(&mut self, file: Spur, data: String) { self.files.insert(file, Source::from(data)); }
+
+	pub fn finish(self, rodeo: &Rodeo) -> FileCache {
+		FileCache {
+			files: self.files,
+			rodeo,
+		}
+	}
+}
+
+pub struct FileCache<'a> {
+	files: HashMap<Spur, Source>,
+	rodeo: &'a Rodeo,
 }
 
 impl Cache<Spur> for &FileCache<'_> {
 	fn fetch(&mut self, id: &Spur) -> Result<&Source, Box<dyn Debug + '_>> { Ok(&self.files[id]) }
 
 	fn display<'a>(&self, id: &'a Spur) -> Option<Box<dyn Display + 'a>> {
-		Some(Box::new(String::from(self.rodeo.borrow().resolve(id))))
+		Some(Box::new(String::from(self.rodeo.resolve(id))))
 	}
 }
 
