@@ -1,10 +1,10 @@
 [package]
-name = "yamp"
+name = "parse"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-yamd = { path = "../yamd" }
+diag = { path = "../diag" }
 
 chumsky = "0.8"
 lasso = { version = "0.6", features = ["ahash"] }

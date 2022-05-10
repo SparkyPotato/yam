@@ -143,6 +143,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7a81dae078cea95a014a339291cec439d2f232ebe854a9d672b796c6afafa9b7"
 
 [[package]]
+name = "diag"
+version = "0.1.0"
+dependencies = [
+ "ariadne",
+ "chumsky",
+ "lasso",
+]
+
+[[package]]
 name = "fnv"
 version = "1.0.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -240,6 +249,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "mod_verify"
+version = "0.1.0"
+dependencies = [
+ "diag",
+ "parse",
+]
+
+[[package]]
 name = "once_cell"
 version = "1.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -250,6 +267,16 @@ name = "os_str_bytes"
 version = "6.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8e22443d1643a904602595ba1cd8f7d896afe56d26712531c5ff73a15b2fbf64"
+
+[[package]]
+name = "parse"
+version = "0.1.0"
+dependencies = [
+ "chumsky",
+ "diag",
+ "lasso",
+ "logos",
+]
 
 [[package]]
 name = "proc-macro-error"
@@ -406,28 +433,10 @@ name = "yamc"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "diag",
  "lasso",
- "yamd",
- "yamp",
-]
-
-[[package]]
-name = "yamd"
-version = "0.1.0"
-dependencies = [
- "ariadne",
- "chumsky",
- "lasso",
-]
-
-[[package]]
-name = "yamp"
-version = "0.1.0"
-dependencies = [
- "chumsky",
- "lasso",
- "logos",
- "yamd",
+ "mod_verify",
+ "parse",
 ]
 
 [[package]]

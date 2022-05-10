@@ -4,14 +4,16 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-yamd = { path = "yamd" }
-yamp = { path = "yamp" }
+diag = { path = "diag" }
+mod_verify = { path = "mod_verify" }
+parse = { path = "parse" }
 
 clap = { version = "3.1", features = ["derive"] }
 lasso = { version = "0.6", features = ["ahash"] }
 
 [workspace]
 members = [
-    "yamd",
-    "yamp",
+    "diag",
+    "mod_verify",
+    "parse",
 ]

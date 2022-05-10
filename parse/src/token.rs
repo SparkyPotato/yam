@@ -113,24 +113,40 @@ pub enum TokenKind {
 	Arrow,
 	#[token("=>")]
 	FatArrow,
+	#[token("as")]
+	As,
+	#[token("break")]
+	Break,
 	#[token("const")]
 	Const,
+	#[token("continue")]
+	Continue,
+	#[token("else")]
+	Else,
 	#[token("enum")]
 	Enum,
 	#[token("fn")]
 	Fn,
+	#[token("for")]
+	For,
 	#[token("if")]
 	If,
+	#[token("in")]
+	In,
 	#[token("import")]
 	Import,
 	#[token("let")]
 	Let,
+	#[token("loop")]
+	Loop,
 	#[token("mod")]
 	Mod,
 	#[token("mut")]
 	Mut,
 	#[token("pub")]
 	Pub,
+	#[token("return")]
+	Return,
 	#[token("static")]
 	Static,
 	#[token("struct")]
@@ -209,7 +225,9 @@ impl Display for TokenKind {
 				TokenKind::Underscore => "_",
 				TokenKind::Arrow => "->",
 				TokenKind::FatArrow => "=>",
+				TokenKind::As => "as",
 				TokenKind::Const => "const",
+				TokenKind::Else => "else",
 				TokenKind::Enum => "enum",
 				TokenKind::Fn => "fn",
 				TokenKind::If => "if",
@@ -226,6 +244,12 @@ impl Display for TokenKind {
 				TokenKind::Where => "where",
 				TokenKind::While => "while",
 				TokenKind::Error => "<error>",
+				TokenKind::Break => "break",
+				TokenKind::Continue => "continue",
+				TokenKind::For => "for",
+				TokenKind::Loop => "loop",
+				TokenKind::Return => "return",
+				TokenKind::In => "in",
 			}
 		)
 	}

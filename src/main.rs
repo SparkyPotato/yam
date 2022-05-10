@@ -1,5 +1,5 @@
 use clap::Parser;
-use yamd::{ariadne::ReportKind, quick_diagnostic};
+use diag::{ariadne::ReportKind, quick_diagnostic};
 
 use crate::compile::CompileOptions;
 

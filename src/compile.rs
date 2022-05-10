@@ -1,11 +1,15 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use clap::clap_derive::Parser;
+use diag::{
+	ariadne::{Report, ReportKind},
+	emit_diagnostics,
+	quick_diagnostic,
+	FileCacheBuilder,
+	Span,
+};
 use lasso::Rodeo;
-use yamd::{ariadne::ReportKind, emit_diagnostics, FileCacheBuilder};
-use yamp::parse;
-
-use crate::quick_diagnostic;
+use parse::{ast::Module, parse};
 
 #[derive(Parser)]
 #[clap(author, version, about)]
@@ -16,22 +20,28 @@ pub struct CompileOptions {
 
 pub fn compile(opts: CompileOptions) {
 	let mut rodeo = Rodeo::new();
-
 	let mut cache = FileCacheBuilder::new();
 	let mut diagnostics = Vec::new();
 
-	let input = match std::fs::read_to_string(&opts.path) {
+	let module = match load_and_parse(&opts.path, &mut rodeo, &mut cache, &mut diagnostics) {
 		Ok(file) => file,
 		Err(err) => {
-			quick_diagnostic(ReportKind::Error, format!("File could not be found: {}", err));
+			quick_diagnostic(ReportKind::Error, format!("File could not be loaded: {}", err));
 			return;
 		},
 	};
-	let file = cache.add_file(&mut rodeo, &opts.path);
-	let module = parse(file, &input, &mut rodeo, &mut diagnostics);
-	cache.set_file(file, input);
-	println!("{:#?}", module);
+	mod_verify::verify(&module, &mut diagnostics);
 
 	let cache = cache.finish(&rodeo);
 	emit_diagnostics(&cache, diagnostics);
+}
+
+pub fn load_and_parse(
+	path: &Path, rodeo: &mut Rodeo, cache: &mut FileCacheBuilder, diags: &mut Vec<Report<Span>>,
+) -> Result<Module, std::io::Error> {
+	let input = std::fs::read_to_string(path)?;
+	let file = cache.add_file(rodeo, path);
+	let module = parse(file, &input, rodeo, diags);
+	cache.set_file(file, input);
+	Ok(module)
 }

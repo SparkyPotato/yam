@@ -1,5 +1,5 @@
+use diag::Span;
 use lasso::Spur;
-use yamd::Span;
 
 #[derive(Debug)]
 pub struct Module {
@@ -45,6 +45,7 @@ pub enum ExprKind {
 	Static(Let),
 	List(Vec<Expr>),
 	Array(Array),
+	Cast(Cast),
 	Type,
 	TypeOf(Box<Expr>),
 	Ptr(Ptr),
@@ -60,7 +61,6 @@ pub enum ExprKind {
 	Continue(Option<Box<Expr>>),
 	Return(Option<Box<Expr>>),
 	If(If),
-	Match(Match),
 	Loop(Loop),
 	While(While),
 	For(For),
@@ -94,6 +94,12 @@ pub struct Let {
 pub struct Array {
 	pub expr: Box<Expr>,
 	pub count: Box<Expr>,
+}
+
+#[derive(Debug, Clone)]
+pub struct Cast {
+	pub expr: Box<Expr>,
+	pub ty: Box<Expr>,
 }
 
 #[derive(Debug, Clone)]
@@ -239,7 +245,7 @@ pub struct Binary {
 #[derive(Debug, Clone)]
 pub struct If {
 	pub cond: Box<Expr>,
-	pub then: Box<Expr>,
+	pub then: Block,
 	pub else_: Option<Box<Expr>>,
 }
 
@@ -270,7 +276,7 @@ pub struct While {
 #[derive(Debug, Clone)]
 pub struct For {
 	pub pat: Pat,
-	pub expr: Box<Expr>,
+	pub iter: Box<Expr>,
 	pub block: Block,
 }
 

@@ -6,7 +6,7 @@ use std::{
 };
 
 pub use ariadne;
-use ariadne::{Cache, Report, ReportKind, Source};
+use ariadne::{Cache, Report, ReportBuilder, ReportKind, Source};
 use lasso::{Rodeo, Spur};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -63,6 +63,10 @@ impl chumsky::Span for Span {
 	fn start(&self) -> Self::Offset { self.start }
 
 	fn end(&self) -> Self::Offset { self.end }
+}
+
+impl Span {
+	pub fn report(self, kind: ReportKind) -> ReportBuilder<Self> { Report::build(kind, self.file, self.start as _) }
 }
 
 pub struct FileCacheBuilder {

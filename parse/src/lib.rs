@@ -1,11 +1,11 @@
 use std::cell::RefCell;
 
 use chumsky::{error::SimpleReason, prelude::*, Parser as CParser, Stream};
-use lasso::{Rodeo, Spur};
-use yamd::{
+use diag::{
 	ariadne::{Label, Report, ReportKind},
 	Span,
 };
+use lasso::{Rodeo, Spur};
 
 use crate::{
 	ast::{
@@ -18,16 +18,20 @@ use crate::{
 		Block,
 		Call,
 		CallArg,
+		Cast,
 		Expr,
 		ExprKind,
 		Fn,
+		For,
 		Ident,
+		If,
 		Import,
 		ImportTree,
 		Index,
 		Let,
 		Lit,
 		LitKind,
+		Loop,
 		Module,
 		Pat,
 		PatKind,
@@ -39,6 +43,7 @@ use crate::{
 		Unary,
 		Visibility,
 		WhereClause,
+		While,
 	},
 	token::{Delim, TokenKind},
 };
@@ -62,7 +67,7 @@ pub fn parse(file: Spur, input: &str, rodeo: &mut Rodeo, diagnostics: &mut Vec<R
 	));
 
 	for error in errors {
-		let mut builder = Report::build(ReportKind::Error, file, error.span().start as _);
+		let mut builder = error.span().report(ReportKind::Error);
 
 		let mut label = Label::new(error.span());
 		match error.reason() {
@@ -313,7 +318,8 @@ impl<'a> Parser<'a> {
 				PatKind::Binding(binding) => {
 					if binding.mutability {
 						diagnostics.push(
-							Report::build(ReportKind::Warning, pat.span.file, pat.span.start as _)
+							pat.span
+								.report(ReportKind::Warning)
 								.with_message("mutable pattern in `var` declaration")
 								.with_label(Label::new(pat.span).with_message("`var`s are already mutable"))
 								.finish(),
@@ -476,6 +482,43 @@ impl<'a> Parser<'a> {
 			.debug("<fn>")
 			.boxed();
 
+		let if_ = just(TokenKind::If)
+			.ignore_then(expr.clone())
+			.then(block.clone())
+			.then(just(TokenKind::Else).ignore_then(expr.clone()).or_not())
+			.map(|((cond, then), else_)| If {
+				cond: Box::new(cond),
+				then,
+				else_: else_.map(|else_| Box::new(else_)),
+			});
+
+		let loop_ = just(TokenKind::Loop)
+			.ignore_then(block.clone())
+			.then(just(TokenKind::While).ignore_then(expr.clone()).or_not())
+			.map(|(block, while_)| Loop {
+				block,
+				while_: while_.map(|while_| Box::new(while_)),
+			});
+
+		let while_ = just(TokenKind::While)
+			.ignore_then(expr.clone())
+			.then(block.clone())
+			.map(|(cond, block)| While {
+				cond: Box::new(cond),
+				block,
+			});
+
+		let for_ = just(TokenKind::For)
+			.ignore_then(pat.clone())
+			.then_ignore(just(TokenKind::In))
+			.then(expr.clone())
+			.then(block.clone())
+			.map(|((pat, iter), block)| For {
+				pat,
+				iter: Box::new(iter),
+				block,
+			});
+
 		let atom = choice((
 			block.clone().map(ExprKind::Block),
 			lit.map(ExprKind::Lit),
@@ -501,6 +544,19 @@ impl<'a> Parser<'a> {
 				}),
 			struct_ty.map(ExprKind::Struct),
 			lambda.map(ExprKind::Fn),
+			just(TokenKind::Break)
+				.ignore_then(expr.clone().or_not())
+				.map(|expr| ExprKind::Break(expr.map(|expr| Box::new(expr)))),
+			just(TokenKind::Continue)
+				.ignore_then(expr.clone().or_not())
+				.map(|expr| ExprKind::Continue(expr.map(|expr| Box::new(expr)))),
+			just(TokenKind::Return)
+				.ignore_then(expr.clone().or_not())
+				.map(|expr| ExprKind::Return(expr.map(|expr| Box::new(expr)))),
+			if_.map(ExprKind::If),
+			loop_.map(ExprKind::Loop),
+			while_.map(ExprKind::While),
+			for_.map(ExprKind::For),
 		))
 		.map_with_span(|node, span| Expr { node, span })
 		.or(expr.clone().delimited_by(
@@ -673,8 +729,23 @@ impl<'a> Parser<'a> {
 				.boxed()
 		}
 
+		let cast = unary
+			.clone()
+			.then(just(TokenKind::As).ignore_then(unary).repeated())
+			.foldl(|expr, ty| {
+				let span = expr.span + ty.span;
+				Expr {
+					node: ExprKind::Cast(Cast {
+						expr: Box::new(expr),
+						ty: Box::new(ty),
+					}),
+					span,
+				}
+			})
+			.boxed();
+
 		let product = binary(
-			unary,
+			cast,
 			select! {
 				TokenKind::Mul => BinOp::Mul,
 				TokenKind::Div => BinOp::Div,
