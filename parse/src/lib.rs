@@ -5,7 +5,7 @@ use diag::{
 	ariadne::{Label, Report, ReportKind},
 	Span,
 };
-use lasso::{Rodeo, Spur};
+pub use lasso::{Rodeo, Spur};
 
 use crate::{
 	ast::{
@@ -17,7 +17,6 @@ use crate::{
 		Binding,
 		Block,
 		Call,
-		CallArg,
 		Cast,
 		Expr,
 		ExprKind,
@@ -28,6 +27,8 @@ use crate::{
 		Import,
 		ImportTree,
 		Index,
+		Item,
+		ItemKind,
 		Let,
 		Lit,
 		LitKind,
@@ -42,7 +43,6 @@ use crate::{
 		UnOp,
 		Unary,
 		Visibility,
-		WhereClause,
 		While,
 	},
 	token::{Delim, TokenKind},
@@ -115,7 +115,7 @@ pub fn parse(file: Spur, input: &str, rodeo: &mut Rodeo, diagnostics: &mut Vec<R
 		diagnostics.push(builder.finish());
 	}
 
-	module.unwrap_or_else(|| Module { stmts: Vec::new() })
+	module.unwrap_or_else(|| Module { items: Vec::new() })
 }
 
 struct Lexer<'a> {
@@ -165,12 +165,12 @@ impl<'a> Parser<'a> {
 		let sym = just(TokenKind::Ident)
 			.map_with_span(|_, span| Self::intern(this, span))
 			.debug("<ident>")
-			.boxed();
+			.labelled("<ident>");
 		let ident = sym
 			.clone()
 			.map_with_span(|spur, span| Ident { node: spur, span })
 			.debug("<ident>")
-			.boxed();
+			.labelled("<ident>");
 
 		let binding = just(TokenKind::Mut)
 			.or_not()
@@ -180,77 +180,20 @@ impl<'a> Parser<'a> {
 				binding,
 			})
 			.debug("<binding>")
-			.boxed();
-		let pat = recursive(|pat| {
-			choice((
-				binding.map(PatKind::Binding),
-				just(TokenKind::Underscore).map(|_| PatKind::Ignore),
-				just(TokenKind::DotDot).map(|_| PatKind::IgnoreAll),
-				just(TokenKind::Dot)
-					.ignore_then(pat)
-					.map(|pat| PatKind::Scoped(Box::new(pat))),
-			))
-			.map_with_span(|node, span| Pat { node, span })
-			.separated_by(just(TokenKind::BitOr))
-			.at_least(1)
-			.map_with_span(|pats, span| {
-				if pats.len() > 1 {
-					Pat {
-						node: PatKind::Union(pats),
-						span,
-					}
-				} else {
-					pats.into_iter().next().unwrap()
-				}
+			.labelled("<binding>");
+		let pat = binding
+			.map_with_span(|binding, span| Pat {
+				node: PatKind::Binding(binding),
+				span,
 			})
 			.debug("<pat>")
-		});
-
-		let visibility = just(TokenKind::Pub)
-			.or_not()
-			.map(|vis| {
-				if vis.is_some() {
-					Visibility::Public
-				} else {
-					Visibility::Private
-				}
-			})
-			.debug("<vis>")
-			.boxed();
+			.labelled("<pat>");
 
 		let mut item = Recursive::declare();
 		let mut expr = Recursive::declare();
 
-		let import = recursive(|import| {
-			ident
-				.clone()
-				.separated_by(just(TokenKind::Dot))
-				.then(
-					just(TokenKind::Dot)
-						.ignore_then(choice((
-							just(TokenKind::Mul).to(ImportTree::Wildcard),
-							import
-								.separated_by(just(TokenKind::Comma))
-								.allow_trailing()
-								.delimited_by(
-									just(TokenKind::LDelim(Delim::Brace)),
-									just(TokenKind::RDelim(Delim::Brace)),
-								)
-								.map(|imports| ImportTree::List(imports)),
-						)))
-						.or_not(),
-				)
-				.then_ignore(just(TokenKind::Semi).or_not())
-				.map(|(prefix, tree)| Import {
-					prefix,
-					tree: tree.unwrap_or(ImportTree::None),
-				})
-		})
-		.debug("<import>");
-
 		let stmt = choice((
-			just(TokenKind::Import).ignore_then(import).map(StmtKind::Import),
-			item.clone().map(|item: Expr| StmtKind::Semi(item.node)),
+			item.clone().map(|item: Item| StmtKind::Item(item.kind)),
 			expr.clone()
 				.then(just(TokenKind::Semi).or_not())
 				.map(|(expr, semi): (Expr, _)| {
@@ -263,6 +206,7 @@ impl<'a> Parser<'a> {
 		))
 		.map_with_span(|node, span| Stmt { node, span })
 		.debug("<stmt>")
+		.labelled("<stmt>")
 		.boxed();
 
 		let block = just(TokenKind::Const)
@@ -277,6 +221,7 @@ impl<'a> Parser<'a> {
 				span,
 			})
 			.debug("<block>")
+			.labelled("<block>")
 			.boxed();
 
 		let lit = select! {
@@ -291,6 +236,7 @@ impl<'a> Parser<'a> {
 			sym: Self::intern(this, span),
 		})
 		.debug("<lit>")
+		.labelled("<lit>")
 		.boxed();
 
 		let let_ = pat
@@ -299,20 +245,9 @@ impl<'a> Parser<'a> {
 			.then(just(TokenKind::Assign).ignore_then(expr.clone()).or_not())
 			.map(|((pat, ty), expr)| (pat, ty.map(|ty| Box::new(ty)), expr.map(|expr| Box::new(expr))))
 			.debug("<let>")
+			.labelled("<let>")
 			.boxed();
 
-		let const_ = visibility
-			.clone()
-			.then_ignore(just(TokenKind::Const))
-			.then(let_.clone())
-			.map(|(visibility, (pat, ty, expr))| Let {
-				visibility,
-				pat,
-				ty,
-				expr,
-			})
-			.debug("<const>")
-			.boxed();
 		fn make_pat_mutable(pat: &mut Pat, diagnostics: &mut Vec<Report<Span>>) {
 			match &mut pat.node {
 				PatKind::Binding(binding) => {
@@ -327,62 +262,44 @@ impl<'a> Parser<'a> {
 					}
 					binding.mutability = true;
 				},
-				PatKind::Union(pats) => {
-					for pat in pats {
-						make_pat_mutable(pat, diagnostics);
-					}
-				},
-				PatKind::Scoped(pat) => {
-					make_pat_mutable(pat, diagnostics);
-				},
-				_ => {},
 			}
 		}
-		let var = visibility
-			.clone()
-			.then_ignore(just(TokenKind::Var))
-			.then(let_.clone())
-			.map(|(visibility, (mut pat, ty, expr))| {
+
+		let const_ = just(TokenKind::Const)
+			.ignore_then(let_.clone())
+			.map(|(pat, ty, expr)| ItemKind::Const(Let { pat, ty, expr }))
+			.debug("<const>")
+			.labelled("<const>")
+			.boxed();
+
+		let static_ = just(TokenKind::Static)
+			.ignore_then(let_.clone())
+			.map(|(pat, ty, expr)| ItemKind::Static(Let { pat, ty, expr }))
+			.debug("<static>")
+			.labelled("<static>")
+			.boxed();
+		let var = just(TokenKind::Var)
+			.ignore_then(let_.clone())
+			.map(|(mut pat, ty, expr)| {
 				let mut this = this.borrow_mut();
 				make_pat_mutable(&mut pat, &mut this.diagnostics);
-				Let {
-					visibility,
-					pat,
-					ty,
-					expr,
-				}
+				Let { pat, ty, expr }
 			})
 			.debug("<var>")
+			.labelled("<var>")
 			.boxed();
-		let static_ = visibility
-			.clone()
-			.then_ignore(just(TokenKind::Static))
-			.then(let_.clone())
-			.map(|(visibility, (pat, ty, expr))| Let {
-				visibility,
-				pat,
-				ty,
-				expr,
-			})
-			.debug("<static>")
-			.boxed();
-		let let_ = visibility
-			.clone()
-			.then_ignore(just(TokenKind::Let))
-			.then(let_)
-			.map(|(visibility, (pat, ty, expr))| Let {
-				visibility,
-				pat,
-				ty,
-				expr,
-			})
+		let let_ = just(TokenKind::Let)
+			.ignore_then(let_)
+			.map(|(pat, ty, expr)| Let { pat, ty, expr })
 			.debug("<let>")
+			.labelled("<let>")
 			.boxed();
 
 		let list = just(TokenKind::LDelim(Delim::Bracket))
 			.ignore_then(expr.clone().separated_by(just(TokenKind::Comma)).allow_trailing())
 			.then_ignore(just(TokenKind::RDelim(Delim::Bracket)))
 			.debug("<list>")
+			.labelled("<list>")
 			.boxed();
 
 		let array = just(TokenKind::LDelim(Delim::Bracket))
@@ -395,21 +312,35 @@ impl<'a> Parser<'a> {
 				count: Box::new(count),
 			})
 			.debug("<array>")
+			.labelled("<array>")
 			.boxed();
+
+		let visibility = just(TokenKind::Pub)
+			.or_not()
+			.map(|vis| {
+				if vis.is_some() {
+					Visibility::Public
+				} else {
+					Visibility::Private
+				}
+			})
+			.debug("<vis>")
+			.labelled("<vis>");
 
 		let arg = visibility
 			.clone()
 			.then(just(TokenKind::Const).or_not())
 			.then(pat.clone())
-			.then(just(TokenKind::Colon).ignore_then(expr.clone()).or_not())
-			.map_with_span(|(((visibility, constness), pat), bounds), span| Arg {
+			.then(just(TokenKind::Colon).ignore_then(expr.clone()))
+			.map_with_span(|(((visibility, constness), pat), ty), span| Arg {
 				visibility,
 				is_const: constness.is_some(),
 				pat,
-				bounds,
+				ty,
 				span,
 			})
 			.debug("<arg>")
+			.labelled("<arg>")
 			.boxed();
 		let fields = arg
 			.clone()
@@ -420,6 +351,7 @@ impl<'a> Parser<'a> {
 				just(TokenKind::RDelim(Delim::Brace)),
 			)
 			.debug("<fields>")
+			.labelled("<fields>")
 			.boxed();
 		let args = arg
 			.clone()
@@ -430,56 +362,20 @@ impl<'a> Parser<'a> {
 				just(TokenKind::RDelim(Delim::Paren)),
 			)
 			.debug("<args>")
-			.boxed();
-		let where_clause = just(TokenKind::Where)
-			.ignore_then(
-				expr.clone()
-					.then_ignore(just(TokenKind::Colon))
-					.then(expr.clone().or_not())
-					.map_with_span(|(on, bounds), span| WhereClause { on, bounds, span })
-					.separated_by(just(TokenKind::Comma))
-					.allow_trailing(),
-			)
-			.or_not()
-			.map(|w| w.unwrap_or(Vec::new()))
-			.debug("<where>")
-			.boxed();
-
-		let struct_ty = just(TokenKind::Struct)
-			.ignore_then(args.clone().or_not())
-			.then(where_clause.clone())
-			.then(fields.clone())
-			.map(|((generics, where_clause), fields)| Struct {
-				generics: generics.unwrap_or(Vec::new()),
-				where_clause,
-				fields,
-			})
-			.debug("<struct>")
+			.labelled("<args>")
 			.boxed();
 
 		let lambda = just(TokenKind::Fn)
 			.ignore_then(args.clone())
-			.then(args.clone().or_not())
 			.then(just(TokenKind::Arrow).ignore_then(expr.clone()).or_not())
-			.then(where_clause.clone())
 			.then(block.clone())
-			.map(|((((generics, args), ret), where_clause), block)| match args {
-				Some(args) => Fn {
-					generics,
-					args,
-					ret: ret.map(|ret| Box::new(ret)),
-					where_clause,
-					block,
-				},
-				None => Fn {
-					generics: Vec::new(),
-					args: generics,
-					ret: ret.map(|ret| Box::new(ret)),
-					where_clause,
-					block,
-				},
+			.map(|((args, ret), block)| Fn {
+				args,
+				block,
+				ret: ret.map(|ret| Box::new(ret)),
 			})
 			.debug("<fn>")
+			.labelled("<fn>")
 			.boxed();
 
 		let if_ = just(TokenKind::If)
@@ -519,15 +415,43 @@ impl<'a> Parser<'a> {
 				block,
 			});
 
+		let ptr = just(TokenKind::Mul)
+			.ignore_then(
+				select! {
+					TokenKind::Const => false,
+					TokenKind::Mut => true,
+				}
+				.or_not(),
+			)
+			.then(expr.clone())
+			.map(|(mutability, to)| match mutability {
+				Some(mutability) => ExprKind::Ptr(Ptr {
+					mutability,
+					to: Box::new(to),
+				}),
+				None => ExprKind::Unary(Unary {
+					op: UnOp::Deref,
+					expr: Box::new(to),
+				}),
+			})
+			.debug("<ptr>")
+			.labelled("<ptr>")
+			.boxed();
+
 		let atom = choice((
+			expr.clone()
+				.delimited_by(
+					just(TokenKind::LDelim(Delim::Paren)),
+					just(TokenKind::RDelim(Delim::Paren)),
+				)
+				.map(|expr| expr.node),
+			ptr,
 			block.clone().map(ExprKind::Block),
 			lit.map(ExprKind::Lit),
 			sym.clone().map(ExprKind::Ident),
 			just(TokenKind::At).ignore_then(sym.clone()).map(ExprKind::MacroRef),
-			const_.map(ExprKind::Const),
 			let_.map(ExprKind::Let),
 			var.map(ExprKind::Let),
-			static_.map(ExprKind::Static),
 			list.map(ExprKind::List).or(array.map(ExprKind::Array)),
 			just(TokenKind::Type)
 				.ignore_then(
@@ -542,7 +466,6 @@ impl<'a> Parser<'a> {
 					Some(of) => ExprKind::TypeOf(Box::new(of)),
 					None => ExprKind::Type,
 				}),
-			struct_ty.map(ExprKind::Struct),
 			lambda.map(ExprKind::Fn),
 			just(TokenKind::Break)
 				.ignore_then(expr.clone().or_not())
@@ -571,7 +494,7 @@ impl<'a> Parser<'a> {
 				(TokenKind::LDelim(Delim::Bracket), TokenKind::RDelim(Delim::Bracket)),
 			],
 			|span| Expr {
-				node: ExprKind::Error,
+				node: ExprKind::Err,
 				span,
 			},
 		))
@@ -583,7 +506,7 @@ impl<'a> Parser<'a> {
 				(TokenKind::LDelim(Delim::Bracket), TokenKind::RDelim(Delim::Bracket)),
 			],
 			|span| Expr {
-				node: ExprKind::Error,
+				node: ExprKind::Err,
 				span,
 			},
 		))
@@ -595,53 +518,22 @@ impl<'a> Parser<'a> {
 				(TokenKind::LDelim(Delim::Brace), TokenKind::RDelim(Delim::Brace)),
 			],
 			|span| Expr {
-				node: ExprKind::Error,
+				node: ExprKind::Err,
 				span,
 			},
 		))
 		.debug("<atom>")
+		.labelled("<atom>")
 		.boxed();
 
-		let ptr = just(TokenKind::Mul)
-			.ignore_then(select! {
-				TokenKind::Const => false,
-				TokenKind::Mut => true,
-			})
-			.or_not()
-			.then(atom)
-			.map_with_span(|(mutability, to), span| match mutability {
-				Some(mutability) => Expr {
-					node: ExprKind::Ptr(Ptr {
-						mutability,
-						to: Box::new(to),
-					}),
-					span,
-				},
-				None => to,
-			})
-			.debug("<ptr>")
-			.boxed();
-
 		enum CallIndexAccess {
-			Call(Vec<CallArg>),
+			Call(Vec<Expr>),
 			Index(Expr),
 			Access(Ident),
 		}
-		let call = ptr
+		let call = atom
 			.then(
-				pat.clone()
-					.then_ignore(just(TokenKind::Colon))
-					.then(expr.clone())
-					.map_with_span(|(pat, expr), span| CallArg {
-						pat: Some(pat),
-						expr,
-						span,
-					})
-					.or(expr.clone().map(|expr| CallArg {
-						pat: None,
-						span: expr.span,
-						expr,
-					}))
+				expr.clone()
 					.separated_by(just(TokenKind::Comma))
 					.allow_trailing()
 					.delimited_by(
@@ -682,6 +574,7 @@ impl<'a> Parser<'a> {
 				}
 			})
 			.debug("<call>")
+			.labelled("<call>")
 			.boxed();
 
 		let unary = select! {
@@ -689,7 +582,6 @@ impl<'a> Parser<'a> {
 			TokenKind::Minus => UnOp::Neg,
 			TokenKind::BitAnd => UnOp::Addr,
 			TokenKind::And => UnOp::DoubleAddr,
-			TokenKind::Mul => UnOp::Deref,
 		}
 		.or(just([TokenKind::BitAnd, TokenKind::Mut]).to(UnOp::AddrMut))
 		.or(just([TokenKind::And, TokenKind::Mut]).to(UnOp::DoubleAddrMut))
@@ -707,6 +599,7 @@ impl<'a> Parser<'a> {
 			}
 		})
 		.debug("<unary>")
+		.labelled("<unary>")
 		.boxed();
 
 		fn binary<'a>(
@@ -806,109 +699,73 @@ impl<'a> Parser<'a> {
 			},
 		);
 
-		expr.define(assign.debug("<expr>"));
+		expr.define(assign.debug("<expr>").labelled("<expr>"));
+
+		let import = just(TokenKind::Import)
+			.ignore_then(recursive(|import| {
+				ident
+					.clone()
+					.separated_by(just(TokenKind::Dot))
+					.then(
+						just(TokenKind::Dot)
+							.ignore_then(choice((
+								just(TokenKind::Mul).to(ImportTree::Wildcard),
+								import
+									.separated_by(just(TokenKind::Comma))
+									.allow_trailing()
+									.delimited_by(
+										just(TokenKind::LDelim(Delim::Brace)),
+										just(TokenKind::RDelim(Delim::Brace)),
+									)
+									.map(|imports| ImportTree::List(imports)),
+							)))
+							.or_not(),
+					)
+					.then_ignore(just(TokenKind::Semi).or_not())
+					.map(|(prefix, tree)| Import {
+						prefix,
+						tree: tree.unwrap_or(ImportTree::None),
+					})
+			}))
+			.map(|import| ItemKind::Import(import))
+			.debug("<import>")
+			.labelled("<import>");
 
 		let function_item = just(TokenKind::Fn)
 			.ignore_then(ident.clone())
 			.then(args.clone())
-			.then(args.clone().or_not())
 			.then(just(TokenKind::Arrow).ignore_then(expr.clone()).or_not())
-			.then(where_clause.clone())
 			.then(block.clone())
-			.map(|(((((ident, generics), args), ret), where_clause), block)| {
-				(
+			.map(|(((ident, args), ret), block)| {
+				ItemKind::Fn(
 					ident,
-					ExprKind::Fn(match args {
-						Some(args) => Fn {
-							generics,
-							args,
-							ret: ret.map(|ret| Box::new(ret)),
-							where_clause,
-							block,
-						},
-						None => Fn {
-							generics: Vec::new(),
-							args: generics,
-							ret: ret.map(|ret| Box::new(ret)),
-							where_clause,
-							block,
-						},
-					}),
+					Fn {
+						args,
+						ret: ret.map(|ret| Box::new(ret)),
+						block,
+					},
 				)
 			})
 			.debug("<fn>")
+			.labelled("<fn>")
 			.boxed();
 
 		let struct_item = just(TokenKind::Struct)
 			.ignore_then(ident.clone())
-			.then(args.clone().or_not())
-			.then(where_clause.clone())
 			.then(fields)
-			.map(|(((ident, generics), where_clause), fields)| {
-				(
-					ident,
-					ExprKind::Struct(Struct {
-						generics: generics.unwrap_or(Vec::new()),
-						where_clause,
-						fields,
-					}),
-				)
-			})
+			.map(|(ident, fields)| ItemKind::Struct(ident, Struct { fields }))
 			.debug("<struct>")
-			.boxed();
-
-		let mod_item = just(TokenKind::Mod)
-			.ignore_then(ident.clone())
-			.then_ignore(just(TokenKind::Semi))
-			.map(|ident| {
-				(ident, {
-					let mut this = this.borrow_mut();
-					ExprKind::Call(Call {
-						target: Box::new(Expr {
-							node: ExprKind::MacroRef(this.rodeo.get_or_intern("import")),
-							span: ident.span,
-						}),
-						args: vec![CallArg {
-							pat: None,
-							expr: Expr {
-								node: ExprKind::Lit(Lit {
-									kind: LitKind::String,
-									sym: {
-										let val = format!("{}.yam", this.rodeo.resolve(&ident.node));
-										this.rodeo.get_or_intern(val)
-									},
-								}),
-								span: ident.span,
-							},
-							span: ident.span,
-						}],
-					})
-				})
-			})
-			.debug("<mod>")
+			.labelled("<struct>")
 			.boxed();
 
 		item.define(
 			visibility
-				.then(choice((function_item, struct_item, mod_item)))
-				.map_with_span(|(visibility, (ident, kind)), span| Expr {
-					node: ExprKind::Const(Let {
-						visibility,
-						pat: Pat {
-							node: PatKind::Binding(Binding {
-								mutability: false,
-								binding: ident.node,
-							}),
-							span: ident.span,
-						},
-						ty: None,
-						expr: Some(Box::new(Expr { node: kind, span })),
-					}),
-					span,
-				})
-				.debug("<item>"),
+				.then(choice((const_, static_, function_item, struct_item, import)))
+				.map_with_span(|(visibility, kind), span| Item { visibility, kind, span })
+				.debug("<item>")
+				.labelled("<item>"),
 		);
 
-		stmt.repeated().map(|stmts| Module { stmts }).then_ignore(end())
+		item.repeated().map(|items| Module { items }).then_ignore(end())
 	}
 }

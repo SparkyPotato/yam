@@ -3,7 +3,7 @@ use lasso::Spur;
 
 #[derive(Debug)]
 pub struct Module {
-	pub stmts: Vec<Stmt>,
+	pub items: Vec<Item>,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -19,16 +19,12 @@ pub enum Visibility {
 }
 
 pub type Pat = Spanned<PatKind>;
-#[derive(Debug, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub enum PatKind {
 	Binding(Binding),
-	Scoped(Box<Pat>),
-	Union(Vec<Pat>),
-	Ignore,
-	IgnoreAll,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct Binding {
 	pub mutability: bool,
 	pub binding: Spur,
@@ -40,16 +36,13 @@ pub enum ExprKind {
 	Lit(Lit),
 	Block(Block),
 	Ident(Spur),
-	Const(Let),
 	Let(Let),
-	Static(Let),
 	List(Vec<Expr>),
 	Array(Array),
 	Cast(Cast),
 	Type,
 	TypeOf(Box<Expr>),
 	Ptr(Ptr),
-	Struct(Struct),
 	Fn(Fn),
 	MacroRef(Spur),
 	Call(Call),
@@ -64,16 +57,16 @@ pub enum ExprKind {
 	Loop(Loop),
 	While(While),
 	For(For),
-	Error,
+	Err,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct Lit {
 	pub kind: LitKind,
 	pub sym: Spur,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub enum LitKind {
 	Bool,
 	Char,
@@ -84,7 +77,6 @@ pub enum LitKind {
 
 #[derive(Debug, Clone)]
 pub struct Let {
-	pub visibility: Visibility,
 	pub pat: Pat,
 	pub ty: Option<Box<Expr>>,
 	pub expr: Option<Box<Expr>>,
@@ -110,36 +102,13 @@ pub struct Ptr {
 
 #[derive(Debug, Clone)]
 pub struct Struct {
-	pub generics: Vec<Arg>,
-	pub where_clause: Vec<WhereClause>,
 	pub fields: Vec<Arg>,
 }
 
 #[derive(Debug, Clone)]
-pub struct Enum {
-	pub generics: Vec<Arg>,
-	pub where_clause: Vec<WhereClause>,
-	pub variants: Vec<Variant>,
-}
-
-#[derive(Debug, Clone)]
-pub struct Variant {
-	pub ident: Ident,
-	pub fields: Vec<Field>,
-}
-
-#[derive(Debug, Clone)]
-pub struct Field {
-	pub pat: Option<Pat>,
-	pub ty: Expr,
-}
-
-#[derive(Debug, Clone)]
 pub struct Fn {
-	pub generics: Vec<Arg>,
 	pub args: Vec<Arg>,
 	pub ret: Option<Box<Expr>>,
-	pub where_clause: Vec<WhereClause>,
 	pub block: Block,
 }
 
@@ -148,28 +117,14 @@ pub struct Arg {
 	pub visibility: Visibility,
 	pub is_const: bool,
 	pub pat: Pat,
-	pub bounds: Option<Expr>,
-	pub span: Span,
-}
-
-#[derive(Debug, Clone)]
-pub struct WhereClause {
-	pub on: Expr,
-	pub bounds: Option<Expr>,
+	pub ty: Expr,
 	pub span: Span,
 }
 
 #[derive(Debug, Clone)]
 pub struct Call {
 	pub target: Box<Expr>,
-	pub args: Vec<CallArg>,
-}
-
-#[derive(Debug, Clone)]
-pub struct CallArg {
-	pub pat: Option<Pat>,
-	pub expr: Expr,
-	pub span: Span,
+	pub args: Vec<Expr>,
 }
 
 #[derive(Debug, Clone)]
@@ -250,18 +205,6 @@ pub struct If {
 }
 
 #[derive(Debug, Clone)]
-pub struct Match {
-	pub expr: Box<Expr>,
-	pub arms: Vec<MatchArm>,
-}
-
-#[derive(Debug, Clone)]
-pub struct MatchArm {
-	pub pat: Pat,
-	pub expr: Expr,
-}
-
-#[derive(Debug, Clone)]
 pub struct Loop {
 	pub block: Block,
 	pub while_: Option<Box<Expr>>,
@@ -283,7 +226,7 @@ pub struct For {
 pub type Stmt = Spanned<StmtKind>;
 #[derive(Debug, Clone)]
 pub enum StmtKind {
-	Import(Import),
+	Item(ItemKind),
 	Expr(ExprKind),
 	Semi(ExprKind),
 	Err,
@@ -300,6 +243,22 @@ pub enum ImportTree {
 	None,
 	Wildcard,
 	List(Vec<Import>),
+}
+
+#[derive(Debug, Clone)]
+pub struct Item {
+	pub visibility: Visibility,
+	pub kind: ItemKind,
+	pub span: Span,
+}
+
+#[derive(Debug, Clone)]
+pub enum ItemKind {
+	Import(Import),
+	Fn(Ident, Fn),
+	Struct(Ident, Struct),
+	Static(Let),
+	Const(Let),
 }
 
 #[derive(Debug, Clone)]

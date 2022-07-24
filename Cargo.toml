@@ -5,15 +5,20 @@ edition = "2021"
 
 [dependencies]
 diag = { path = "diag" }
-mod_verify = { path = "mod_verify" }
+name_resolve = { path = "name_resolve" }
 parse = { path = "parse" }
 
 clap = { version = "3.1", features = ["derive"] }
-lasso = { version = "0.6", features = ["ahash"] }
 
 [workspace]
 members = [
     "diag",
-    "mod_verify",
+    "name_resolve",
     "parse",
 ]
+
+[profile.release]
+debug = true
+
+[profile.dev.package.parse]
+opt-level = 3

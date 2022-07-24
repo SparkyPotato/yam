@@ -8,8 +8,8 @@ use diag::{
 	FileCacheBuilder,
 	Span,
 };
-use lasso::Rodeo;
-use parse::{ast::Module, parse};
+use name_resolve::resolve;
+use parse::{ast::Module, parse, Rodeo};
 
 #[derive(Parser)]
 #[clap(author, version, about)]
@@ -30,7 +30,9 @@ pub fn compile(opts: CompileOptions) {
 			return;
 		},
 	};
-	mod_verify::verify(&module, &mut diagnostics);
+
+	let ctx = resolve(module, &mut rodeo, &mut diagnostics);
+	println!("{:#?}", ctx);
 
 	let cache = cache.finish(&rodeo);
 	emit_diagnostics(&cache, diagnostics);
