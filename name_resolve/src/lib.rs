@@ -4,6 +4,7 @@ use diag::{
 	ariadne::{Label, Report, ReportKind},
 	Span,
 };
+pub use parse::Rodeo;
 use parse::{
 	ast::{
 		Block,
@@ -21,7 +22,6 @@ use parse::{
 		Struct,
 		Visibility,
 	},
-	Rodeo,
 	Spur,
 };
 
@@ -123,7 +123,8 @@ pub fn resolve(module: Module, rodeo: &mut Rodeo, diagnostics: &mut Vec<Report<S
 	};
 
 	let ty = types;
-	let mut types = resolver.init_inbuilt_types(ty.len() as _);
+	let mut inbuilt_types = HashMap::new();
+	let mut types = resolver.init_inbuilt_types(ty.len() as _, &mut inbuilt_types);
 	types.extend(ty.into_iter().enumerate().map(|(i, x)| match x.kind {
 		ItemKind::Struct(ident, s) => (TyRef(i as _), Ty::Struct(resolver.resolve_struct(ident, s, x.span))),
 		_ => unreachable!("found value in type item list"),
@@ -140,7 +141,11 @@ pub fn resolve(module: Module, rodeo: &mut Rodeo, diagnostics: &mut Vec<Report<S
 		})
 		.collect();
 
-	Ctx { types, globals }
+	Ctx {
+		types,
+		globals,
+		inbuilt_types,
+	}
 }
 
 struct Resolver<'a> {
@@ -151,7 +156,7 @@ struct Resolver<'a> {
 }
 
 impl Resolver<'_> {
-	fn init_inbuilt_types(&mut self, start: u32) -> HashMap<TyRef, Ty> {
+	fn init_inbuilt_types(&mut self, start: u32, reverse_map: &mut HashMap<InbuiltType, TyRef>) -> HashMap<TyRef, Ty> {
 		let span = Span {
 			start: 0,
 			end: 0,
@@ -160,23 +165,26 @@ impl Resolver<'_> {
 
 		(start..)
 			.zip([
-				("bool", Ty::Inbuilt(InbuiltType::Bool)),
-				("f32", Ty::Inbuilt(InbuiltType::Float(32))),
-				("f64", Ty::Inbuilt(InbuiltType::Float(64))),
-				("i8", Ty::Inbuilt(InbuiltType::Int(8))),
-				("i16", Ty::Inbuilt(InbuiltType::Int(16))),
-				("i32", Ty::Inbuilt(InbuiltType::Int(32))),
-				("i64", Ty::Inbuilt(InbuiltType::Int(64))),
-				("u8", Ty::Inbuilt(InbuiltType::Uint(8))),
-				("u16", Ty::Inbuilt(InbuiltType::Uint(16))),
-				("u32", Ty::Inbuilt(InbuiltType::Uint(32))),
-				("u64", Ty::Inbuilt(InbuiltType::Uint(64))),
+				("bool", InbuiltType::Bool),
+				("f32", InbuiltType::Float(32)),
+				("f64", InbuiltType::Float(64)),
+				("i8", InbuiltType::Int(8)),
+				("i16", InbuiltType::Int(16)),
+				("i32", InbuiltType::Int(32)),
+				("i64", InbuiltType::Int(64)),
+				("isize", InbuiltType::Int(0)),
+				("u8", InbuiltType::Uint(8)),
+				("u16", InbuiltType::Uint(16)),
+				("u32", InbuiltType::Uint(32)),
+				("u64", InbuiltType::Uint(64)),
+				("usize", InbuiltType::Uint(0)),
 			])
 			.map(|(i, (name, ty))| {
 				self.items
 					.insert(self.rodeo.get_or_intern(name), (span, Ref::Ty(TyRef(i))));
+				reverse_map.insert(ty, TyRef(i));
 
-				(TyRef(i), ty)
+				(TyRef(i), Ty::Inbuilt(ty))
 			})
 			.collect()
 	}

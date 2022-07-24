@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use diag::Span;
-use parse::{
+pub use parse::{
 	ast::{BinOp, Ident, Spanned, UnOp, Visibility},
 	Spur,
 };
@@ -19,6 +19,7 @@ pub type Path = Vec<Ident>;
 pub struct Ctx {
 	pub(crate) types: HashMap<TyRef, Ty>,
 	pub(crate) globals: HashMap<ValRef, Val>,
+	pub(crate) inbuilt_types: HashMap<InbuiltType, TyRef>,
 }
 
 #[derive(Debug)]
@@ -27,7 +28,7 @@ pub enum Ty {
 	Struct(Struct),
 }
 
-#[derive(Debug)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum InbuiltType {
 	Bool,
 	Float(u8),

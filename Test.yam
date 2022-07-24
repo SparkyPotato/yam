@@ -1,4 +1,4 @@
-fn strlen(s: *const u8) -> u64 {
+fn strlen(s: *const u8) -> usize {
     var curr = s;
     while curr != 0 {
         curr += 1;

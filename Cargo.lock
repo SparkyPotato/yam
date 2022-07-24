@@ -374,6 +374,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "type_check"
+version = "0.1.0"
+dependencies = [
+ "diag",
+ "name_resolve",
+]
+
+[[package]]
 name = "unicode-xid"
 version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -436,6 +444,7 @@ dependencies = [
  "diag",
  "name_resolve",
  "parse",
+ "type_check",
 ]
 
 [[package]]

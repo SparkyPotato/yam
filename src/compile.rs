@@ -26,7 +26,7 @@ pub fn compile(opts: CompileOptions) {
 	let module = match load_and_parse(&opts.path, &mut rodeo, &mut cache, &mut diagnostics) {
 		Ok(file) => file,
 		Err(err) => {
-			quick_diagnostic(ReportKind::Error, format!("File could not be loaded: {}", err));
+			quick_diagnostic(ReportKind::Error, format!("file could not be loaded: {}", err));
 			return;
 		},
 	};
