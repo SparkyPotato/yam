@@ -172,7 +172,7 @@ pub enum TyExprKind {
 	Err,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub enum Lit {
 	Bool(bool),
 	Char(char),
