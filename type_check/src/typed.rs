@@ -3,6 +3,8 @@ use std::collections::HashMap;
 use diag::Span;
 use name_resolve::resolved::{BinOp, Ident, InbuiltType, Lit, LocalRef, Pat, Path, Spanned, Spur, TyRef, UnOp, ValRef};
 
+use crate::TypeId;
+
 #[derive(Debug)]
 pub struct Ctx {
 	pub(crate) types: HashMap<TyRef, Ty>,
@@ -71,6 +73,7 @@ pub enum Type {
 	TyRef(TyRef),
 	Type,
 	Ptr(Ptr),
+	Unresolved(TypeId),
 	Err,
 }
 

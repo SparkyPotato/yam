@@ -6,6 +6,8 @@ pub use parse::{
 	Spur,
 };
 
+use crate::Rodeo;
+
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
 pub struct TyRef(pub(crate) u32);
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
@@ -17,15 +19,36 @@ pub type Path = Vec<Ident>;
 
 #[derive(Debug)]
 pub struct Ctx {
-	pub(crate) types: HashMap<TyRef, Ty>,
-	pub(crate) globals: HashMap<ValRef, Val>,
-	pub(crate) inbuilt_types: HashMap<InbuiltType, TyRef>,
+	pub types: HashMap<TyRef, Ty>,
+	pub globals: HashMap<ValRef, Val>,
+	pub inbuilt_types: HashMap<InbuiltType, TyRef>,
 }
 
 #[derive(Debug)]
 pub enum Ty {
 	Inbuilt(InbuiltType),
 	Struct(Struct),
+}
+
+impl Ty {
+	pub fn to_string(&self, rodeo: &Rodeo) -> String {
+		match self {
+			Self::Inbuilt(i) => match i {
+				InbuiltType::Int(x) => format!("i{}", x),
+				InbuiltType::Uint(x) => format!("u{}", x),
+				InbuiltType::Float(x) => format!("f{}", x),
+				InbuiltType::Bool => "bool".to_string(),
+			},
+			Self::Struct(s) => format!(
+				"{}",
+				s.path
+					.iter()
+					.map(|x| rodeo.resolve(&x.node))
+					.collect::<Vec<_>>()
+					.join(".")
+			),
+		}
+	}
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
