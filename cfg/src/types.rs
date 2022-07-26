@@ -4,9 +4,9 @@ use diag::{
 	ariadne::{Label, Report, ReportKind},
 	Span,
 };
-use name_resolve::resolved::{LocalRef, Pat, Ty, Visibility};
+use name_resolve::resolved::{LocalRef, Pat, Ty};
 
-use crate::{BinOp, Ident, InbuiltType, Lit, Path, Rodeo, TyRef, Type, UnOp, ValRef};
+use crate::{BinOp, InbuiltType, Lit, Rodeo, TyRef, Type, UnOp, ValRef};
 
 #[derive(Copy, Clone, Debug)]
 pub struct TypeId(u32);
@@ -33,6 +33,7 @@ pub struct Block {
 	pub span: Span,
 }
 
+#[derive(Debug, Clone)]
 pub struct Expr {
 	pub kind: ExprKind,
 	pub ty: TypeId,
@@ -157,59 +158,77 @@ impl TypeEngine<'_> {
 
 	pub fn get_mut(&mut self, id: TypeId) -> &mut TypeInfo { &mut self.vars[id.0 as usize] }
 
-	pub fn assign(
-		&mut self, lhs: TypeId, lhs_span: Span, rhs: TypeId, rhs_span: Span, diagnostics: &mut Vec<Report<Span>>,
-	) {
-		match (self.get(lhs), self.get(lhs)) {
-			(TypeInfo::Ref(lhs), _) => self.assign(*lhs, lhs_span, rhs, rhs_span, diagnostics),
-			(_, TypeInfo::Ref(rhs)) => self.assign(lhs, lhs_span, *rhs, rhs_span, diagnostics),
-			(TypeInfo::Unknown, _) => *self.get_mut(lhs) = TypeInfo::Ref(rhs),
-			(_, TypeInfo::Unknown) => *self.get_mut(rhs) = TypeInfo::Ref(lhs),
+	pub fn unify(&mut self, a: TypeId, a_span: Span, b: TypeId, b_span: Span, diagnostics: &mut Vec<Report<Span>>) {
+		match (self.get(a), self.get(a)) {
+			(TypeInfo::Ref(a), _) => self.unify(*a, a_span, b, b_span, diagnostics),
+			(_, TypeInfo::Ref(b)) => self.unify(a, a_span, *b, b_span, diagnostics),
+			(TypeInfo::Unknown, _) => *self.get_mut(a) = TypeInfo::Ref(b),
+			(_, TypeInfo::Unknown) => *self.get_mut(b) = TypeInfo::Ref(a),
 			(_, TypeInfo::Never) => {},
 			(TypeInfo::Void, TypeInfo::Void) => {},
 			(TypeInfo::Int, TypeInfo::Int) => {},
 			(TypeInfo::Float, TypeInfo::Float) => {},
 			(TypeInfo::Int, TypeInfo::Ty(x)) if matches!(self.types[&x], Ty::Inbuilt(InbuiltType::Int(_))) => {
-				*self.get_mut(lhs) = TypeInfo::Ref(rhs)
+				*self.get_mut(a) = TypeInfo::Ref(b);
 			},
 			(TypeInfo::Ty(x), TypeInfo::Int) if matches!(self.types[&x], Ty::Inbuilt(InbuiltType::Int(_))) => {
-				*self.get_mut(rhs) = TypeInfo::Ref(lhs)
+				*self.get_mut(b) = TypeInfo::Ref(a);
 			},
 			(TypeInfo::Float, TypeInfo::Ty(x)) if matches!(self.types[&x], Ty::Inbuilt(InbuiltType::Float(_))) => {
-				*self.get_mut(lhs) = TypeInfo::Ref(rhs)
+				*self.get_mut(a) = TypeInfo::Ref(b);
 			},
 			(TypeInfo::Ty(x), TypeInfo::Float) if matches!(self.types[&x], Ty::Inbuilt(InbuiltType::Float(_))) => {
-				*self.get_mut(rhs) = TypeInfo::Ref(lhs)
+				*self.get_mut(b) = TypeInfo::Ref(a);
 			},
 			(
 				TypeInfo::Ptr {
 					mutable: false,
-					to: to_lhs,
+					to: to_a,
 				},
-				TypeInfo::Ptr { mutable: _, to: to_rhs },
-			) => self.assign(*to_lhs, lhs_span, *to_rhs, rhs_span, diagnostics),
+				TypeInfo::Ptr { mutable: _, to: to_b },
+			)
+			| (
+				TypeInfo::Ptr { mutable: _, to: to_a },
+				TypeInfo::Ptr {
+					mutable: false,
+					to: to_b,
+				},
+			) => {
+				let to_a = *to_a;
+				let to_b = *to_b;
+
+				*self.get_mut(a) = TypeInfo::Ptr {
+					mutable: false,
+					to: to_a,
+				};
+				*self.get_mut(b) = TypeInfo::Ptr {
+					mutable: false,
+					to: to_b,
+				};
+				self.unify(to_a, a_span, to_b, b_span, diagnostics);
+			},
 			(
 				TypeInfo::Ptr {
 					mutable: true,
-					to: to_lhs,
+					to: to_a,
 				},
 				TypeInfo::Ptr {
 					mutable: true,
-					to: to_rhs,
+					to: to_b,
 				},
-			) => self.assign(*to_lhs, lhs_span, *to_rhs, rhs_span, diagnostics),
+			) => self.unify(*to_a, a_span, *to_b, b_span, diagnostics),
 			(a, b) => diagnostics.push(
-				lhs_span
+				a_span
 					.report(ReportKind::Error)
 					.with_message("cannot assign")
-					.with_label(Label::new(lhs_span).with_message(format!("this has type `{}`", self.fmt_type(a))))
-					.with_label(Label::new(rhs_span).with_message(format!("this has type `{}`", self.fmt_type(b))))
+					.with_label(Label::new(a_span).with_message(format!("this has type `{}`", self.fmt_type(a))))
+					.with_label(Label::new(b_span).with_message(format!("this has type `{}`", self.fmt_type(b))))
 					.finish(),
 			),
 		}
 	}
 
-	pub fn reconstruct(&mut self, id: TypeId, span: Span, diagnostics: &mut Vec<Report<Span>>) -> Type {
+	pub fn reconstruct(&self, id: TypeId, span: Span, diagnostics: &mut Vec<Report<Span>>) -> Type {
 		match self.get(id) {
 			TypeInfo::Unknown => {
 				diagnostics.push(
@@ -236,11 +255,12 @@ impl TypeEngine<'_> {
 				}
 			},
 			TypeInfo::Fn { args, ret } => {
-				let mut args = args
+				let ret = *ret;
+				let args = args
 					.iter()
 					.map(|&x| self.reconstruct(x, span, diagnostics))
 					.collect::<Vec<_>>();
-				let ret = Box::new(self.reconstruct(*ret, span, diagnostics));
+				let ret = Box::new(self.reconstruct(ret, span, diagnostics));
 				Type::Fn { args, ret }
 			},
 			TypeInfo::Void => Type::Void,

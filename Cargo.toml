@@ -4,10 +4,10 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+cfg = { path = "cfg" }
 diag = { path = "diag" }
 name_resolve = { path = "name_resolve" }
 parse = { path = "parse" }
-# type_check = { path = "type_check" }
 
 clap = { version = "3.1", features = ["derive"] }
 
@@ -17,7 +17,6 @@ members = [
     "diag",
     "name_resolve",
     "parse",
-#    "type_check",
 ]
 
 [profile.release]

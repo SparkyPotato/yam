@@ -139,7 +139,7 @@ pub struct Access {
 	pub field: Ident,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub enum UnOp {
 	Not,
 	Neg,
@@ -156,7 +156,7 @@ pub struct Unary {
 	pub expr: Box<Expr>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub enum BinOp {
 	Add,
 	Sub,

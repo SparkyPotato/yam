@@ -6,7 +6,7 @@ use diag::{
 };
 use name_resolve::{
 	resolved,
-	resolved::{ExprKind, InbuiltType, Lit, LocalRef, Spur, ValExprKind},
+	resolved::{InbuiltType, Lit, LocalRef, Spur, ValExprKind},
 };
 
 use crate::{
@@ -14,23 +14,22 @@ use crate::{
 	types::{TypeEngine, TypeInfo},
 	Arg,
 	BasicBlock,
+	BinOp,
+	Ctx,
 	Field,
 	Fn,
-	Ident,
-	Instr,
-	InstrKind,
-	RCtx,
 	Rodeo,
 	Struct,
 	Ty,
 	TyRef,
 	Type,
 	TypeId,
+	UnOp,
 	Val,
 	ValRef,
 };
 
-pub fn lower_to_cfg(ctx: resolved::Ctx, rodeo: &Rodeo, diagnostics: &mut Vec<Report<Span>>) -> RCtx {
+pub fn lower_to_cfg(ctx: resolved::Ctx, rodeo: &Rodeo, diagnostics: &mut Vec<Report<Span>>) -> Ctx {
 	let mut lowerer = CfgLower {
 		engine: TypeEngine::new(&ctx.types, &ctx.inbuilt_types, rodeo),
 		types: &ctx.types,
@@ -41,7 +40,7 @@ pub fn lower_to_cfg(ctx: resolved::Ctx, rodeo: &Rodeo, diagnostics: &mut Vec<Rep
 		locals: HashMap::new(),
 	};
 
-	RCtx {
+	Ctx {
 		types: ctx.types.iter().map(|(r, ty)| (*r, lowerer.lower_ty(ty))).collect(),
 		globals: ctx
 			.globals
@@ -106,12 +105,15 @@ impl CfgLower<'_> {
 			})
 			.collect();
 
-		let block = self.tyck_fn(
+		let block = self.infer_fn(
 			&args,
 			&ret,
 			f.ret.as_ref().map(|x| x.span).unwrap_or(Self::useless_span()),
 			&f.block,
 		);
+
+		let mut blocks = Vec::new();
+		self.lower_block(block, &mut blocks);
 
 		Fn {
 			path: f.path.clone(),
@@ -135,10 +137,12 @@ impl CfgLower<'_> {
 		}
 	}
 
-	fn tyck_fn(
+	fn lower_block(&mut self, block: types::Block, blocks: &mut Vec<BasicBlock>) {}
+
+	fn infer_fn(
 		&mut self, args: &[(Arg, LocalRef)], ret: &Type, ret_span: Span, block: &resolved::Block,
 	) -> types::Block {
-		let (block, span) = self.tyck_block(block);
+		let (block, span) = self.infer_block(block);
 
 		for (arg, r) in args {
 			let id = self.insert_ty(&arg.ty);
@@ -146,7 +150,7 @@ impl CfgLower<'_> {
 		}
 
 		let ret = self.insert_ty(ret);
-		self.engine.assign(ret, ret_span, block.ty, span, &mut self.diagnostics);
+		self.engine.unify(ret, ret_span, block.ty, span, &mut self.diagnostics);
 
 		self.engine.reset();
 		self.locals.clear();
@@ -154,7 +158,7 @@ impl CfgLower<'_> {
 		block
 	}
 
-	fn tyck_block(&mut self, block: &resolved::Block) -> (types::Block, Span) {
+	fn infer_block(&mut self, block: &resolved::Block) -> (types::Block, Span) {
 		self.engine.push_scope();
 
 		let mut exprs = Vec::with_capacity(block.stmts.len());
@@ -183,7 +187,7 @@ impl CfgLower<'_> {
 				resolved::StmtKind::Err => continue,
 			};
 
-			let expr = self.tyck_expr(expr, stmt.span);
+			let expr = self.infer_expr(expr, stmt.span);
 
 			if last {
 				ty = Some(expr.ty);
@@ -205,23 +209,26 @@ impl CfgLower<'_> {
 		)
 	}
 
-	fn tyck_expr(&mut self, expr: &resolved::ValExprKind, span: Span) -> types::Expr {
+	fn infer_expr(&mut self, expr: &ValExprKind, span: Span) -> types::Expr {
 		let (kind, ty) = match expr {
-			ValExprKind::Lit(lit) => (types::ExprKind::Lit(*lit), self.tyck_lit(lit)),
+			ValExprKind::Lit(lit) => (types::ExprKind::Lit(*lit), self.infer_lit(lit)),
 			ValExprKind::Block(block) => {
-				let (block, _) = self.tyck_block(block);
+				let (block, _) = self.infer_block(block);
 				let ty = block.ty;
 				(types::ExprKind::Block(block), ty)
 			},
-			ValExprKind::ValRef(val) => (types::ExprKind::ValRef(*val), self.tyck_val(val)),
+			ValExprKind::ValRef(val) => (types::ExprKind::ValRef(*val), self.infer_val(val)),
 			ValExprKind::LocalRef(local) => (types::ExprKind::LocalRef(*local), self.locals[local]),
 			ValExprKind::Let(l) => {
-				let init_ty = l.expr.as_ref().map(|x| (self.tyck_expr(&x.node, x.span).ty, x.span));
-				let given_ty = l.ty.as_ref().map(|x| (self.insert_ty(&self.lower_ty_expr(&x)), x.span));
+				let init_ty = l.expr.as_ref().map(|x| (self.infer_expr(&x.node, x.span).ty, x.span));
+				let given_ty = l.ty.as_ref().map(|x| {
+					let ty = self.lower_ty_expr(&x);
+					(self.insert_ty(&ty), x.span)
+				});
 
 				let ty = match (init_ty, given_ty) {
 					(Some((rhs, rhs_span)), Some((lhs, lhs_span))) => {
-						self.engine.assign(lhs, lhs_span, rhs, rhs_span, &mut self.diagnostics);
+						self.engine.unify(lhs, lhs_span, rhs, rhs_span, &mut self.diagnostics);
 						lhs
 					},
 					(Some((ty, _)), None) | (None, Some((ty, _))) => ty,
@@ -230,12 +237,12 @@ impl CfgLower<'_> {
 
 				match l.pat.node {
 					resolved::PatKind::Binding(binding) => self.locals.insert(binding.binding, ty),
-				}
+				};
 
 				(
 					types::ExprKind::Let(types::Let {
 						pat: l.pat,
-						expr: l.expr.map(|x| Box::new(self.tyck_expr(&x.node, x.span))),
+						expr: l.expr.as_ref().map(|x| Box::new(self.infer_expr(&x.node, x.span))),
 						span: l.span,
 					}),
 					self.engine.insert(TypeInfo::Void),
@@ -244,19 +251,20 @@ impl CfgLower<'_> {
 			ValExprKind::List(_) => unreachable!("arrays are not supported"),
 			ValExprKind::Array(_) => unreachable!("arrays are not supported"),
 			ValExprKind::Cast(cast) => {
-				let ty = self.insert_ty(&self.lower_ty_expr(&cast.ty));
+				let ty = self.lower_ty_expr(&cast.ty);
+				let ty = self.insert_ty(&ty);
 				(
-					types::Cast {
-						expr: Box::new(self.tyck_expr(&cast.expr.node, cast.expr.span)),
+					types::ExprKind::Cast(types::Cast {
+						expr: Box::new(self.infer_expr(&cast.expr.node, cast.expr.span)),
 						ty,
-					},
+					}),
 					ty,
 				)
 			},
 			ValExprKind::Fn(_) => unreachable!("closures are not supported"),
 			ValExprKind::MacroRef(_) => unreachable!("macros are not supported"),
 			ValExprKind::Call(call) => {
-				let target = self.tyck_expr(&call.target.node, call.target.span);
+				let target = self.infer_expr(&call.target.node, call.target.span);
 				let ty = target.ty;
 				(
 					types::ExprKind::Call(types::Call {
@@ -264,7 +272,7 @@ impl CfgLower<'_> {
 						args: call
 							.args
 							.iter()
-							.map(|x| self.tyck_expr(Self::expr_to_val(&x.node), x.span))
+							.map(|x| self.infer_expr(Self::expr_to_val(&x.node), x.span))
 							.collect(),
 					}),
 					self.engine.insert(TypeInfo::FnRet(ty)),
@@ -272,64 +280,202 @@ impl CfgLower<'_> {
 			},
 			ValExprKind::Index(_) => unreachable!("indexing is not supported"),
 			ValExprKind::Access(_) => unreachable!("field access is not supported"),
-			ValExprKind::Unary(_) => {},
-			ValExprKind::Binary(_) => {},
+			ValExprKind::Unary(unary) => {
+				let expr = self.infer_expr(&unary.expr.node, unary.expr.span);
+				let ty = match unary.op {
+					UnOp::Not => self.engine.insert(TypeInfo::Ref(expr.ty)),
+					UnOp::Neg => self.engine.insert(TypeInfo::Ref(expr.ty)),
+					UnOp::Addr => self.engine.insert(TypeInfo::Ptr {
+						mutable: false,
+						to: expr.ty,
+					}),
+					UnOp::DoubleAddr => {
+						let to = self.engine.insert(TypeInfo::Ptr {
+							mutable: false,
+							to: expr.ty,
+						});
+						self.engine.insert(TypeInfo::Ptr { mutable: false, to })
+					},
+					UnOp::AddrMut => self.engine.insert(TypeInfo::Ptr {
+						mutable: true,
+						to: expr.ty,
+					}),
+					UnOp::DoubleAddrMut => {
+						let to = self.engine.insert(TypeInfo::Ptr {
+							mutable: true,
+							to: expr.ty,
+						});
+						self.engine.insert(TypeInfo::Ptr { mutable: false, to })
+					},
+					UnOp::Deref => self.engine.insert(TypeInfo::Deref(expr.ty)),
+				};
+				(
+					types::ExprKind::Unary(types::Unary {
+						op: unary.op,
+						expr: Box::new(expr),
+					}),
+					ty,
+				)
+			},
+			ValExprKind::Binary(binary) => {
+				let lhs = self.infer_expr(&binary.lhs.node, binary.lhs.span);
+				let rhs = self.infer_expr(&binary.rhs.node, binary.rhs.span);
+				let ty = match binary.op {
+					BinOp::Add
+					| BinOp::Sub
+					| BinOp::Mul
+					| BinOp::Div
+					| BinOp::Rem
+					| BinOp::Shl
+					| BinOp::Shr
+					| BinOp::BitAnd
+					| BinOp::BitOr
+					| BinOp::BitXor => self.engine.insert(TypeInfo::Ref(lhs.ty)),
+					BinOp::Lt
+					| BinOp::Gt
+					| BinOp::Leq
+					| BinOp::Geq
+					| BinOp::Eq
+					| BinOp::Neq
+					| BinOp::And
+					| BinOp::Or => self.engine.insert(TypeInfo::Ty(self.inbuilts[&InbuiltType::Bool])),
+					BinOp::Assign
+					| BinOp::AddAssign
+					| BinOp::SubAssign
+					| BinOp::MulAssign
+					| BinOp::DivAssign
+					| BinOp::RemAssign
+					| BinOp::BitAndAssign
+					| BinOp::BitOrAssign
+					| BinOp::BitXorAssign
+					| BinOp::ShlAssign
+					| BinOp::ShrAssign => {
+						self.engine
+							.unify(lhs.ty, lhs.span, rhs.ty, rhs.span, &mut self.diagnostics);
+						self.engine.insert(TypeInfo::Void)
+					},
+					BinOp::PlaceConstruct => unreachable!("placement construction is not supported"),
+				};
+				(
+					types::ExprKind::Binary(types::Binary {
+						op: binary.op,
+						lhs: Box::new(lhs),
+						rhs: Box::new(rhs),
+					}),
+					ty,
+				)
+			},
 			ValExprKind::Break(br) => (
 				types::ExprKind::Break(
 					br.as_ref()
-						.map(|x| Box::new(self.tyck_expr(Self::expr_to_val(&x.node), x.span))),
+						.map(|x| Box::new(self.infer_expr(Self::expr_to_val(&x.node), x.span))),
 				),
 				self.engine.insert(TypeInfo::Never),
 			),
 			ValExprKind::Continue(c) => (
 				types::ExprKind::Continue(
 					c.as_ref()
-						.map(|x| Box::new(self.tyck_expr(Self::expr_to_val(&x.node), x.span))),
+						.map(|x| Box::new(self.infer_expr(Self::expr_to_val(&x.node), x.span))),
 				),
 				self.engine.insert(TypeInfo::Never),
 			),
 			ValExprKind::Return(ret) => (
 				types::ExprKind::Return(
 					ret.as_ref()
-						.map(|x| Box::new(self.tyck_expr(Self::expr_to_val(&x.node), x.span))),
+						.map(|x| Box::new(self.infer_expr(Self::expr_to_val(&x.node), x.span))),
 				),
 				self.engine.insert(TypeInfo::Never),
 			),
-			ValExprKind::If(_) => {},
-			ValExprKind::Loop(_) => {},
-			ValExprKind::While(_) => {},
-			ValExprKind::For(_) => {},
-			ValExprKind::Err => {},
+			ValExprKind::If(if_) => {
+				let cond = Box::new(self.infer_expr(&if_.cond.node, if_.cond.span));
+				let (block, span) = self.infer_block(&if_.then);
+				let els = if_
+					.else_
+					.as_ref()
+					.map(|x| self.infer_expr(Self::expr_to_val(&x.node), x.span));
+
+				let ty = if let Some(els) = &els {
+					self.engine
+						.unify(block.ty, span, els.ty, els.span, &mut self.diagnostics);
+					block.ty
+				} else {
+					self.engine.insert(TypeInfo::Void)
+				};
+
+				(
+					types::ExprKind::If(types::If {
+						cond,
+						then: block,
+						else_: els.map(Box::new),
+					}),
+					ty,
+				)
+			},
+			ValExprKind::Loop(loop_) => {
+				let (block, _) = self.infer_block(&loop_.block);
+				(
+					types::ExprKind::Loop(types::Loop {
+						block,
+						while_: loop_
+							.while_
+							.as_ref()
+							.map(|x| Box::new(self.infer_expr(&x.node, x.span))),
+					}),
+					self.engine.insert(TypeInfo::Void),
+				)
+			},
+			ValExprKind::While(w) => {
+				let (block, _) = self.infer_block(&w.block);
+				(
+					types::ExprKind::While(types::While {
+						cond: Box::new(self.infer_expr(&w.cond.node, w.cond.span)),
+						block,
+					}),
+					self.engine.insert(TypeInfo::Void),
+				)
+			},
+			ValExprKind::For(_) => unreachable!("for loops are not supported"),
+			ValExprKind::Err => unreachable!("already filtered out"),
 		};
 
 		types::Expr { kind, ty, span }
 	}
 
-	fn tyck_lit(&mut self, lit: &resolved::Lit) -> TypeId {
-		self.engine.insert(match lit {
-			resolved::Lit::Int(_) => TypeInfo::Int,
-			resolved::Lit::Float(_) => TypeInfo::Float,
-			resolved::Lit::Bool(_) => TypeInfo::Ty(self.inbuilts[&InbuiltType::Bool]),
-			resolved::Lit::Char(_) => TypeInfo::Ty(self.inbuilts[&InbuiltType::Uint(32)]),
-			resolved::Lit::String(_) => TypeInfo::Ptr {
-				mutable: false,
-				to: self.engine.insert(TypeInfo::Ty(self.inbuilts[&InbuiltType::Uint(8)])),
+	fn infer_lit(&mut self, lit: &Lit) -> TypeId {
+		let ty = match lit {
+			Lit::Int(_) => TypeInfo::Int,
+			Lit::Float(_) => TypeInfo::Float,
+			Lit::Bool(_) => TypeInfo::Ty(self.inbuilts[&InbuiltType::Bool]),
+			Lit::Char(_) => TypeInfo::Ty(self.inbuilts[&InbuiltType::Uint(32)]),
+			Lit::String(_) => {
+				let r = self.inbuilts[&InbuiltType::Uint(8)];
+				TypeInfo::Ptr {
+					mutable: false,
+					to: self.engine.insert(TypeInfo::Ty(r)),
+				}
 			},
-		})
+		};
+		self.engine.insert(ty)
 	}
 
-	fn tyck_val(&mut self, val: &resolved::ValRef) -> TypeId {
+	fn infer_val(&mut self, val: &ValRef) -> TypeId {
 		match &self.globals[val] {
 			resolved::Val::Fn(f) => {
 				let args = f
 					.args
 					.iter()
-					.map(|x| self.insert_ty(&self.lower_ty_expr(&x.ty)))
+					.map(|x| {
+						let ty = self.lower_ty_expr(&x.ty);
+						self.insert_ty(&ty)
+					})
 					.collect();
 				let ret = f
 					.ret
 					.as_ref()
-					.map(|x| self.insert_ty(&self.lower_ty_expr(&x)))
+					.map(|x| {
+						let ty = self.lower_ty_expr(&x);
+						self.insert_ty(&ty)
+					})
 					.unwrap_or(self.engine.insert(TypeInfo::Void));
 				self.engine.insert(TypeInfo::Fn { args, ret })
 			},
@@ -339,7 +485,7 @@ impl CfgLower<'_> {
 	}
 
 	fn insert_ty(&mut self, ty: &Type) -> TypeId {
-		self.engine.insert(match ty {
+		let ty = match ty {
 			Type::Void => TypeInfo::Void,
 			Type::Never => TypeInfo::Never,
 			Type::Fn { args, ret } => TypeInfo::Fn {
@@ -352,10 +498,11 @@ impl CfgLower<'_> {
 				to: self.insert_ty(&to),
 			},
 			Type::Err => TypeInfo::Unknown,
-		})
+		};
+		self.engine.insert(ty)
 	}
 
-	fn expr_to_val(expr: &ExprKind) -> &ValExprKind {
+	fn expr_to_val(expr: &resolved::ExprKind) -> &ValExprKind {
 		match expr {
 			resolved::ExprKind::Val(val) => val,
 			resolved::ExprKind::Err => &resolved::ValExprKind::Err,
