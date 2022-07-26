@@ -142,12 +142,12 @@ impl CfgLower<'_> {
 	fn infer_fn(
 		&mut self, args: &[(Arg, LocalRef)], ret: &Type, ret_span: Span, block: &resolved::Block,
 	) -> types::Block {
-		let (block, span) = self.infer_block(block);
-
 		for (arg, r) in args {
 			let id = self.insert_ty(&arg.ty);
 			self.locals.insert(*r, id);
 		}
+
+		let (block, span) = self.infer_block(block);
 
 		let ret = self.insert_ty(ret);
 		self.engine.unify(ret, ret_span, block.ty, span, &mut self.diagnostics);
@@ -159,8 +159,6 @@ impl CfgLower<'_> {
 	}
 
 	fn infer_block(&mut self, block: &resolved::Block) -> (types::Block, Span) {
-		self.engine.push_scope();
-
 		let mut exprs = Vec::with_capacity(block.stmts.len());
 		let mut ty = None;
 		let mut last_span = Self::useless_span();
@@ -169,7 +167,13 @@ impl CfgLower<'_> {
 		for (i, stmt) in block.stmts.iter().enumerate() {
 			let (expr, last) = match &stmt.node {
 				resolved::StmtKind::Expr(expr) => {
-					if i != last_expr {
+					if i != last_expr
+						&& !matches!(
+							expr,
+							ValExprKind::Block(_)
+								| ValExprKind::If(_) | ValExprKind::While(_)
+								| ValExprKind::Loop(_) | ValExprKind::For(_)
+						) {
 						self.diagnostics.push(
 							stmt.span
 								.report(ReportKind::Error)
@@ -197,12 +201,10 @@ impl CfgLower<'_> {
 			exprs.push(expr);
 		}
 
-		self.engine.pop_scope();
-
 		(
 			types::Block {
 				exprs,
-				ty: ty.unwrap(),
+				ty: ty.unwrap_or_else(|| self.engine.insert(TypeInfo::Void)),
 				span: block.span,
 			},
 			last_span,

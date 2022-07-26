@@ -8,10 +8,10 @@ use name_resolve::resolved::{LocalRef, Pat, Ty};
 
 use crate::{BinOp, InbuiltType, Lit, Rodeo, TyRef, Type, UnOp, ValRef};
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct TypeId(u32);
 
-#[derive(Clone)]
+#[derive(Clone, Eq, PartialEq)]
 pub enum TypeInfo {
 	Ref(TypeId),
 	Void,
@@ -120,7 +120,6 @@ pub struct For {
 
 pub struct TypeEngine<'a> {
 	vars: Vec<TypeInfo>,
-	scopes: Vec<usize>,
 	types: &'a HashMap<TyRef, Ty>,
 	inbuilts: &'a HashMap<InbuiltType, TyRef>,
 	rodeo: &'a Rodeo,
@@ -130,7 +129,6 @@ impl<'a> TypeEngine<'a> {
 	pub fn new(types: &'a HashMap<TyRef, Ty>, inbuilts: &'a HashMap<InbuiltType, TyRef>, rodeo: &'a Rodeo) -> Self {
 		Self {
 			vars: Vec::new(),
-			scopes: Vec::new(),
 			types,
 			inbuilts,
 			rodeo,
@@ -139,14 +137,7 @@ impl<'a> TypeEngine<'a> {
 }
 
 impl TypeEngine<'_> {
-	pub fn push_scope(&mut self) { self.scopes.push(self.vars.len()); }
-
-	pub fn pop_scope(&mut self) { self.vars.truncate(*self.scopes.last().unwrap_or(&0)) }
-
-	pub fn reset(&mut self) {
-		assert!(self.scopes.is_empty());
-		assert!(self.vars.is_empty());
-	}
+	pub fn reset(&mut self) { self.vars.clear(); }
 
 	pub fn insert(&mut self, info: TypeInfo) -> TypeId {
 		let id = self.vars.len() as _;
@@ -160,14 +151,12 @@ impl TypeEngine<'_> {
 
 	pub fn unify(&mut self, a: TypeId, a_span: Span, b: TypeId, b_span: Span, diagnostics: &mut Vec<Report<Span>>) {
 		match (self.get(a), self.get(a)) {
+			(a, b) if a == b => {},
 			(TypeInfo::Ref(a), _) => self.unify(*a, a_span, b, b_span, diagnostics),
 			(_, TypeInfo::Ref(b)) => self.unify(a, a_span, *b, b_span, diagnostics),
 			(TypeInfo::Unknown, _) => *self.get_mut(a) = TypeInfo::Ref(b),
 			(_, TypeInfo::Unknown) => *self.get_mut(b) = TypeInfo::Ref(a),
 			(_, TypeInfo::Never) => {},
-			(TypeInfo::Void, TypeInfo::Void) => {},
-			(TypeInfo::Int, TypeInfo::Int) => {},
-			(TypeInfo::Float, TypeInfo::Float) => {},
 			(TypeInfo::Int, TypeInfo::Ty(x)) if matches!(self.types[&x], Ty::Inbuilt(InbuiltType::Int(_))) => {
 				*self.get_mut(a) = TypeInfo::Ref(b);
 			},

@@ -9,6 +9,7 @@ pub use name_resolve::{
 use crate::types::TypeId;
 
 pub mod lower;
+pub mod print;
 pub mod types;
 
 pub struct Ctx {
