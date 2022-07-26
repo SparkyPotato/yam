@@ -120,6 +120,7 @@ pub fn resolve(module: Module, rodeo: &mut Rodeo, diagnostics: &mut Vec<Report<S
 		items: &mut items,
 		diagnostics,
 		scopes: Vec::new(),
+		counter: 0,
 	};
 
 	let ty = types;
@@ -152,7 +153,8 @@ struct Resolver<'a> {
 	rodeo: &'a mut Rodeo,
 	items: &'a mut HashMap<Spur, (Span, Ref)>,
 	diagnostics: &'a mut Vec<Report<Span>>,
-	scopes: Vec<(HashMap<Spur, LocalRef>, u32)>,
+	scopes: Vec<HashMap<Spur, LocalRef>>,
+	counter: u32,
 }
 
 impl Resolver<'_> {
@@ -189,17 +191,14 @@ impl Resolver<'_> {
 			.collect()
 	}
 
-	fn push_block(&mut self) {
-		let start = self
-			.scopes
-			.last()
-			.map(|(map, start)| start + map.len() as u32)
-			.unwrap_or(0);
+	fn push_block(&mut self) { self.scopes.push(HashMap::new()); }
 
-		self.scopes.push((HashMap::new(), start));
+	fn pop_block(&mut self) {
+		self.scopes.pop();
+		if self.scopes.is_empty() {
+			self.counter = 0;
+		}
 	}
-
-	fn pop_block(&mut self) { self.scopes.pop(); }
 
 	fn resolve_struct(&mut self, ident: Ident, s: Struct, span: Span) -> resolved::Struct {
 		resolved::Struct {
@@ -400,7 +399,7 @@ impl Resolver<'_> {
 			})),
 			ExprKind::Block(block) => resolved::ExprKind::Val(ValExprKind::Block(self.resolve_block(block))),
 			ExprKind::Ident(x) => {
-				for (scope, _) in self.scopes.iter().rev() {
+				for scope in self.scopes.iter().rev() {
 					if let Some(r) = scope.get(&x) {
 						return resolved::ExprKind::Val(ValExprKind::LocalRef(*r));
 					}
@@ -508,11 +507,12 @@ impl Resolver<'_> {
 
 	fn resolve_pat(&mut self, pat: Pat) -> resolved::Pat {
 		let scope = self.scopes.last_mut().expect("pattern without scope");
-		let r = scope.0.len() as u32 + scope.1;
+		let r = self.counter;
+		self.counter += 1;
 
 		match pat.node {
 			PatKind::Binding(binding) => {
-				scope.0.insert(binding.binding, LocalRef(r));
+				scope.insert(binding.binding, LocalRef(r));
 
 				resolved::Pat {
 					node: resolved::PatKind::Binding(Binding {

@@ -4,12 +4,12 @@ use diag::{
 	ariadne::{Label, Report, ReportKind},
 	Span,
 };
-use name_resolve::resolved::Ty;
+use name_resolve::resolved::{LocalRef, Pat, Ty, Visibility};
 
-use crate::{InbuiltType, Rodeo, TyRef, Type};
+use crate::{BinOp, Ident, InbuiltType, Lit, Path, Rodeo, TyRef, Type, UnOp, ValRef};
 
 #[derive(Copy, Clone, Debug)]
-pub struct TypeId(pub(crate) u32);
+pub struct TypeId(u32);
 
 #[derive(Clone)]
 pub enum TypeInfo {
@@ -23,6 +23,99 @@ pub enum TypeInfo {
 	Int,
 	Float,
 	Unknown,
+}
+
+#[derive(Debug, Clone)]
+pub struct Block {
+	pub exprs: Vec<Expr>,
+	pub ty: TypeId,
+	pub span: Span,
+}
+
+pub struct Expr {
+	pub kind: ExprKind,
+	pub ty: TypeId,
+	pub span: Span,
+}
+#[derive(Debug, Clone)]
+pub enum ExprKind {
+	Lit(Lit),
+	Block(Block),
+	ValRef(ValRef),
+	LocalRef(LocalRef),
+	Let(Let),
+	Cast(Cast),
+	Fn(Fn),
+	Call(Call),
+	Unary(Unary),
+	Binary(Binary),
+	Break(Option<Box<Expr>>),
+	Continue(Option<Box<Expr>>),
+	Return(Option<Box<Expr>>),
+	If(If),
+	Loop(Loop),
+	While(While),
+	For(For),
+	Err,
+}
+
+#[derive(Debug, Clone)]
+pub struct Let {
+	pub pat: Pat,
+	pub ty: TypeId,
+	pub expr: Option<Box<Expr>>,
+	pub span: Span,
+}
+
+#[derive(Debug, Clone)]
+pub struct Cast {
+	pub expr: Box<Expr>,
+	pub ty: TypeId,
+}
+
+#[derive(Debug, Clone)]
+pub struct Call {
+	pub target: Box<Expr>,
+	pub args: Vec<Expr>,
+}
+
+#[derive(Debug, Clone)]
+pub struct Unary {
+	pub op: UnOp,
+	pub expr: Box<Expr>,
+}
+
+#[derive(Debug, Clone)]
+pub struct Binary {
+	pub lhs: Box<Expr>,
+	pub op: BinOp,
+	pub rhs: Box<Expr>,
+}
+
+#[derive(Debug, Clone)]
+pub struct If {
+	pub cond: Box<Expr>,
+	pub then: Block,
+	pub else_: Option<Box<Expr>>,
+}
+
+#[derive(Debug, Clone)]
+pub struct Loop {
+	pub block: Block,
+	pub while_: Option<Box<Expr>>,
+}
+
+#[derive(Debug, Clone)]
+pub struct While {
+	pub cond: Box<Expr>,
+	pub block: Block,
+}
+
+#[derive(Debug, Clone)]
+pub struct For {
+	pub pat: Pat,
+	pub iter: Box<Expr>,
+	pub block: Block,
 }
 
 pub struct TypeEngine<'a> {

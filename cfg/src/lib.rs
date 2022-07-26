@@ -11,21 +11,18 @@ use crate::types::TypeId;
 pub mod lower;
 pub mod types;
 
-pub type RCtx = Ctx<Type>;
-pub type UCtx = Ctx<TypeId>;
-
-pub struct Ctx<T> {
-	pub types: HashMap<TyRef, Ty<T>>,
-	pub globals: HashMap<ValRef, Val<T>>,
+pub struct Ctx {
+	pub types: HashMap<TyRef, Ty>,
+	pub globals: HashMap<ValRef, Val>,
 	pub inbuilt_types: HashMap<InbuiltType, TyRef>,
 }
 
-pub enum Ty<T> {
+pub enum Ty {
 	Inbuilt(InbuiltType),
-	Struct(Struct<T>),
+	Struct(Struct),
 }
 
-impl<T> Ty<T> {
+impl Ty {
 	pub fn to_string(&self, rodeo: &Rodeo) -> String {
 		match self {
 			Self::Inbuilt(i) => match i {
@@ -46,8 +43,8 @@ impl<T> Ty<T> {
 	}
 }
 
-pub enum Val<T> {
-	Fn(Fn<T>),
+pub enum Val {
+	Fn(Fn),
 }
 
 pub enum Type {
@@ -58,43 +55,43 @@ pub enum Type {
 	Err,
 }
 
-pub struct Struct<T> {
+pub struct Struct {
 	pub path: Path,
-	pub fields: Vec<Field<T>>,
+	pub fields: Vec<Field>,
 	pub span: Span,
 }
 
-pub struct Field<T> {
+pub struct Field {
 	pub name: Ident,
-	pub ty: T,
+	pub ty: Type,
 	pub span: Span,
 }
 
-pub struct Fn<T> {
+pub struct Fn {
 	pub path: Path,
-	pub ret: Box<T>,
-	pub blocks: Vec<BasicBlock<T>>,
+	pub ret: Type,
+	pub blocks: Vec<BasicBlock>,
 	pub span: Span,
 }
 
-pub struct Arg<T> {
-	pub ident: Option<Ident>,
-	pub ty: T,
+pub struct Arg {
+	pub ident: Span,
+	pub ty: Type,
 }
 
 pub struct BasicBlockId(pub(crate) u32);
 pub struct InstrId(pub(crate) u32);
 pub struct ArgId(pub(crate) u32);
 
-pub struct BasicBlock<T> {
-	pub args: Vec<Arg<T>>,
-	pub instrs: Vec<Instr<T>>,
+pub struct BasicBlock {
+	pub args: Vec<Arg>,
+	pub instrs: Vec<Instr>,
 }
 
-pub struct Instr<T> {
+pub struct Instr {
 	pub kind: InstrKind,
 	pub span: Span,
-	pub ty: T,
+	pub ty: Type,
 }
 
 pub enum InstrKind {
