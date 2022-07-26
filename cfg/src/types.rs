@@ -45,7 +45,6 @@ pub enum ExprKind {
 	LocalRef(LocalRef),
 	Let(Let),
 	Cast(Cast),
-	Fn(Fn),
 	Call(Call),
 	Unary(Unary),
 	Binary(Binary),
@@ -62,7 +61,6 @@ pub enum ExprKind {
 #[derive(Debug, Clone)]
 pub struct Let {
 	pub pat: Pat,
-	pub ty: TypeId,
 	pub expr: Option<Box<Expr>>,
 	pub span: Span,
 }

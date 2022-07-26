@@ -208,15 +208,53 @@ impl CfgLower<'_> {
 	fn tyck_expr(&mut self, expr: &resolved::ValExprKind, span: Span) -> types::Expr {
 		let (kind, ty) = match expr {
 			ValExprKind::Lit(lit) => (types::ExprKind::Lit(*lit), self.tyck_lit(lit)),
-			ValExprKind::Block(_) => {},
-			ValExprKind::ValRef(_) => {},
-			ValExprKind::LocalRef(_) => {},
-			ValExprKind::Let(_) => {},
-			ValExprKind::List(_) => {},
-			ValExprKind::Array(_) => {},
-			ValExprKind::Cast(_) => {},
-			ValExprKind::Fn(_) => {},
-			ValExprKind::MacroRef(_) => {},
+			ValExprKind::Block(block) => {
+				let (block, _) = self.tyck_block(block);
+				let ty = block.ty;
+				(types::ExprKind::Block(block), ty)
+			},
+			ValExprKind::ValRef(val) => (types::ExprKind::ValRef(*val), self.tyck_val(val)),
+			ValExprKind::LocalRef(local) => (types::ExprKind::LocalRef(*local), self.locals[local]),
+			ValExprKind::Let(l) => {
+				let init_ty = l.expr.as_ref().map(|x| (self.tyck_expr(&x.node, x.span).ty, x.span));
+				let given_ty = l.ty.as_ref().map(|x| (self.insert_ty(&self.lower_ty_expr(&x)), x.span));
+
+				let ty = match (init_ty, given_ty) {
+					(Some((rhs, rhs_span)), Some((lhs, lhs_span))) => {
+						self.engine.assign(lhs, lhs_span, rhs, rhs_span, &mut self.diagnostics);
+						lhs
+					},
+					(Some((ty, _)), None) | (None, Some((ty, _))) => ty,
+					(None, None) => self.engine.insert(TypeInfo::Unknown),
+				};
+
+				match l.pat.node {
+					resolved::PatKind::Binding(binding) => self.locals.insert(binding.binding, ty),
+				}
+
+				(
+					types::ExprKind::Let(types::Let {
+						pat: l.pat,
+						expr: l.expr.map(|x| Box::new(self.tyck_expr(&x.node, x.span))),
+						span: l.span,
+					}),
+					self.engine.insert(TypeInfo::Void),
+				)
+			},
+			ValExprKind::List(_) => unreachable!("arrays are not supported"),
+			ValExprKind::Array(_) => unreachable!("arrays are not supported"),
+			ValExprKind::Cast(cast) => {
+				let ty = self.insert_ty(&self.lower_ty_expr(&cast.ty));
+				(
+					types::Cast {
+						expr: Box::new(self.tyck_expr(&cast.expr.node, cast.expr.span)),
+						ty,
+					},
+					ty,
+				)
+			},
+			ValExprKind::Fn(_) => unreachable!("closures are not supported"),
+			ValExprKind::MacroRef(_) => unreachable!("macros are not supported"),
 			ValExprKind::Call(_) => {},
 			ValExprKind::Index(_) => {},
 			ValExprKind::Access(_) => {},
@@ -235,7 +273,38 @@ impl CfgLower<'_> {
 		types::Expr { kind, ty, span }
 	}
 
-	fn tyck_lit(&mut self, lit: &resolved::Lit) -> TypeId {}
+	fn tyck_lit(&mut self, lit: &resolved::Lit) -> TypeId {
+		self.engine.insert(match lit {
+			resolved::Lit::Int(_) => TypeInfo::Int,
+			resolved::Lit::Float(_) => TypeInfo::Float,
+			resolved::Lit::Bool(_) => TypeInfo::Ty(self.inbuilts[&InbuiltType::Bool]),
+			resolved::Lit::Char(_) => TypeInfo::Ty(self.inbuilts[&InbuiltType::Uint(32)]),
+			resolved::Lit::String(_) => TypeInfo::Ptr {
+				mutable: false,
+				to: self.engine.insert(TypeInfo::Ty(self.inbuilts[&InbuiltType::Uint(8)])),
+			},
+		})
+	}
+
+	fn tyck_val(&mut self, val: &resolved::ValRef) -> TypeId {
+		match &self.globals[val] {
+			resolved::Val::Fn(f) => {
+				let args = f
+					.args
+					.iter()
+					.map(|x| self.insert_ty(&self.lower_ty_expr(&x.ty)))
+					.collect();
+				let ret = f
+					.ret
+					.as_ref()
+					.map(|x| self.insert_ty(&self.lower_ty_expr(&x)))
+					.unwrap_or(self.engine.insert(TypeInfo::Void));
+				self.engine.insert(TypeInfo::Fn { args, ret })
+			},
+			resolved::Val::Const(_) => unreachable!("consts are not supported"),
+			resolved::Val::Static(_) => unreachable!("statics are not supported"),
+		}
+	}
 
 	fn insert_ty(&mut self, ty: &Type) -> TypeId {
 		self.engine.insert(match ty {
