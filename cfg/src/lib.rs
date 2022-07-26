@@ -49,6 +49,7 @@ pub enum Val {
 
 pub enum Type {
 	Void,
+	Never,
 	Fn { args: Vec<Type>, ret: Box<Type> },
 	TyRef(TyRef),
 	Ptr { mutable: bool, to: Box<Type> },

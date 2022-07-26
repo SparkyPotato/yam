@@ -6,7 +6,7 @@ use diag::{
 };
 use name_resolve::{
 	resolved,
-	resolved::{InbuiltType, Lit, LocalRef, Spur, ValExprKind},
+	resolved::{ExprKind, InbuiltType, Lit, LocalRef, Spur, ValExprKind},
 };
 
 use crate::{
@@ -255,14 +255,46 @@ impl CfgLower<'_> {
 			},
 			ValExprKind::Fn(_) => unreachable!("closures are not supported"),
 			ValExprKind::MacroRef(_) => unreachable!("macros are not supported"),
-			ValExprKind::Call(_) => {},
-			ValExprKind::Index(_) => {},
-			ValExprKind::Access(_) => {},
+			ValExprKind::Call(call) => {
+				let target = self.tyck_expr(&call.target.node, call.target.span);
+				let ty = target.ty;
+				(
+					types::ExprKind::Call(types::Call {
+						target: Box::new(target),
+						args: call
+							.args
+							.iter()
+							.map(|x| self.tyck_expr(Self::expr_to_val(&x.node), x.span))
+							.collect(),
+					}),
+					self.engine.insert(TypeInfo::FnRet(ty)),
+				)
+			},
+			ValExprKind::Index(_) => unreachable!("indexing is not supported"),
+			ValExprKind::Access(_) => unreachable!("field access is not supported"),
 			ValExprKind::Unary(_) => {},
 			ValExprKind::Binary(_) => {},
-			ValExprKind::Break(_) => {},
-			ValExprKind::Continue(_) => {},
-			ValExprKind::Return(_) => {},
+			ValExprKind::Break(br) => (
+				types::ExprKind::Break(
+					br.as_ref()
+						.map(|x| Box::new(self.tyck_expr(Self::expr_to_val(&x.node), x.span))),
+				),
+				self.engine.insert(TypeInfo::Never),
+			),
+			ValExprKind::Continue(c) => (
+				types::ExprKind::Continue(
+					c.as_ref()
+						.map(|x| Box::new(self.tyck_expr(Self::expr_to_val(&x.node), x.span))),
+				),
+				self.engine.insert(TypeInfo::Never),
+			),
+			ValExprKind::Return(ret) => (
+				types::ExprKind::Return(
+					ret.as_ref()
+						.map(|x| Box::new(self.tyck_expr(Self::expr_to_val(&x.node), x.span))),
+				),
+				self.engine.insert(TypeInfo::Never),
+			),
 			ValExprKind::If(_) => {},
 			ValExprKind::Loop(_) => {},
 			ValExprKind::While(_) => {},
@@ -309,6 +341,7 @@ impl CfgLower<'_> {
 	fn insert_ty(&mut self, ty: &Type) -> TypeId {
 		self.engine.insert(match ty {
 			Type::Void => TypeInfo::Void,
+			Type::Never => TypeInfo::Never,
 			Type::Fn { args, ret } => TypeInfo::Fn {
 				args: args.iter().map(|x| self.insert_ty(x)).collect(),
 				ret: self.insert_ty(&ret),
@@ -320,6 +353,14 @@ impl CfgLower<'_> {
 			},
 			Type::Err => TypeInfo::Unknown,
 		})
+	}
+
+	fn expr_to_val(expr: &ExprKind) -> &ValExprKind {
+		match expr {
+			resolved::ExprKind::Val(val) => val,
+			resolved::ExprKind::Err => &resolved::ValExprKind::Err,
+			_ => unreachable!("type exprs are not supported in this position"),
+		}
 	}
 
 	fn useless_span() -> Span {

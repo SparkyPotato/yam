@@ -15,6 +15,7 @@ pub struct TypeId(u32);
 pub enum TypeInfo {
 	Ref(TypeId),
 	Void,
+	Never,
 	Fn { args: Vec<TypeId>, ret: TypeId },
 	Ty(TyRef),
 	Ptr { mutable: bool, to: TypeId },
@@ -164,6 +165,7 @@ impl TypeEngine<'_> {
 			(_, TypeInfo::Ref(rhs)) => self.assign(lhs, lhs_span, *rhs, rhs_span, diagnostics),
 			(TypeInfo::Unknown, _) => *self.get_mut(lhs) = TypeInfo::Ref(rhs),
 			(_, TypeInfo::Unknown) => *self.get_mut(rhs) = TypeInfo::Ref(lhs),
+			(_, TypeInfo::Never) => {},
 			(TypeInfo::Void, TypeInfo::Void) => {},
 			(TypeInfo::Int, TypeInfo::Int) => {},
 			(TypeInfo::Float, TypeInfo::Float) => {},
@@ -218,6 +220,7 @@ impl TypeEngine<'_> {
 				);
 				Type::Err
 			},
+			TypeInfo::Never => Type::Never,
 			TypeInfo::FnRet(id) => {
 				let fn_ty = self.reconstruct(*id, span, diagnostics);
 				match fn_ty {
@@ -256,6 +259,7 @@ impl TypeEngine<'_> {
 		match info {
 			TypeInfo::Unknown => "<unknown>".to_string(),
 			TypeInfo::Void => "void".to_string(),
+			TypeInfo::Never => "!".to_string(),
 			TypeInfo::Fn { args, ret } => format!(
 				"fn({}) -> {}",
 				args.iter()
