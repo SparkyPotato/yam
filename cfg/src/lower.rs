@@ -11,13 +11,18 @@ use name_resolve::{
 
 use crate::{
 	types,
-	types::{TypeEngine, TypeInfo},
+	types::{ExprKind, TypeEngine, TypeInfo},
 	Arg,
+	ArgId,
 	BasicBlock,
+	BasicBlockId,
 	BinOp,
 	Ctx,
 	Field,
 	Fn,
+	Instr,
+	InstrId,
+	InstrKind,
 	Rodeo,
 	Struct,
 	Ty,
@@ -37,7 +42,9 @@ pub fn lower_to_cfg(ctx: resolved::Ctx, rodeo: &Rodeo, diagnostics: &mut Vec<Rep
 		inbuilts: &ctx.inbuilt_types,
 		rodeo,
 		diagnostics,
-		locals: HashMap::new(),
+		local_types: HashMap::new(),
+		local_instrs: HashMap::new(),
+		fn_ret: None,
 	};
 
 	Ctx {
@@ -58,7 +65,9 @@ struct CfgLower<'a> {
 	inbuilts: &'a HashMap<InbuiltType, TyRef>,
 	rodeo: &'a Rodeo,
 	diagnostics: &'a mut Vec<Report<Span>>,
-	locals: HashMap<LocalRef, TypeId>,
+	local_types: HashMap<LocalRef, TypeId>,
+	local_instrs: HashMap<LocalRef, InstrId>,
+	fn_ret: Option<(TypeId, Span)>,
 }
 
 impl CfgLower<'_> {
@@ -90,18 +99,27 @@ impl CfgLower<'_> {
 	}
 
 	fn lower_fn(&mut self, f: &resolved::Fn) -> Fn {
+		let mut curr = BasicBlock::default();
+
 		let ret = f.ret.as_ref().map(|x| self.lower_ty_expr(&x)).unwrap_or(Type::Void);
 		let args: Vec<_> = f
 			.args
 			.iter()
-			.map(|x| match &x.pat.node {
-				resolved::PatKind::Binding(binding) => (
-					Arg {
-						ident: x.span,
-						ty: self.lower_ty_expr(&x.ty),
-					},
-					binding.binding,
-				),
+			.enumerate()
+			.map(|(i, x)| match &x.pat.node {
+				resolved::PatKind::Binding(binding) => {
+					let ty = self.lower_ty_expr(&x.ty);
+
+					self.local_instrs.insert(
+						binding.binding,
+						curr.instr(Instr {
+							kind: InstrKind::Arg(ArgId(i as _)),
+							ty: ty.clone(),
+							span: x.span,
+						}),
+					);
+					(Arg { ident: x.span, ty }, binding.binding)
+				},
 			})
 			.collect();
 
@@ -112,8 +130,20 @@ impl CfgLower<'_> {
 			&f.block,
 		);
 
-		let mut blocks = Vec::new();
-		self.lower_block(block, &mut blocks);
+		curr.args = args.into_iter().map(|x| x.0).collect();
+
+		let mut blocks = vec![curr];
+
+		let mut curr = 0;
+		let id = self.lower_block(block, &mut curr, &mut blocks);
+		blocks[curr].instr(Instr {
+			kind: InstrKind::Ret(Some(id)),
+			ty: ret.clone(),
+			span: f.block.span,
+		});
+
+		self.engine.reset();
+		self.local_types.clear();
 
 		Fn {
 			path: f.path.clone(),
@@ -137,23 +167,260 @@ impl CfgLower<'_> {
 		}
 	}
 
-	fn lower_block(&mut self, block: types::Block, blocks: &mut Vec<BasicBlock>) {}
+	fn lower_block(&mut self, block: types::Block, curr: &mut usize, blocks: &mut Vec<BasicBlock>) -> InstrId {
+		let ret = self.engine.reconstruct(block.ty, block.span, &mut self.diagnostics);
+		for expr in block.exprs {
+			self.lower_expr(expr, curr, blocks);
+		}
+
+		if matches!(ret, Type::Void) {
+			blocks[*curr].instr(Instr {
+				kind: InstrKind::Ret(None),
+				ty: ret,
+				span: block.span,
+			})
+		} else {
+			InstrId(blocks[*curr].instrs.len() as u32 - 1)
+		}
+	}
+
+	fn lower_expr(&mut self, expr: types::Expr, curr: &mut usize, blocks: &mut Vec<BasicBlock>) -> InstrId {
+		let ty = self.engine.reconstruct(expr.ty, expr.span, &mut self.diagnostics);
+
+		let kind = match expr.kind {
+			ExprKind::Lit(lit) => InstrKind::Literal(lit),
+			ExprKind::Block(b) => return self.lower_block(b, curr, blocks),
+			ExprKind::ValRef(v) => InstrKind::Global(v),
+			ExprKind::LocalRef(l) => return self.local_instrs[&l],
+			ExprKind::Let(l) => {
+				let expr = self.lower_expr(*l.expr.unwrap(), curr, blocks);
+				match l.pat.node {
+					resolved::PatKind::Binding(binding) => {
+						self.local_instrs.insert(binding.binding, expr);
+					},
+				}
+				return blocks[*curr].instr(Instr {
+					kind: InstrKind::Void,
+					ty,
+					span: l.span,
+				});
+			},
+			ExprKind::Cast(c) => InstrKind::Cast(self.lower_expr(*c.expr, curr, blocks)),
+			ExprKind::Call(c) => InstrKind::Call {
+				target: self.lower_expr(*c.target, curr, blocks),
+				args: c.args.into_iter().map(|x| self.lower_expr(x, curr, blocks)).collect(),
+			},
+			ExprKind::Unary(u) => InstrKind::Unary {
+				op: u.op,
+				value: self.lower_expr(*u.expr, curr, blocks),
+			},
+			ExprKind::Binary(b) => match b.op {
+				BinOp::Add
+				| BinOp::Sub
+				| BinOp::Mul
+				| BinOp::Div
+				| BinOp::Rem
+				| BinOp::Shl
+				| BinOp::Shr
+				| BinOp::Lt
+				| BinOp::Gt
+				| BinOp::Leq
+				| BinOp::Geq
+				| BinOp::Eq
+				| BinOp::Neq
+				| BinOp::BitAnd
+				| BinOp::BitOr
+				| BinOp::BitXor
+				| BinOp::And
+				| BinOp::Or => InstrKind::Binary {
+					left: self.lower_expr(*b.lhs, curr, blocks),
+					op: b.op,
+					right: self.lower_expr(*b.rhs, curr, blocks),
+				},
+				BinOp::Assign => {
+					if let Some(lhs) = self.assign_lhs(*b.lhs) {
+						let rhs = self.lower_expr(*b.rhs, curr, blocks);
+						self.local_instrs.insert(lhs, rhs);
+					}
+
+					InstrKind::Void
+				},
+				BinOp::AddAssign
+				| BinOp::SubAssign
+				| BinOp::MulAssign
+				| BinOp::DivAssign
+				| BinOp::RemAssign
+				| BinOp::BitAndAssign
+				| BinOp::BitOrAssign
+				| BinOp::BitXorAssign
+				| BinOp::ShlAssign
+				| BinOp::ShrAssign => {
+					if let Some(lhs) = self.assign_lhs(*b.lhs) {
+						let rhs = self.lower_expr(*b.rhs, curr, blocks);
+						let lhs = self
+							.local_instrs
+							.insert(lhs, InstrId(blocks[*curr].instrs.len() as _))
+							.unwrap();
+						InstrKind::Binary {
+							left: lhs,
+							op: Self::binop_assign_to_op(b.op),
+							right: rhs,
+						}
+					} else {
+						InstrKind::Void
+					}
+				},
+				BinOp::PlaceConstruct => unreachable!("place construct is not supported"),
+			},
+			ExprKind::Break(_) => unreachable!(),
+			ExprKind::Continue(_) => unreachable!(),
+			ExprKind::Return(r) => InstrKind::Ret(r.map(|x| self.lower_expr(*x, curr, blocks))),
+			ExprKind::If(if_) => {
+				let mut cond_block = *curr;
+				let cond = self.lower_expr(*if_.cond, &mut cond_block, blocks);
+
+				let cond_jmp_id = blocks[cond_block].instr(Instr {
+					kind: InstrKind::Void,
+					ty: Type::Void,
+					span: expr.span,
+				});
+
+				let else_span = if_.else_.as_ref().map(|x| x.span).unwrap_or(expr.span);
+				let else_ = if_.else_.map(|x| self.lower_expr(*x, &mut cond_block, blocks));
+				let else_ = else_.unwrap_or_else(|| {
+					blocks[cond_block].instr(Instr {
+						kind: InstrKind::Void,
+						ty: Type::Void,
+						span: else_span,
+					})
+				});
+
+				let if_block = blocks.len();
+				blocks.push(BasicBlock::default());
+				let mut if_end = if_block;
+				let then = self.lower_block(if_.then, &mut if_end, blocks);
+
+				blocks[cond_block].instrs[cond_jmp_id.0 as usize] = Instr {
+					kind: InstrKind::CondJmp {
+						if_: cond,
+						to: BasicBlockId(if_block as _),
+						args: Vec::new(),
+					},
+					ty: Type::Void,
+					span: expr.span,
+				};
+
+				*curr = blocks.len();
+				blocks.push(BasicBlock {
+					instrs: vec![],
+					args: vec![Arg {
+						ident: expr.span,
+						ty: ty.clone(),
+					}],
+				});
+				blocks[cond_block].instr(Instr {
+					kind: InstrKind::Jmp {
+						to: BasicBlockId(*curr as _),
+						args: vec![else_],
+					},
+					ty: Type::Void,
+					span: expr.span,
+				});
+				blocks[if_end].instr(Instr {
+					kind: InstrKind::Jmp {
+						to: BasicBlockId(*curr as _),
+						args: vec![then],
+					},
+					ty: Type::Void,
+					span: expr.span,
+				});
+
+				InstrKind::Arg(ArgId(0))
+			},
+			ExprKind::Loop(l) => {
+				let loop_start = *curr;
+				*curr = blocks.len();
+				blocks.push(BasicBlock::default());
+				self.lower_block(l.block, curr, blocks);
+				InstrKind::Jmp {
+					to: BasicBlockId(loop_start as _),
+					args: vec![],
+				}
+			},
+			ExprKind::While(w) => {
+				let cond = self.lower_expr(*w.cond, curr, blocks);
+				let loop_start = *curr;
+
+				let to = BasicBlockId(blocks.len() as _);
+				blocks[*curr].instr(Instr {
+					kind: InstrKind::CondJmp {
+						if_: cond,
+						to,
+						args: Vec::new(),
+					},
+					ty: Type::Void,
+					span: expr.span,
+				});
+				let early_end_block = *curr;
+				let early_end_instr = blocks[*curr].instr(Instr {
+					kind: InstrKind::Void,
+					ty: Type::Void,
+					span: expr.span,
+				});
+
+				*curr = blocks.len();
+				blocks.push(BasicBlock::default());
+				self.lower_block(w.block, curr, blocks);
+				let to = BasicBlockId(blocks.len() as _);
+				blocks[*curr].instr(Instr {
+					kind: InstrKind::CondJmp {
+						if_: cond,
+						to: BasicBlockId(loop_start as u32 + 1),
+						args: Vec::new(),
+					},
+					ty: Type::Void,
+					span: expr.span,
+				});
+				blocks[*curr].instr(Instr {
+					kind: InstrKind::Jmp { to, args: Vec::new() },
+					ty: Type::Void,
+					span: expr.span,
+				});
+
+				blocks[early_end_block].instrs[early_end_instr.0 as usize] = Instr {
+					kind: InstrKind::Jmp { to, args: Vec::new() },
+					ty: Type::Void,
+					span: expr.span,
+				};
+				*curr = blocks.len();
+				blocks.push(BasicBlock::default());
+				InstrKind::Void
+			},
+			ExprKind::For(_) => unreachable!(),
+			ExprKind::Err => unreachable!(),
+		};
+
+		blocks[*curr].instr(Instr {
+			kind,
+			ty,
+			span: expr.span,
+		})
+	}
 
 	fn infer_fn(
 		&mut self, args: &[(Arg, LocalRef)], ret: &Type, ret_span: Span, block: &resolved::Block,
 	) -> types::Block {
 		for (arg, r) in args {
 			let id = self.insert_ty(&arg.ty);
-			self.locals.insert(*r, id);
+			self.local_types.insert(*r, id);
 		}
+
+		let ret = self.insert_ty(ret);
+		self.fn_ret = Some((ret, ret_span));
 
 		let (block, span) = self.infer_block(block);
 
-		let ret = self.insert_ty(ret);
 		self.engine.unify(ret, ret_span, block.ty, span, &mut self.diagnostics);
-
-		self.engine.reset();
-		self.locals.clear();
 
 		block
 	}
@@ -217,10 +484,10 @@ impl CfgLower<'_> {
 			ValExprKind::Block(block) => {
 				let (block, _) = self.infer_block(block);
 				let ty = block.ty;
-				(types::ExprKind::Block(block), ty)
+				(ExprKind::Block(block), ty)
 			},
 			ValExprKind::ValRef(val) => (types::ExprKind::ValRef(*val), self.infer_val(val)),
-			ValExprKind::LocalRef(local) => (types::ExprKind::LocalRef(*local), self.locals[local]),
+			ValExprKind::LocalRef(local) => (types::ExprKind::LocalRef(*local), self.local_types[local]),
 			ValExprKind::Let(l) => {
 				let init_ty = l.expr.as_ref().map(|x| (self.infer_expr(&x.node, x.span).ty, x.span));
 				let given_ty = l.ty.as_ref().map(|x| {
@@ -238,11 +505,11 @@ impl CfgLower<'_> {
 				};
 
 				match l.pat.node {
-					resolved::PatKind::Binding(binding) => self.locals.insert(binding.binding, ty),
+					resolved::PatKind::Binding(binding) => self.local_types.insert(binding.binding, ty),
 				};
 
 				(
-					types::ExprKind::Let(types::Let {
+					ExprKind::Let(types::Let {
 						pat: l.pat,
 						expr: l.expr.as_ref().map(|x| Box::new(self.infer_expr(&x.node, x.span))),
 						span: l.span,
@@ -256,7 +523,7 @@ impl CfgLower<'_> {
 				let ty = self.lower_ty_expr(&cast.ty);
 				let ty = self.insert_ty(&ty);
 				(
-					types::ExprKind::Cast(types::Cast {
+					ExprKind::Cast(types::Cast {
 						expr: Box::new(self.infer_expr(&cast.expr.node, cast.expr.span)),
 						ty,
 					}),
@@ -269,7 +536,7 @@ impl CfgLower<'_> {
 				let target = self.infer_expr(&call.target.node, call.target.span);
 				let ty = target.ty;
 				(
-					types::ExprKind::Call(types::Call {
+					ExprKind::Call(types::Call {
 						target: Box::new(target),
 						args: call
 							.args
@@ -312,7 +579,7 @@ impl CfgLower<'_> {
 					UnOp::Deref => self.engine.insert(TypeInfo::Deref(expr.ty)),
 				};
 				(
-					types::ExprKind::Unary(types::Unary {
+					ExprKind::Unary(types::Unary {
 						op: unary.op,
 						expr: Box::new(expr),
 					}),
@@ -359,7 +626,7 @@ impl CfgLower<'_> {
 					BinOp::PlaceConstruct => unreachable!("placement construction is not supported"),
 				};
 				(
-					types::ExprKind::Binary(types::Binary {
+					ExprKind::Binary(types::Binary {
 						op: binary.op,
 						lhs: Box::new(lhs),
 						rhs: Box::new(rhs),
@@ -368,26 +635,39 @@ impl CfgLower<'_> {
 				)
 			},
 			ValExprKind::Break(br) => (
-				types::ExprKind::Break(
+				ExprKind::Break(
 					br.as_ref()
 						.map(|x| Box::new(self.infer_expr(Self::expr_to_val(&x.node), x.span))),
 				),
 				self.engine.insert(TypeInfo::Never),
 			),
 			ValExprKind::Continue(c) => (
-				types::ExprKind::Continue(
+				ExprKind::Continue(
 					c.as_ref()
 						.map(|x| Box::new(self.infer_expr(Self::expr_to_val(&x.node), x.span))),
 				),
 				self.engine.insert(TypeInfo::Never),
 			),
-			ValExprKind::Return(ret) => (
-				types::ExprKind::Return(
-					ret.as_ref()
-						.map(|x| Box::new(self.infer_expr(Self::expr_to_val(&x.node), x.span))),
-				),
-				self.engine.insert(TypeInfo::Never),
-			),
+			ValExprKind::Return(ret) => {
+				let expr = ret
+					.as_ref()
+					.map(|x| Box::new(self.infer_expr(Self::expr_to_val(&x.node), x.span)));
+
+				let ty = expr
+					.as_ref()
+					.map(|x| x.ty)
+					.unwrap_or(self.engine.insert(TypeInfo::Void));
+				let (ret, ret_span) = self.fn_ret.unwrap();
+				self.engine.unify(
+					ret,
+					ret_span,
+					ty,
+					expr.as_ref().map(|x| x.span).unwrap_or(span),
+					&mut self.diagnostics,
+				);
+
+				(ExprKind::Return(expr), self.engine.insert(TypeInfo::Never))
+			},
 			ValExprKind::If(if_) => {
 				let cond = Box::new(self.infer_expr(&if_.cond.node, if_.cond.span));
 				let (block, span) = self.infer_block(&if_.then);
@@ -405,7 +685,7 @@ impl CfgLower<'_> {
 				};
 
 				(
-					types::ExprKind::If(types::If {
+					ExprKind::If(types::If {
 						cond,
 						then: block,
 						else_: els.map(Box::new),
@@ -416,7 +696,7 @@ impl CfgLower<'_> {
 			ValExprKind::Loop(loop_) => {
 				let (block, _) = self.infer_block(&loop_.block);
 				(
-					types::ExprKind::Loop(types::Loop {
+					ExprKind::Loop(types::Loop {
 						block,
 						while_: loop_
 							.while_
@@ -429,7 +709,7 @@ impl CfgLower<'_> {
 			ValExprKind::While(w) => {
 				let (block, _) = self.infer_block(&w.block);
 				(
-					types::ExprKind::While(types::While {
+					ExprKind::While(types::While {
 						cond: Box::new(self.infer_expr(&w.cond.node, w.cond.span)),
 						block,
 					}),
@@ -504,11 +784,63 @@ impl CfgLower<'_> {
 		self.engine.insert(ty)
 	}
 
+	fn assign_lhs(&mut self, expr: types::Expr) -> Option<LocalRef> {
+		match expr.kind {
+			ExprKind::LocalRef(lhs) => Some(lhs),
+			_ => {
+				self.diagnostics.push(
+					expr.span
+						.report(ReportKind::Error)
+						.with_message("cannot assign")
+						.with_label(Label::new(expr.span).with_message("cannot assign to this expression"))
+						.finish(),
+				);
+
+				None
+			},
+		}
+	}
+
 	fn expr_to_val(expr: &resolved::ExprKind) -> &ValExprKind {
 		match expr {
 			resolved::ExprKind::Val(val) => val,
 			resolved::ExprKind::Err => &resolved::ValExprKind::Err,
 			_ => unreachable!("type exprs are not supported in this position"),
+		}
+	}
+
+	fn binop_assign_to_op(op: BinOp) -> BinOp {
+		match op {
+			BinOp::Add
+			| BinOp::Sub
+			| BinOp::Mul
+			| BinOp::Div
+			| BinOp::Rem
+			| BinOp::Shl
+			| BinOp::Shr
+			| BinOp::Lt
+			| BinOp::Gt
+			| BinOp::Leq
+			| BinOp::Geq
+			| BinOp::Eq
+			| BinOp::Neq
+			| BinOp::BitAnd
+			| BinOp::BitOr
+			| BinOp::BitXor
+			| BinOp::And
+			| BinOp::Or
+			| BinOp::Assign
+			| BinOp::PlaceConstruct => unreachable!(),
+			BinOp::AddAssign => BinOp::Add,
+			BinOp::SubAssign => BinOp::Sub,
+			BinOp::MulAssign => BinOp::Mul,
+			BinOp::DivAssign => BinOp::Div,
+			BinOp::RemAssign => BinOp::Rem,
+			BinOp::BitAndAssign => BinOp::BitAnd,
+			BinOp::BitOrAssign => BinOp::BitOr,
+			BinOp::BitXorAssign => BinOp::BitXor,
+			BinOp::ShlAssign => BinOp::Shl,
+			BinOp::ShrAssign => BinOp::Shr,
 		}
 	}
 

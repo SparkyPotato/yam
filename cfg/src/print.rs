@@ -38,6 +38,7 @@ impl PrettyPrinter<'_> {
 		for (id, block) in f.blocks.iter().enumerate() {
 			self.print_block(id, block);
 		}
+		println!();
 	}
 
 	pub fn print_block(&self, id: usize, block: &BasicBlock) {
@@ -45,6 +46,9 @@ impl PrettyPrinter<'_> {
 		for (i, arg) in block.args.iter().enumerate() {
 			print!("{}: ", i);
 			self.print_ty(&arg.ty);
+			if i != block.args.len() - 1 {
+				print!(", ");
+			}
 		}
 		println!("):");
 
@@ -57,10 +61,13 @@ impl PrettyPrinter<'_> {
 		print!("    %{} = ", id);
 		self.print_instr_kind(&instr.kind);
 		print!(" : ");
+		self.print_ty(&instr.ty);
+		println!();
 	}
 
 	pub fn print_instr_kind(&self, kind: &InstrKind) {
 		match kind {
+			InstrKind::Void => print!("void"),
 			InstrKind::Literal(lit) => match lit {
 				Lit::Bool(val) => print!("{}", val),
 				Lit::Char(c) => print!("'{}'", c),
@@ -69,7 +76,10 @@ impl PrettyPrinter<'_> {
 				Lit::String(s) => print!("\"{}\"", self.rodeo.resolve(s)),
 			},
 			InstrKind::Global(g) => match &self.globals[g] {
-				Val::Fn(f) => self.print_path(&f.path),
+				Val::Fn(f) => {
+					print!("fn ");
+					self.print_path(&f.path);
+				},
 			},
 			InstrKind::Arg(arg) => print!("arg {}", arg.0),
 			InstrKind::Call { target, args } => print!(
@@ -79,7 +89,7 @@ impl PrettyPrinter<'_> {
 			),
 			InstrKind::Cast(val) => print!("cast {}", val.0),
 			InstrKind::Unary { op, value } => print!(
-				"{} {}",
+				"{} %{}",
 				match op {
 					UnOp::Not => "!",
 					UnOp::Neg => "-",
@@ -92,7 +102,7 @@ impl PrettyPrinter<'_> {
 				value.0
 			),
 			InstrKind::Binary { left, op, right } => print!(
-				"{} {} {}",
+				"%{} {} %{}",
 				left.0,
 				match op {
 					BinOp::Add => "+",
@@ -165,13 +175,25 @@ impl PrettyPrinter<'_> {
 				Ty::Inbuilt(i) => match i {
 					InbuiltType::Bool => print!("bool"),
 					InbuiltType::Float(v) => print!("f{}", v),
-					InbuiltType::Int(v) => print!("i{}", v),
-					InbuiltType::Uint(v) => print!("u{}", v),
+					InbuiltType::Int(v) => {
+						if *v != 0 {
+							print!("i{}", v);
+						} else {
+							print!("isize");
+						}
+					},
+					InbuiltType::Uint(v) => {
+						if *v != 0 {
+							print!("u{}", v);
+						} else {
+							print!("usize");
+						}
+					},
 				},
 				Ty::Struct(s) => self.print_path(&s.path),
 			},
 			Type::Ptr { mutable, to } => {
-				print!("*{}", if *mutable { "mut " } else { "" });
+				print!("*{}", if *mutable { "m " } else { "c " });
 				self.print_ty(to);
 			},
 			Type::Err => print!("err"),

@@ -48,6 +48,7 @@ pub enum Val {
 	Fn(Fn),
 }
 
+#[derive(Clone)]
 pub enum Type {
 	Void,
 	Never,
@@ -81,13 +82,25 @@ pub struct Arg {
 	pub ty: Type,
 }
 
+#[derive(Copy, Clone, Eq, PartialEq)]
 pub struct BasicBlockId(pub(crate) u32);
+#[derive(Copy, Clone, Eq, PartialEq)]
 pub struct InstrId(pub(crate) u32);
+#[derive(Copy, Clone, Eq, PartialEq)]
 pub struct ArgId(pub(crate) u32);
 
+#[derive(Default)]
 pub struct BasicBlock {
 	pub args: Vec<Arg>,
 	pub instrs: Vec<Instr>,
+}
+
+impl BasicBlock {
+	fn instr(&mut self, instr: Instr) -> InstrId {
+		let id = InstrId(self.instrs.len() as _);
+		self.instrs.push(instr);
+		id
+	}
 }
 
 pub struct Instr {
@@ -97,6 +110,7 @@ pub struct Instr {
 }
 
 pub enum InstrKind {
+	Void,
 	Literal(Lit),
 	Global(ValRef),
 	Arg(ArgId),

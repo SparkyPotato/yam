@@ -154,9 +154,8 @@ impl TypeEngine<'_> {
 			(a, b) if a == b => {},
 			(TypeInfo::Ref(a), _) => self.unify(*a, a_span, b, b_span, diagnostics),
 			(_, TypeInfo::Ref(b)) => self.unify(a, a_span, *b, b_span, diagnostics),
-			(TypeInfo::Unknown, _) => *self.get_mut(a) = TypeInfo::Ref(b),
-			(_, TypeInfo::Unknown) => *self.get_mut(b) = TypeInfo::Ref(a),
-			(_, TypeInfo::Never) => {},
+			(TypeInfo::Unknown | TypeInfo::Never, _) => *self.get_mut(a) = TypeInfo::Ref(b),
+			(_, TypeInfo::Unknown | TypeInfo::Never) => *self.get_mut(b) = TypeInfo::Ref(a),
 			(TypeInfo::Int, TypeInfo::Ty(x)) if matches!(self.types[&x], Ty::Inbuilt(InbuiltType::Int(_))) => {
 				*self.get_mut(a) = TypeInfo::Ref(b);
 			},
