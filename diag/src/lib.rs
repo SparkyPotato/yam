@@ -9,7 +9,7 @@ pub use ariadne;
 use ariadne::{Cache, Report, ReportBuilder, ReportKind, Source};
 use lasso::{Rodeo, Spur};
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Default, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Span {
 	pub start: u32,
 	pub end: u32,

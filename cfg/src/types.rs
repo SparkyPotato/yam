@@ -4,7 +4,7 @@ use diag::{
 	ariadne::{Label, Report, ReportKind},
 	Span,
 };
-use name_resolve::resolved::{LocalRef, Pat, Ty};
+use name_resolve::resolved::{LocalRef, Pat, TyDef};
 
 use crate::{BinOp, InbuiltType, Lit, Rodeo, TyRef, Type, UnOp, ValRef};
 
@@ -120,13 +120,13 @@ pub struct For {
 
 pub struct TypeEngine<'a> {
 	vars: Vec<TypeInfo>,
-	types: &'a HashMap<TyRef, Ty>,
+	types: &'a HashMap<TyRef, TyDef>,
 	inbuilts: &'a HashMap<InbuiltType, TyRef>,
 	rodeo: &'a Rodeo,
 }
 
 impl<'a> TypeEngine<'a> {
-	pub fn new(types: &'a HashMap<TyRef, Ty>, inbuilts: &'a HashMap<InbuiltType, TyRef>, rodeo: &'a Rodeo) -> Self {
+	pub fn new(types: &'a HashMap<TyRef, TyDef>, inbuilts: &'a HashMap<InbuiltType, TyRef>, rodeo: &'a Rodeo) -> Self {
 		Self {
 			vars: Vec::new(),
 			types,
@@ -155,16 +155,16 @@ impl TypeEngine<'_> {
 			(_, TypeInfo::Ref(b)) => self.unify(a, a_span, *b, b_span, diagnostics),
 			(TypeInfo::Unknown | TypeInfo::Never, _) => *self.get_mut(a) = TypeInfo::Ref(b),
 			(_, TypeInfo::Unknown | TypeInfo::Never) => *self.get_mut(b) = TypeInfo::Ref(a),
-			(TypeInfo::Int, TypeInfo::Ty(x)) if matches!(self.types[&x], Ty::Inbuilt(InbuiltType::Int(_))) => {
+			(TypeInfo::Int, TypeInfo::Ty(x)) if matches!(self.types[&x], TyDef::Inbuilt(InbuiltType::Int(_))) => {
 				*self.get_mut(a) = TypeInfo::Ref(b);
 			},
-			(TypeInfo::Ty(x), TypeInfo::Int) if matches!(self.types[&x], Ty::Inbuilt(InbuiltType::Int(_))) => {
+			(TypeInfo::Ty(x), TypeInfo::Int) if matches!(self.types[&x], TyDef::Inbuilt(InbuiltType::Int(_))) => {
 				*self.get_mut(b) = TypeInfo::Ref(a);
 			},
-			(TypeInfo::Float, TypeInfo::Ty(x)) if matches!(self.types[&x], Ty::Inbuilt(InbuiltType::Float(_))) => {
+			(TypeInfo::Float, TypeInfo::Ty(x)) if matches!(self.types[&x], TyDef::Inbuilt(InbuiltType::Float(_))) => {
 				*self.get_mut(a) = TypeInfo::Ref(b);
 			},
-			(TypeInfo::Ty(x), TypeInfo::Float) if matches!(self.types[&x], Ty::Inbuilt(InbuiltType::Float(_))) => {
+			(TypeInfo::Ty(x), TypeInfo::Float) if matches!(self.types[&x], TyDef::Inbuilt(InbuiltType::Float(_))) => {
 				*self.get_mut(b) = TypeInfo::Ref(a);
 			},
 			(

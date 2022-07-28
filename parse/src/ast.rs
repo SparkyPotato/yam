@@ -1,5 +1,6 @@
 use diag::Span;
 use lasso::Spur;
+use crate::TokenKind;
 
 #[derive(Debug)]
 pub struct Module {
@@ -33,6 +34,10 @@ pub struct Binding {
 pub type Expr = Spanned<ExprKind>;
 #[derive(Debug, Clone)]
 pub enum ExprKind {
+	Type,
+	TypeOf(Box<Expr>),
+	Ptr(Ptr),
+	Tuple(Vec<Expr>),
 	Lit(Lit),
 	Block(Block),
 	Ident(Spur),
@@ -40,11 +45,7 @@ pub enum ExprKind {
 	List(Vec<Expr>),
 	Array(Array),
 	Cast(Cast),
-	Type,
-	TypeOf(Box<Expr>),
-	Ptr(Ptr),
 	Fn(Fn),
-	MacroRef(Spur),
 	Call(Call),
 	Index(Index),
 	Access(Access),
@@ -57,6 +58,7 @@ pub enum ExprKind {
 	Loop(Loop),
 	While(While),
 	For(For),
+	Infer,
 	Err,
 }
 
@@ -246,7 +248,15 @@ pub enum ImportTree {
 }
 
 #[derive(Debug, Clone)]
+pub struct Attrib {
+	pub name: Ident,
+	pub values: Vec<TokenKind>,
+	pub span: Span,
+}
+
+#[derive(Debug, Clone)]
 pub struct Item {
+	pub attribs: Vec<Attrib>,
 	pub visibility: Visibility,
 	pub kind: ItemKind,
 	pub span: Span,

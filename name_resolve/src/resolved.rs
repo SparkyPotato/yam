@@ -1,93 +1,46 @@
-use std::collections::HashMap;
-
 use diag::Span;
 pub use parse::{
 	ast::{BinOp, Ident, Spanned, UnOp, Visibility},
 	Spur,
 };
 
-use crate::Rodeo;
-
-#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
-pub struct TyRef(pub(crate) u32);
-#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
-pub struct ValRef(pub u32);
-#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
-pub struct LocalRef(pub(crate) u32);
+use crate::ctx::{LocalRef, ValRef};
 
 pub type Path = Vec<Ident>;
 
 #[derive(Debug)]
-pub struct Ctx {
-	pub types: HashMap<TyRef, Ty>,
-	pub globals: HashMap<ValRef, Val>,
-	pub inbuilt_types: HashMap<InbuiltType, TyRef>,
+pub struct ValDef {
+	pub path: Path,
+	pub kind: ValDefKind,
+	pub span: Span,
 }
 
 #[derive(Debug)]
-pub enum Ty {
-	Inbuilt(InbuiltType),
-	Struct(Struct),
-}
-
-impl Ty {
-	pub fn to_string(&self, rodeo: &Rodeo) -> String {
-		match self {
-			Self::Inbuilt(i) => match i {
-				InbuiltType::Int(x) => format!("i{}", x),
-				InbuiltType::Uint(x) => format!("u{}", x),
-				InbuiltType::Float(x) => format!("f{}", x),
-				InbuiltType::Bool => "bool".to_string(),
-			},
-			Self::Struct(s) => format!(
-				"{}",
-				s.path
-					.iter()
-					.map(|x| rodeo.resolve(&x.node))
-					.collect::<Vec<_>>()
-					.join(".")
-			),
-		}
-	}
-}
-
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
-pub enum InbuiltType {
-	Bool,
-	Float(u8),
-	Int(u8),
-	Uint(u8),
-}
-
-#[derive(Debug)]
-pub enum Val {
+pub enum ValDefKind {
 	Static(GlobalLet),
 	Const(GlobalLet),
 	Fn(Fn),
+	Struct(Struct),
 }
 
 #[derive(Debug, Clone)]
 pub struct Struct {
-	pub path: Path,
 	pub fields: Vec<Field>,
-	pub span: Span,
 }
 
 #[derive(Debug, Clone)]
 pub struct Field {
 	pub visibility: Visibility,
 	pub name: Ident,
-	pub ty: TyExpr,
+	pub ty: Expr,
 	pub span: Span,
 }
 
 #[derive(Debug, Clone)]
 pub struct Fn {
-	pub path: Path,
 	pub args: Vec<Arg>,
-	pub ret: Option<Box<TyExpr>>,
+	pub ret: Option<Box<Expr>>,
 	pub block: Block,
-	pub span: Span,
 }
 
 pub type Pat = Spanned<PatKind>;
@@ -106,7 +59,7 @@ pub struct Binding {
 pub struct Arg {
 	pub is_const: bool,
 	pub pat: Pat,
-	pub ty: TyExpr,
+	pub ty: Expr,
 	pub span: Span,
 }
 
@@ -120,32 +73,27 @@ pub struct Block {
 pub type Stmt = Spanned<StmtKind>;
 #[derive(Debug, Clone)]
 pub enum StmtKind {
-	Expr(ValExprKind),
-	Semi(ValExprKind),
+	Expr(ExprKind),
+	Semi(ExprKind),
 	Err,
 }
 
 pub type Expr = Spanned<ExprKind>;
 #[derive(Debug, Clone)]
 pub enum ExprKind {
-	Val(ValExprKind),
-	Ty(TyExprKind),
-	Err,
-}
-
-pub type ValExpr = Spanned<ValExprKind>;
-#[derive(Debug, Clone)]
-pub enum ValExprKind {
-	Lit(Lit),
-	Block(Block),
 	ValRef(ValRef),
 	LocalRef(LocalRef),
+	Type,
+	TypeOf(Box<Expr>),
+	Ptr(Ptr),
+	Tuple(Vec<Expr>),
+	Lit(Lit),
+	Block(Block),
 	Let(Let),
-	List(Vec<ValExpr>),
+	List(Vec<Expr>),
 	Array(Array),
 	Cast(Cast),
 	Fn(Fn),
-	MacroRef(Spur),
 	Call(Call),
 	Index(Index),
 	Access(Access),
@@ -158,17 +106,7 @@ pub enum ValExprKind {
 	Loop(Loop),
 	While(While),
 	For(For),
-	Err,
-}
-
-pub type TyExpr = Spanned<TyExprKind>;
-#[derive(Debug, Clone)]
-pub enum TyExprKind {
-	TyRef(TyRef),
-	Type,
-	TypeOf(Box<Expr>),
-	Ptr(Ptr),
-	Tuple(Vec<TyExpr>),
+	Infer,
 	Err,
 }
 
@@ -184,46 +122,45 @@ pub enum Lit {
 #[derive(Debug, Clone)]
 pub struct Let {
 	pub pat: Pat,
-	pub ty: Option<Box<TyExpr>>,
-	pub expr: Option<Box<ValExpr>>,
+	pub ty: Option<Box<Expr>>,
+	pub expr: Option<Box<Expr>>,
 	pub span: Span,
 }
 
 #[derive(Debug, Clone)]
 pub struct GlobalLet {
-	pub ty: Option<TyExpr>,
-	pub expr: ValExpr,
-	pub span: Span,
+	pub ty: Option<Expr>,
+	pub expr: Expr,
 }
 
 #[derive(Debug, Clone)]
 pub struct Array {
-	pub expr: Box<ValExpr>,
-	pub count: Box<ValExpr>,
+	pub expr: Box<Expr>,
+	pub count: Box<Expr>,
 }
 
 #[derive(Debug, Clone)]
 pub struct Cast {
-	pub expr: Box<ValExpr>,
-	pub ty: Box<TyExpr>,
+	pub expr: Box<Expr>,
+	pub ty: Box<Expr>,
 }
 
 #[derive(Debug, Clone)]
 pub struct Ptr {
 	pub mutability: bool,
-	pub to: Box<TyExpr>,
+	pub to: Box<Expr>,
 }
 
 #[derive(Debug, Clone)]
 pub struct Call {
-	pub target: Box<ValExpr>,
+	pub target: Box<Expr>,
 	pub args: Vec<Expr>,
 }
 
 #[derive(Debug, Clone)]
 pub struct Index {
-	pub target: Box<ValExpr>,
-	pub index: Box<ValExpr>,
+	pub target: Box<Expr>,
+	pub index: Box<Expr>,
 }
 
 #[derive(Debug, Clone)]
@@ -235,19 +172,19 @@ pub struct Access {
 #[derive(Debug, Clone)]
 pub struct Unary {
 	pub op: UnOp,
-	pub expr: Box<ValExpr>,
+	pub expr: Box<Expr>,
 }
 
 #[derive(Debug, Clone)]
 pub struct Binary {
-	pub lhs: Box<ValExpr>,
+	pub lhs: Box<Expr>,
 	pub op: BinOp,
-	pub rhs: Box<ValExpr>,
+	pub rhs: Box<Expr>,
 }
 
 #[derive(Debug, Clone)]
 pub struct If {
-	pub cond: Box<ValExpr>,
+	pub cond: Box<Expr>,
 	pub then: Block,
 	pub else_: Option<Box<Expr>>,
 }
@@ -255,18 +192,18 @@ pub struct If {
 #[derive(Debug, Clone)]
 pub struct Loop {
 	pub block: Block,
-	pub while_: Option<Box<ValExpr>>,
+	pub while_: Option<Box<Expr>>,
 }
 
 #[derive(Debug, Clone)]
 pub struct While {
-	pub cond: Box<ValExpr>,
+	pub cond: Box<Expr>,
 	pub block: Block,
 }
 
 #[derive(Debug, Clone)]
 pub struct For {
 	pub pat: Pat,
-	pub iter: Box<ValExpr>,
+	pub iter: Box<Expr>,
 	pub block: Block,
 }

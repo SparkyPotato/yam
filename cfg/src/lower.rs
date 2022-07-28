@@ -34,7 +34,7 @@ use crate::{
 	ValRef,
 };
 
-pub fn lower_to_cfg(ctx: resolved::Ctx, rodeo: &Rodeo, diagnostics: &mut Vec<Report<Span>>) -> Ctx {
+pub fn lower_to_cfg(ctx: resolved::ResolveCtx, rodeo: &Rodeo, diagnostics: &mut Vec<Report<Span>>) -> Ctx {
 	let mut lowerer = CfgLower {
 		engine: TypeEngine::new(&ctx.types, &ctx.inbuilt_types, rodeo),
 		types: &ctx.types,
@@ -60,8 +60,8 @@ pub fn lower_to_cfg(ctx: resolved::Ctx, rodeo: &Rodeo, diagnostics: &mut Vec<Rep
 
 struct CfgLower<'a> {
 	engine: TypeEngine<'a>,
-	types: &'a HashMap<TyRef, resolved::Ty>,
-	globals: &'a HashMap<ValRef, resolved::Val>,
+	types: &'a HashMap<TyRef, resolved::TyDef>,
+	globals: &'a HashMap<ValRef, resolved::ValDef>,
 	inbuilts: &'a HashMap<InbuiltType, TyRef>,
 	rodeo: &'a Rodeo,
 	diagnostics: &'a mut Vec<Report<Span>>,
@@ -71,10 +71,10 @@ struct CfgLower<'a> {
 }
 
 impl CfgLower<'_> {
-	fn lower_ty(&mut self, ty: &resolved::Ty) -> Ty {
+	fn lower_ty(&mut self, ty: &resolved::TyDef) -> Ty {
 		match ty {
-			resolved::Ty::Inbuilt(i) => Ty::Inbuilt(*i),
-			resolved::Ty::Struct(s) => Ty::Struct(Struct {
+			resolved::TyDef::Inbuilt(i) => Ty::Inbuilt(*i),
+			resolved::TyDef::Struct(s) => Ty::Struct(Struct {
 				path: s.path.clone(),
 				fields: s
 					.fields
@@ -90,11 +90,11 @@ impl CfgLower<'_> {
 		}
 	}
 
-	fn lower_val(&mut self, val: &resolved::Val) -> Val {
+	fn lower_val(&mut self, val: &resolved::ValDef) -> Val {
 		match val {
-			resolved::Val::Const(_) => unreachable!("consts are not supported"),
-			resolved::Val::Static(_) => unreachable!("statics are not supported"),
-			resolved::Val::Fn(f) => Val::Fn(self.lower_fn(f)),
+			resolved::ValDef::Const(_) => unreachable!("consts are not supported"),
+			resolved::ValDef::Static(_) => unreachable!("statics are not supported"),
+			resolved::ValDef::Fn(f) => Val::Fn(self.lower_fn(f)),
 		}
 	}
 
@@ -746,7 +746,7 @@ impl CfgLower<'_> {
 
 	fn infer_val(&mut self, val: &ValRef) -> TypeId {
 		match &self.globals[val] {
-			resolved::Val::Fn(f) => {
+			resolved::ValDef::Fn(f) => {
 				let args = f
 					.args
 					.iter()
@@ -765,8 +765,8 @@ impl CfgLower<'_> {
 					.unwrap_or(self.engine.insert(TypeInfo::Void));
 				self.engine.insert(TypeInfo::Fn { args, ret })
 			},
-			resolved::Val::Const(_) => unreachable!("consts are not supported"),
-			resolved::Val::Static(_) => unreachable!("statics are not supported"),
+			resolved::ValDef::Const(_) => unreachable!("consts are not supported"),
+			resolved::ValDef::Static(_) => unreachable!("statics are not supported"),
 		}
 	}
 

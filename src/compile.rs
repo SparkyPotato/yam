@@ -33,7 +33,9 @@ pub fn compile(opts: CompileOptions) {
 		},
 	};
 
-	let ctx = resolve(module, &mut rodeo, &mut diagnostics);
+	let rodeo = rodeo;
+
+	let ctx = resolve(module, &rodeo, &mut diagnostics);
 	let cfg = lower_to_cfg(ctx, &rodeo, &mut diagnostics);
 	codegen(&rodeo, cfg);
 

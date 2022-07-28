@@ -25,72 +25,25 @@ use parse::{
 	Spur,
 };
 
-use crate::resolved::{
-	Access,
-	Arg,
-	Array,
-	Binary,
-	Binding,
-	Call,
-	Cast,
-	Ctx,
-	Field,
-	For,
-	GlobalLet,
-	If,
-	InbuiltType,
-	Index,
-	Let,
-	Lit,
-	LocalRef,
-	Loop,
-	Ptr,
-	Ty,
-	TyExpr,
-	TyExprKind,
-	TyRef,
-	Unary,
-	Val,
-	ValExpr,
-	ValExprKind,
-	ValRef,
-	While,
-};
+use crate::{ctx::*, resolved::*};
 
+pub mod ctx;
 pub mod resolved;
 
-enum Ref {
-	Ty(TyRef),
-	Val(ValRef),
-}
+// TODO: lang items
 
-pub fn resolve(module: Module, rodeo: &mut Rodeo, diagnostics: &mut Vec<Report<Span>>) -> Ctx {
+pub fn resolve(module: Module, rodeo: &Rodeo, diagnostics: &mut Vec<Report<Span>>) -> ResolveCtx {
+	let mut builder = ResolveCtxBuilder::new();
 	let mut items = HashMap::new();
-	let mut types = Vec::new();
-	let mut globals = Vec::new();
 
-	for item in module.items {
+	for item in &module.items {
 		let curr_span = item.span;
 		let existing = match &item.kind {
-			ItemKind::Fn(ident, _) => {
-				let val = ValRef(globals.len() as _);
-				let ident = ident.node;
-				globals.push(item);
-				items.insert(ident, (curr_span, Ref::Val(val)))
-			},
+			ItemKind::Fn(ident, _) => items.insert(ident.node, (curr_span, builder.decl_val())),
 			ItemKind::Const(l) | ItemKind::Static(l) => match l.pat.node {
-				PatKind::Binding(binding) => {
-					let val = ValRef(globals.len() as _);
-					globals.push(item);
-					items.insert(binding.binding, (curr_span, Ref::Val(val)))
-				},
+				PatKind::Binding(binding) => items.insert(binding.binding, (curr_span, builder.decl_val())),
 			},
-			ItemKind::Struct(ident, _) => {
-				let ty = TyRef(types.len() as _);
-				let ident = ident.node;
-				types.push(item);
-				items.insert(ident, (curr_span, Ref::Ty(ty)))
-			},
+			ItemKind::Struct(ident, _) => items.insert(ident.node, (curr_span, builder.decl_val())),
 			ItemKind::Import(_) => {
 				diagnostics.push(
 					item.span
@@ -117,92 +70,86 @@ pub fn resolve(module: Module, rodeo: &mut Rodeo, diagnostics: &mut Vec<Report<S
 
 	let mut resolver = Resolver {
 		rodeo,
-		items: &mut items,
+		items: &items,
 		diagnostics,
-		scopes: Vec::new(),
-		counter: 0,
+		local: LocalBuilder::new(),
 	};
 
-	let ty = types;
-	let mut inbuilt_types = HashMap::new();
-	let mut types = resolver.init_inbuilt_types(ty.len() as _, &mut inbuilt_types);
-	types.extend(ty.into_iter().enumerate().map(|(i, x)| match x.kind {
-		ItemKind::Struct(ident, s) => (TyRef(i as _), Ty::Struct(resolver.resolve_struct(ident, s, x.span))),
-		_ => unreachable!("found value in type item list"),
-	}));
+	for item in module.items {
+		let span = item.span;
 
-	let globals = globals
-		.into_iter()
-		.enumerate()
-		.map(|(i, x)| match x.kind {
-			ItemKind::Fn(ident, f) => (ValRef(i as _), Val::Fn(resolver.resolve_fn(ident, f, x.span))),
-			ItemKind::Const(l) => (ValRef(i as _), Val::Const(resolver.resolve_global_let(l, x.span))),
-			ItemKind::Static(l) => (ValRef(i as _), Val::Static(resolver.resolve_global_let(l, x.span))),
-			_ => unreachable!("found type in global item list"),
-		})
-		.collect();
-
-	Ctx {
-		types,
-		globals,
-		inbuilt_types,
-	}
-}
-
-struct Resolver<'a> {
-	rodeo: &'a mut Rodeo,
-	items: &'a mut HashMap<Spur, (Span, Ref)>,
-	diagnostics: &'a mut Vec<Report<Span>>,
-	scopes: Vec<HashMap<Spur, LocalRef>>,
-	counter: u32,
-}
-
-impl Resolver<'_> {
-	fn init_inbuilt_types(&mut self, start: u32, reverse_map: &mut HashMap<InbuiltType, TyRef>) -> HashMap<TyRef, Ty> {
-		let span = Span {
-			start: 0,
-			end: 0,
-			file: self.rodeo.get_or_intern("inbuilt"),
-		};
-
-		(start..)
-			.zip([
-				("bool", InbuiltType::Bool),
-				("f32", InbuiltType::Float(32)),
-				("f64", InbuiltType::Float(64)),
-				("i8", InbuiltType::Int(8)),
-				("i16", InbuiltType::Int(16)),
-				("i32", InbuiltType::Int(32)),
-				("i64", InbuiltType::Int(64)),
-				("isize", InbuiltType::Int(0)),
-				("u8", InbuiltType::Uint(8)),
-				("u16", InbuiltType::Uint(16)),
-				("u32", InbuiltType::Uint(32)),
-				("u64", InbuiltType::Uint(64)),
-				("usize", InbuiltType::Uint(0)),
-			])
-			.map(|(i, (name, ty))| {
-				self.items
-					.insert(self.rodeo.get_or_intern(name), (span, Ref::Ty(TyRef(i))));
-				reverse_map.insert(ty, TyRef(i));
-
-				(TyRef(i), Ty::Inbuilt(ty))
-			})
-			.collect()
-	}
-
-	fn push_block(&mut self) { self.scopes.push(HashMap::new()); }
-
-	fn pop_block(&mut self) {
-		self.scopes.pop();
-		if self.scopes.is_empty() {
-			self.counter = 0;
+		match item.kind {
+			ItemKind::Fn(ident, f) => {
+				let (_, val) = items[&ident.node];
+				builder.define_val(
+					val,
+					ValDef {
+						path: vec![ident],
+						kind: ValDefKind::Fn(resolver.resolve_fn(f)),
+						span,
+					},
+				);
+			},
+			ItemKind::Const(l) => match l.pat.node {
+				PatKind::Binding(b) => {
+					let (_, val) = items[&b.binding];
+					builder.define_val(
+						val,
+						ValDef {
+							path: vec![Ident {
+								node: b.binding,
+								span: l.pat.span,
+							}],
+							kind: ValDefKind::Const(resolver.resolve_global_let(l, span)),
+							span,
+						},
+					);
+				},
+			},
+			ItemKind::Static(l) => match l.pat.node {
+				PatKind::Binding(b) => {
+					let (_, val) = items[&b.binding];
+					builder.define_val(
+						val,
+						ValDef {
+							path: vec![Ident {
+								node: b.binding,
+								span: l.pat.span,
+							}],
+							kind: ValDefKind::Static(resolver.resolve_global_let(l, span)),
+							span,
+						},
+					);
+				},
+			},
+			ItemKind::Struct(ident, s) => {
+				let (_, val) = items[&ident.node];
+				builder.define_val(
+					val,
+					ValDef {
+						path: vec![ident],
+						kind: ValDefKind::Struct(resolver.resolve_struct(s)),
+						span,
+					},
+				);
+			},
+			ItemKind::Import(_) => {},
 		}
 	}
 
-	fn resolve_struct(&mut self, ident: Ident, s: Struct, span: Span) -> resolved::Struct {
+	builder.finish()
+}
+
+struct Resolver<'a> {
+	rodeo: &'a Rodeo,
+	items: &'a HashMap<Spur, (Span, ValRef)>,
+	diagnostics: &'a mut Vec<Report<Span>>,
+	local: LocalBuilder,
+}
+
+impl Resolver<'_> {
+	fn resolve_struct(&mut self, s: Struct) -> resolved::Struct {
 		resolved::Struct {
-			path: vec![ident],
 			fields: s
 				.fields
 				.into_iter()
@@ -237,20 +184,18 @@ impl Resolver<'_> {
 								}
 							},
 						},
-						ty: self.resolve_ty_expr(x.ty),
+						ty: self.resolve_expr(x.ty),
 						span: x.span,
 					}
 				})
 				.collect(),
-			span,
 		}
 	}
 
-	fn resolve_fn(&mut self, ident: Ident, f: Fn, span: Span) -> resolved::Fn {
-		self.push_block();
+	fn resolve_fn(&mut self, f: Fn) -> resolved::Fn {
+		self.local.push_scope();
 
 		let ret = resolved::Fn {
-			path: vec![ident],
 			args: f
 				.args
 				.into_iter()
@@ -278,26 +223,26 @@ impl Resolver<'_> {
 					Arg {
 						is_const: x.is_const,
 						pat: self.resolve_pat(x.pat),
-						ty: self.resolve_ty_expr(x.ty),
+						ty: self.resolve_expr(x.ty),
 						span: x.span,
 					}
 				})
 				.collect(),
-			ret: f.ret.map(|expr| Box::new(self.resolve_ty_expr(*expr))),
+			ret: f.ret.map(|expr| Box::new(self.resolve_expr(*expr))),
 			block: self.resolve_block(f.block),
-			span,
 		};
 
-		self.pop_block();
+		self.local.pop_scope();
+		self.local.reset();
 
 		ret
 	}
 
 	fn resolve_global_let(&mut self, l: parse::ast::Let, span: Span) -> GlobalLet {
 		GlobalLet {
-			ty: l.ty.map(|expr| self.resolve_ty_expr(*expr)),
+			ty: l.ty.map(|expr| self.resolve_expr(*expr)),
 			expr: if let Some(expr) = l.expr {
-				self.resolve_val_expr(*expr)
+				self.resolve_expr(*expr)
 			} else {
 				self.diagnostics.push(
 					span.report(ReportKind::Error)
@@ -306,63 +251,11 @@ impl Resolver<'_> {
 						.finish(),
 				);
 
-				ValExpr {
-					node: ValExprKind::Err,
+				resolved::Expr {
+					node: resolved::ExprKind::Err,
 					span,
 				}
 			},
-			span,
-		}
-	}
-
-	fn resolve_ty_expr(&mut self, expr: Expr) -> TyExpr {
-		let resolved = self.resolve_expr(expr);
-		match resolved.node {
-			resolved::ExprKind::Ty(ty) => TyExpr {
-				node: ty,
-				span: resolved.span,
-			},
-			resolved::ExprKind::Val(_) => {
-				self.diagnostics.push(
-					resolved
-						.span
-						.report(ReportKind::Error)
-						.with_message("expected type")
-						.with_label(Label::new(resolved.span).with_message("found value"))
-						.finish(),
-				);
-				TyExpr {
-					node: TyExprKind::Err,
-					span: resolved.span,
-				}
-			},
-			resolved::ExprKind::Err => TyExpr {
-				node: TyExprKind::Err,
-				span: resolved.span,
-			},
-		}
-	}
-
-	fn resolve_val_expr(&mut self, expr: Expr) -> ValExpr {
-		ValExpr {
-			node: self.resolve_val_expr_kind(expr.node, expr.span),
-			span: expr.span,
-		}
-	}
-
-	fn resolve_val_expr_kind(&mut self, expr: ExprKind, span: Span) -> ValExprKind {
-		match self.resolve_expr_kind(expr, span) {
-			resolved::ExprKind::Val(v) => v,
-			resolved::ExprKind::Ty(_) => {
-				self.diagnostics.push(
-					span.report(ReportKind::Error)
-						.with_message("expected value")
-						.with_label(Label::new(span).with_message("found type"))
-						.finish(),
-				);
-				ValExprKind::Err
-			},
-			resolved::ExprKind::Err => ValExprKind::Err,
 		}
 	}
 
@@ -375,7 +268,7 @@ impl Resolver<'_> {
 
 	fn resolve_expr_kind(&mut self, expr: ExprKind, span: Span) -> resolved::ExprKind {
 		match expr {
-			ExprKind::Lit(lit) => resolved::ExprKind::Val(ValExprKind::Lit(match lit.kind {
+			ExprKind::Lit(lit) => resolved::ExprKind::Lit(match lit.kind {
 				LitKind::Bool => Lit::Bool(self.rodeo.resolve(&lit.sym) == "true"),
 				LitKind::Char => Lit::Char(
 					self.rodeo
@@ -396,18 +289,15 @@ impl Resolver<'_> {
 						.expect("failed to parse float literal"),
 				),
 				LitKind::String => Lit::String(lit.sym),
-			})),
-			ExprKind::Block(block) => resolved::ExprKind::Val(ValExprKind::Block(self.resolve_block(block))),
+			}),
+			ExprKind::Block(block) => resolved::ExprKind::Block(self.resolve_block(block)),
 			ExprKind::Ident(x) => {
-				for scope in self.scopes.iter().rev() {
-					if let Some(r) = scope.get(&x) {
-						return resolved::ExprKind::Val(ValExprKind::LocalRef(*r));
-					}
+				if let Some(local) = self.local.resolve(x) {
+					return resolved::ExprKind::LocalRef(local);
 				}
 
 				match self.items.get(&x) {
-					Some((_, Ref::Ty(ty))) => resolved::ExprKind::Ty(TyExprKind::TyRef(*ty)),
-					Some((_, Ref::Val(val))) => resolved::ExprKind::Val(ValExprKind::ValRef(*val)),
+					Some((_, val)) => resolved::ExprKind::ValRef(*val),
 					None => {
 						self.diagnostics.push(
 							span.report(ReportKind::Error)
@@ -420,29 +310,27 @@ impl Resolver<'_> {
 					},
 				}
 			},
-			ExprKind::Let(l) => resolved::ExprKind::Val(ValExprKind::Let(Let {
+			ExprKind::Let(l) => resolved::ExprKind::Let(Let {
 				pat: self.resolve_pat(l.pat),
-				ty: l.ty.map(|expr| Box::new(self.resolve_ty_expr(*expr))),
-				expr: l.expr.map(|expr| Box::new(self.resolve_val_expr(*expr))),
+				ty: l.ty.map(|expr| Box::new(self.resolve_expr(*expr))),
+				expr: l.expr.map(|expr| Box::new(self.resolve_expr(*expr))),
 				span,
-			})),
-			ExprKind::List(list) => resolved::ExprKind::Val(ValExprKind::List(
-				list.into_iter().map(|x| self.resolve_val_expr(x)).collect(),
-			)),
-			ExprKind::Array(array) => resolved::ExprKind::Val(ValExprKind::Array(Array {
-				expr: Box::new(self.resolve_val_expr(*array.expr)),
-				count: Box::new(self.resolve_val_expr(*array.count)),
-			})),
-			ExprKind::Cast(cast) => resolved::ExprKind::Val(ValExprKind::Cast(Cast {
-				expr: Box::new(self.resolve_val_expr(*cast.expr)),
-				ty: Box::new(self.resolve_ty_expr(*cast.ty)),
-			})),
-			ExprKind::Type => resolved::ExprKind::Ty(TyExprKind::Type),
-			ExprKind::TypeOf(e) => resolved::ExprKind::Ty(TyExprKind::TypeOf(Box::new(self.resolve_expr(*e)))),
-			ExprKind::Ptr(ptr) => resolved::ExprKind::Ty(TyExprKind::Ptr(Ptr {
+			}),
+			ExprKind::List(list) => resolved::ExprKind::List(list.into_iter().map(|x| self.resolve_expr(x)).collect()),
+			ExprKind::Array(array) => resolved::ExprKind::Array(Array {
+				expr: Box::new(self.resolve_expr(*array.expr)),
+				count: Box::new(self.resolve_expr(*array.count)),
+			}),
+			ExprKind::Cast(cast) => resolved::ExprKind::Cast(Cast {
+				expr: Box::new(self.resolve_expr(*cast.expr)),
+				ty: Box::new(self.resolve_expr(*cast.ty)),
+			}),
+			ExprKind::Type => resolved::ExprKind::Type,
+			ExprKind::TypeOf(e) => resolved::ExprKind::TypeOf(Box::new(self.resolve_expr(*e))),
+			ExprKind::Ptr(ptr) => resolved::ExprKind::Ptr(Ptr {
 				mutability: ptr.mutability,
-				to: Box::new(self.resolve_ty_expr(*ptr.to)),
-			})),
+				to: Box::new(self.resolve_expr(*ptr.to)),
+			}),
 			ExprKind::Fn(_) => {
 				self.diagnostics.push(
 					span.report(ReportKind::Error)
@@ -452,72 +340,65 @@ impl Resolver<'_> {
 				);
 				resolved::ExprKind::Err
 			},
-			ExprKind::MacroRef(spur) => resolved::ExprKind::Val(ValExprKind::MacroRef(spur)),
-			ExprKind::Call(call) => resolved::ExprKind::Val(ValExprKind::Call(Call {
-				target: Box::new(self.resolve_val_expr(*call.target)),
+			ExprKind::Call(call) => resolved::ExprKind::Call(Call {
+				target: Box::new(self.resolve_expr(*call.target)),
 				args: call.args.into_iter().map(|x| self.resolve_expr(x)).collect(),
-			})),
-			ExprKind::Index(index) => resolved::ExprKind::Val(ValExprKind::Index(Index {
-				target: Box::new(self.resolve_val_expr(*index.target)),
-				index: Box::new(self.resolve_val_expr(*index.index)),
-			})),
-			ExprKind::Access(access) => resolved::ExprKind::Val(ValExprKind::Access(Access {
+			}),
+			ExprKind::Index(index) => resolved::ExprKind::Index(Index {
+				target: Box::new(self.resolve_expr(*index.target)),
+				index: Box::new(self.resolve_expr(*index.index)),
+			}),
+			ExprKind::Access(access) => resolved::ExprKind::Access(Access {
 				target: Box::new(self.resolve_expr(*access.target)),
 				field: access.field,
-			})),
-			ExprKind::Unary(unary) => resolved::ExprKind::Val(ValExprKind::Unary(Unary {
+			}),
+			ExprKind::Unary(unary) => resolved::ExprKind::Unary(Unary {
 				op: unary.op,
-				expr: Box::new(self.resolve_val_expr(*unary.expr)),
-			})),
-			ExprKind::Binary(binary) => resolved::ExprKind::Val(ValExprKind::Binary(Binary {
+				expr: Box::new(self.resolve_expr(*unary.expr)),
+			}),
+			ExprKind::Binary(binary) => resolved::ExprKind::Binary(Binary {
 				op: binary.op,
-				lhs: Box::new(self.resolve_val_expr(*binary.lhs)),
-				rhs: Box::new(self.resolve_val_expr(*binary.rhs)),
-			})),
-			ExprKind::Break(expr) => {
-				resolved::ExprKind::Val(ValExprKind::Break(expr.map(|expr| Box::new(self.resolve_expr(*expr)))))
+				lhs: Box::new(self.resolve_expr(*binary.lhs)),
+				rhs: Box::new(self.resolve_expr(*binary.rhs)),
+			}),
+			ExprKind::Break(expr) => resolved::ExprKind::Break(expr.map(|expr| Box::new(self.resolve_expr(*expr)))),
+			ExprKind::Continue(expr) => {
+				resolved::ExprKind::Continue(expr.map(|expr| Box::new(self.resolve_expr(*expr))))
 			},
-			ExprKind::Continue(expr) => resolved::ExprKind::Val(ValExprKind::Continue(
-				expr.map(|expr| Box::new(self.resolve_expr(*expr))),
-			)),
-			ExprKind::Return(expr) => {
-				resolved::ExprKind::Val(ValExprKind::Return(expr.map(|expr| Box::new(self.resolve_expr(*expr)))))
-			},
-			ExprKind::If(if_) => resolved::ExprKind::Val(ValExprKind::If(If {
-				cond: Box::new(self.resolve_val_expr(*if_.cond)),
+			ExprKind::Return(expr) => resolved::ExprKind::Return(expr.map(|expr| Box::new(self.resolve_expr(*expr)))),
+			ExprKind::If(if_) => resolved::ExprKind::If(If {
+				cond: Box::new(self.resolve_expr(*if_.cond)),
 				then: self.resolve_block(if_.then),
 				else_: if_.else_.map(|else_| Box::new(self.resolve_expr(*else_))),
-			})),
-			ExprKind::Loop(loop_) => resolved::ExprKind::Val(ValExprKind::Loop(Loop {
+			}),
+			ExprKind::Loop(loop_) => resolved::ExprKind::Loop(Loop {
 				block: self.resolve_block(loop_.block),
-				while_: loop_.while_.map(|cond| Box::new(self.resolve_val_expr(*cond))),
-			})),
-			ExprKind::While(while_) => resolved::ExprKind::Val(ValExprKind::While(While {
-				cond: Box::new(self.resolve_val_expr(*while_.cond)),
+				while_: loop_.while_.map(|cond| Box::new(self.resolve_expr(*cond))),
+			}),
+			ExprKind::While(while_) => resolved::ExprKind::While(While {
+				cond: Box::new(self.resolve_expr(*while_.cond)),
 				block: self.resolve_block(while_.block),
-			})),
-			ExprKind::For(for_) => resolved::ExprKind::Val(ValExprKind::For(For {
+			}),
+			ExprKind::For(for_) => resolved::ExprKind::For(For {
 				pat: self.resolve_pat(for_.pat),
-				iter: Box::new(self.resolve_val_expr(*for_.iter)),
+				iter: Box::new(self.resolve_expr(*for_.iter)),
 				block: self.resolve_block(for_.block),
-			})),
+			}),
 			ExprKind::Err => resolved::ExprKind::Err,
+			ExprKind::Tuple(x) => resolved::ExprKind::Tuple(x.into_iter().map(|x| self.resolve_expr(x)).collect()),
+			ExprKind::Infer => resolved::ExprKind::Infer,
 		}
 	}
 
 	fn resolve_pat(&mut self, pat: Pat) -> resolved::Pat {
-		let scope = self.scopes.last_mut().expect("pattern without scope");
-		let r = self.counter;
-		self.counter += 1;
-
 		match pat.node {
 			PatKind::Binding(binding) => {
-				scope.insert(binding.binding, LocalRef(r));
+				let local = self.local.declare(binding.binding);
 
 				resolved::Pat {
 					node: resolved::PatKind::Binding(Binding {
 						mutability: binding.mutability,
-						binding: LocalRef(r),
+						binding: local,
 					}),
 					span: pat.span,
 				}
@@ -526,7 +407,7 @@ impl Resolver<'_> {
 	}
 
 	fn resolve_block(&mut self, block: Block) -> resolved::Block {
-		self.push_block();
+		self.local.push_scope();
 
 		let ret = resolved::Block {
 			is_const: block.is_const,
@@ -534,7 +415,7 @@ impl Resolver<'_> {
 			span: block.span,
 		};
 
-		self.pop_block();
+		self.local.pop_scope();
 
 		ret
 	}
@@ -555,11 +436,11 @@ impl Resolver<'_> {
 				}
 			},
 			StmtKind::Expr(expr) => resolved::Stmt {
-				node: resolved::StmtKind::Expr(self.resolve_val_expr_kind(expr, stmt.span)),
+				node: resolved::StmtKind::Expr(self.resolve_expr_kind(expr, stmt.span)),
 				span: stmt.span,
 			},
 			StmtKind::Semi(expr) => resolved::Stmt {
-				node: resolved::StmtKind::Semi(self.resolve_val_expr_kind(expr, stmt.span)),
+				node: resolved::StmtKind::Semi(self.resolve_expr_kind(expr, stmt.span)),
 				span: stmt.span,
 			},
 			StmtKind::Err => resolved::Stmt {

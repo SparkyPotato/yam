@@ -12,6 +12,7 @@ use crate::{
 		Access,
 		Arg,
 		Array,
+		Attrib,
 		BinOp,
 		Binary,
 		Binding,
@@ -49,7 +50,7 @@ use crate::{
 };
 
 pub mod ast;
-mod token;
+pub mod token;
 
 pub fn parse(file: Spur, input: &str, rodeo: &mut Rodeo, diagnostics: &mut Vec<Report<Span>>) -> Module {
 	let lexer = Lexer {
@@ -415,41 +416,17 @@ impl<'a> Parser<'a> {
 				block,
 			});
 
-		let ptr = just(TokenKind::Mul)
-			.ignore_then(
-				select! {
-					TokenKind::Const => false,
-					TokenKind::Mut => true,
-				}
-				.or_not(),
-			)
-			.then(expr.clone())
-			.map(|(mutability, to)| match mutability {
-				Some(mutability) => ExprKind::Ptr(Ptr {
-					mutability,
-					to: Box::new(to),
-				}),
-				None => ExprKind::Unary(Unary {
-					op: UnOp::Deref,
-					expr: Box::new(to),
-				}),
-			})
-			.debug("<ptr>")
-			.labelled("<ptr>")
-			.boxed();
-
 		let atom = choice((
+			just(TokenKind::Underscore).to(ExprKind::Infer),
 			expr.clone()
 				.delimited_by(
 					just(TokenKind::LDelim(Delim::Paren)),
 					just(TokenKind::RDelim(Delim::Paren)),
 				)
 				.map(|expr| expr.node),
-			ptr,
 			block.clone().map(ExprKind::Block),
 			lit.map(ExprKind::Lit),
 			sym.clone().map(ExprKind::Ident),
-			just(TokenKind::At).ignore_then(sym.clone()).map(ExprKind::MacroRef),
 			let_.map(ExprKind::Let),
 			var.map(ExprKind::Let),
 			list.map(ExprKind::List).or(array.map(ExprKind::Array)),
@@ -526,12 +503,39 @@ impl<'a> Parser<'a> {
 		.labelled("<atom>")
 		.boxed();
 
+		let ptr = recursive(|ptr| {
+			just(TokenKind::Mul)
+				.ignore_then(
+					select! {
+						TokenKind::Const => false,
+						TokenKind::Mut => true,
+					}
+					.or_not(),
+				)
+				.then(ptr)
+				.map(|(mutability, to)| match mutability {
+					Some(mutability) => ExprKind::Ptr(Ptr {
+						mutability,
+						to: Box::new(to),
+					}),
+					None => ExprKind::Unary(Unary {
+						op: UnOp::Deref,
+						expr: Box::new(to),
+					}),
+				})
+				.map_with_span(|node, span| Expr { node, span })
+				.or(atom)
+				.debug("<ptr>")
+				.labelled("<ptr>")
+				.boxed()
+		});
+
 		enum CallIndexAccess {
 			Call(Vec<Expr>),
 			Index(Expr),
 			Access(Ident),
 		}
-		let call = atom
+		let call = ptr
 			.then(
 				expr.clone()
 					.separated_by(just(TokenKind::Comma))
@@ -758,10 +762,27 @@ impl<'a> Parser<'a> {
 			.labelled("<struct>")
 			.boxed();
 
+		let attrib = just(TokenKind::At)
+			.ignore_then(ident.clone())
+			.then(any().repeated().delimited_by(
+				just(TokenKind::LDelim(Delim::Paren)),
+				just(TokenKind::RDelim(Delim::Paren)),
+			))
+			.map_with_span(|(name, values), span| Attrib { name, values, span })
+			.debug("<attrib>")
+			.labelled("<attrib>")
+			.boxed();
+
 		item.define(
-			visibility
-				.then(choice((const_, static_, function_item, struct_item, import)))
-				.map_with_span(|(visibility, kind), span| Item { visibility, kind, span })
+			attrib
+				.repeated()
+				.then(visibility.then(choice((const_, static_, function_item, struct_item, import))))
+				.map_with_span(|(attribs, (visibility, kind)), span| Item {
+					attribs,
+					visibility,
+					kind,
+					span,
+				})
 				.debug("<item>")
 				.labelled("<item>"),
 		);
