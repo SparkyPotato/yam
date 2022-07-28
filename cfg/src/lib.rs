@@ -83,11 +83,11 @@ pub struct Arg {
 }
 
 #[derive(Copy, Clone, Eq, PartialEq)]
-pub struct BasicBlockId(pub(crate) u32);
+pub struct BasicBlockId(pub u32);
 #[derive(Copy, Clone, Eq, PartialEq)]
-pub struct InstrId(pub(crate) u32);
+pub struct InstrId(pub u32);
 #[derive(Copy, Clone, Eq, PartialEq)]
-pub struct ArgId(pub(crate) u32);
+pub struct ArgId(pub u32);
 
 #[derive(Default)]
 pub struct BasicBlock {

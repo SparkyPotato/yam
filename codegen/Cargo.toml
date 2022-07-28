@@ -1,0 +1,10 @@
+[package]
+name = "codegen"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+cfg = { path = "../cfg" }
+
+cranelift = "0.85.1"
+target-lexicon = "0.12.4"

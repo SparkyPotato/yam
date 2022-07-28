@@ -2,6 +2,7 @@ use std::path::{Path, PathBuf};
 
 use cfg::{lower::lower_to_cfg, print::pretty_print};
 use clap::clap_derive::Parser;
+use codegen::codegen;
 use diag::{
 	ariadne::{Report, ReportKind},
 	emit_diagnostics,
@@ -35,6 +36,7 @@ pub fn compile(opts: CompileOptions) {
 	let ctx = resolve(module, &mut rodeo, &mut diagnostics);
 	let cfg = lower_to_cfg(ctx, &rodeo, &mut diagnostics);
 	pretty_print(&rodeo, &cfg);
+	codegen(cfg);
 
 	let cache = cache.finish(&rodeo);
 	emit_diagnostics(&cache, diagnostics);

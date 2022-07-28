@@ -11,7 +11,7 @@ use crate::Rodeo;
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
 pub struct TyRef(pub(crate) u32);
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
-pub struct ValRef(pub(crate) u32);
+pub struct ValRef(pub u32);
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
 pub struct LocalRef(pub(crate) u32);
 
