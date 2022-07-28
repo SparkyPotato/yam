@@ -1,13 +1,15 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, fs::File};
 
-use cfg::{BinOp, Ctx, Fn, InbuiltType, InstrKind, Lit, Ty, TyRef, Val, ValRef};
+use cfg::{print::pretty_print_fn, BinOp, Ctx, Fn, InbuiltType, InstrKind, Lit, Rodeo, Ty, TyRef, Val, ValRef};
 use cranelift::{
 	codegen::ir::{types, Function},
 	prelude::*,
 };
+use cranelift_module::{Linkage, Module};
+use cranelift_object::{ObjectBuilder, ObjectModule};
 use target_lexicon::Triple;
 
-pub fn codegen(ctx: Ctx) {
+pub fn codegen(rodeo: &Rodeo, ctx: Ctx) {
 	let triple = Triple::host();
 	let builder = settings::builder();
 	let flags = settings::Flags::new(builder);
@@ -16,42 +18,53 @@ pub fn codegen(ctx: Ctx) {
 	let mut codegen = Codegen {
 		triple,
 		flags,
-		isa: &*isa,
+		ctx: codegen::Context::new(),
+		module: ObjectModule::new(
+			ObjectBuilder::new(isa, "output", cranelift_module::default_libcall_names()).unwrap(),
+		),
+		rodeo,
 		globals: &ctx.globals,
 		types: &ctx.types,
 	};
 
-	let mut cctx = codegen::Context::new();
 	let mut fctx = FunctionBuilderContext::new();
 
 	for (v, val) in ctx.globals.iter() {
-		let f = codegen.gen_val(&mut fctx, v.0, val);
-		cctx.func = f;
-		let info = cctx.compile(&*isa).unwrap();
+		codegen.gen_val(&mut fctx, v.0, val);
 	}
+
+	let output = codegen.module.finish();
+	output.object.write_stream(File::create("out.o").unwrap()).unwrap();
 }
 
 struct Codegen<'a> {
 	triple: Triple,
 	flags: settings::Flags,
-	isa: &'a dyn isa::TargetIsa,
+	ctx: codegen::Context,
+	module: ObjectModule,
+	rodeo: &'a Rodeo,
 	globals: &'a HashMap<ValRef, Val>,
 	types: &'a HashMap<TyRef, Ty>,
 }
 
 impl Codegen<'_> {
-	fn gen_val(&mut self, ctx: &mut FunctionBuilderContext, index: u32, val: &Val) -> Function {
+	fn gen_val(&mut self, ctx: &mut FunctionBuilderContext, index: u32, val: &Val) {
 		match val {
 			Val::Fn(f) => self.gen_fn(ctx, index, f),
 		}
 	}
 
-	fn gen_fn(&mut self, ctx: &mut FunctionBuilderContext, index: u32, f: &Fn) -> Function {
-		let mut sig = Signature::new(isa::CallConv::Fast);
+	fn gen_fn(&mut self, ctx: &mut FunctionBuilderContext, index: u32, f: &Fn) {
+		let mut sig = Signature::new(isa::CallConv::triple_default(&self.triple));
 		for arg in f.blocks[0].args.iter() {
 			sig.params.push(AbiParam::new(self.ty_to_cranelift(&arg.ty).0));
 		}
 		sig.returns.push(AbiParam::new(self.ty_to_cranelift(&f.ret).0));
+
+		let id = self
+			.module
+			.declare_function(self.rodeo.resolve(&f.path[0].node), Linkage::Export, &sig)
+			.unwrap();
 
 		let mut func = Function::with_name_signature(ExternalName::user(0, index), sig);
 		let mut builder = FunctionBuilder::new(&mut func, ctx);
@@ -168,7 +181,6 @@ impl Codegen<'_> {
 					// InstrKind::Call { .. } => {},
 					// InstrKind::Cast(_) => {},
 					// InstrKind::Unary { .. } => {},,
-					// InstrKind::Jmp { .. } => {},
 					// InstrKind::CondJmp { .. } => {},
 				};
 
@@ -179,19 +191,28 @@ impl Codegen<'_> {
 		builder.seal_all_blocks();
 		builder.finalize();
 
-		let mut s = String::new();
-		codegen::write_function(&mut s, &func);
-		println!("{}", s);
+		if let Err(e) = codegen::verify_function(&func, &self.flags) {
+			println!("codegen error");
+			println!("MIR:");
+			pretty_print_fn(self.rodeo, self.globals, self.types, f);
+
+			let mut s = String::new();
+			codegen::write_function(&mut s, &func).unwrap();
+			println!("CLIF:\n{}", s);
+
+			panic!("errors: {:#?}", e);
+		}
 
 		codegen::verify_function(&func, &self.flags).expect("generated invalid function");
 
-		func
+		self.ctx.func = func;
+		self.module.define_function(id, &mut self.ctx).unwrap();
 	}
 
 	fn ty_to_cranelift(&mut self, ty: &cfg::Type) -> (Type, bool) {
 		match ty {
-			cfg::Type::Void => unreachable!("void type"),
-			cfg::Type::Never => unreachable!("never type"),
+			cfg::Type::Void => (types::I32, false),
+			cfg::Type::Never => (types::I32, false),
 			cfg::Type::Fn { .. } => (Type::triple_pointer_type(&self.triple), false),
 			cfg::Type::TyRef(t) => match self.types[t] {
 				Ty::Struct(_) => unreachable!("no"),
@@ -212,7 +233,7 @@ impl Codegen<'_> {
 						};
 						(Type::int(x as _).unwrap(), false)
 					},
-					InbuiltType::Bool => (Type::int(1).unwrap().as_bool(), false),
+					InbuiltType::Bool => (types::B1, false),
 					InbuiltType::Float(x) => {
 						if x == 32 {
 							(types::F32, false)

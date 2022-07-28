@@ -16,6 +16,12 @@ pub fn pretty_print(rodeo: &Rodeo, ctx: &Ctx) {
 	}
 }
 
+pub fn pretty_print_fn(rodeo: &Rodeo, globals: &HashMap<ValRef, Val>, types: &HashMap<TyRef, Ty>, f: &Fn) {
+	let printer = PrettyPrinter { rodeo, globals, types };
+
+	printer.print_fn(f);
+}
+
 struct PrettyPrinter<'a> {
 	rodeo: &'a Rodeo,
 	globals: &'a HashMap<ValRef, Val>,

@@ -6,5 +6,7 @@ edition = "2021"
 [dependencies]
 cfg = { path = "../cfg" }
 
-cranelift = "0.85.1"
+cranelift = "0.86.1"
+cranelift-module = "0.86.1"
+cranelift-object = "0.86.1"
 target-lexicon = "0.12.4"

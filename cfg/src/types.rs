@@ -150,8 +150,7 @@ impl TypeEngine<'_> {
 	pub fn get_mut(&mut self, id: TypeId) -> &mut TypeInfo { &mut self.vars[id.0 as usize] }
 
 	pub fn unify(&mut self, a: TypeId, a_span: Span, b: TypeId, b_span: Span, diagnostics: &mut Vec<Report<Span>>) {
-		match (self.get(a), self.get(a)) {
-			(a, b) if a == b => {},
+		match (self.get(a), self.get(b)) {
 			(TypeInfo::Ref(a), _) => self.unify(*a, a_span, b, b_span, diagnostics),
 			(_, TypeInfo::Ref(b)) => self.unify(a, a_span, *b, b_span, diagnostics),
 			(TypeInfo::Unknown | TypeInfo::Never, _) => *self.get_mut(a) = TypeInfo::Ref(b),
@@ -205,6 +204,7 @@ impl TypeEngine<'_> {
 					to: to_b,
 				},
 			) => self.unify(*to_a, a_span, *to_b, b_span, diagnostics),
+			(a, b) if a == b => {},
 			(a, b) => diagnostics.push(
 				a_span
 					.report(ReportKind::Error)

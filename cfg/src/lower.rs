@@ -599,7 +599,11 @@ impl CfgLower<'_> {
 					| BinOp::Shr
 					| BinOp::BitAnd
 					| BinOp::BitOr
-					| BinOp::BitXor => self.engine.insert(TypeInfo::Ref(lhs.ty)),
+					| BinOp::BitXor => {
+						self.engine
+							.unify(lhs.ty, lhs.span, rhs.ty, rhs.span, &mut self.diagnostics);
+						self.engine.insert(TypeInfo::Ref(lhs.ty))
+					},
 					BinOp::Lt
 					| BinOp::Gt
 					| BinOp::Leq
