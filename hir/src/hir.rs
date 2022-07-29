@@ -6,7 +6,10 @@ pub use parse::{
 	Spur,
 };
 
-use crate::ctx::{LocalRef, ValRef};
+use crate::{
+	ctx::{LocalRef, ValRef},
+	types::Type,
+};
 
 #[derive(Debug, Default, Clone, Eq)]
 pub struct Path(Vec<Ident>);
@@ -83,34 +86,38 @@ pub struct Struct {
 pub struct Field {
 	pub visibility: Visibility,
 	pub name: Ident,
-	pub ty: Expr,
+	pub ty_expr: Expr,
+	pub ty: Type,
 	pub span: Span,
 }
 
 #[derive(Debug, Clone)]
 pub struct Fn {
 	pub args: Vec<Arg>,
-	pub ret: Option<Box<Expr>>,
+	pub ret_expr: Option<Box<Expr>>,
+	pub ret: Type,
 	pub block: Block,
 }
 
 pub type Pat = Spanned<PatKind>;
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Clone)]
 pub enum PatKind {
 	Binding(Binding),
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Clone)]
 pub struct Binding {
 	pub mutability: bool,
 	pub binding: LocalRef,
+	pub ty: Type,
 }
 
 #[derive(Debug, Clone)]
 pub struct Arg {
 	pub is_const: bool,
 	pub pat: Pat,
-	pub ty: Expr,
+	pub ty_expr: Expr,
+	pub ty: Type,
 	pub span: Span,
 }
 
@@ -129,11 +136,18 @@ pub enum StmtKind {
 	Err,
 }
 
-pub type Expr = Spanned<ExprKind>;
+#[derive(Debug, Clone)]
+pub struct Expr {
+	pub kind: ExprKind,
+	pub ty: Type,
+	pub span: Span,
+}
+
 #[derive(Debug, Clone)]
 pub enum ExprKind {
 	ValRef(ValRef),
 	LocalRef(LocalRef),
+	Never,
 	Type,
 	TypeOf(Box<Expr>),
 	Ptr(Ptr),
@@ -151,7 +165,7 @@ pub enum ExprKind {
 	Unary(Unary),
 	Binary(Binary),
 	Break(Option<Box<Expr>>),
-	Continue(Option<Box<Expr>>),
+	Continue,
 	Return(Option<Box<Expr>>),
 	If(If),
 	Loop(Loop),
@@ -173,14 +187,16 @@ pub enum Lit {
 #[derive(Debug, Clone)]
 pub struct Let {
 	pub pat: Pat,
-	pub ty: Option<Box<Expr>>,
+	pub ty_expr: Option<Box<Expr>>,
+	pub ty: Type,
 	pub expr: Option<Box<Expr>>,
 	pub span: Span,
 }
 
 #[derive(Debug, Clone)]
 pub struct GlobalLet {
-	pub ty: Option<Expr>,
+	pub ty_expr: Option<Expr>,
+	pub ty: Type,
 	pub expr: Expr,
 }
 
@@ -193,7 +209,8 @@ pub struct Array {
 #[derive(Debug, Clone)]
 pub struct Cast {
 	pub expr: Box<Expr>,
-	pub ty: Box<Expr>,
+	pub ty_expr: Box<Expr>,
+	pub ty: Type,
 }
 
 #[derive(Debug, Clone)]
@@ -237,7 +254,7 @@ pub struct Binary {
 pub struct If {
 	pub cond: Box<Expr>,
 	pub then: Block,
-	pub else_: Option<Box<Expr>>,
+	pub else_: Option<Block>,
 }
 
 #[derive(Debug, Clone)]

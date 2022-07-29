@@ -213,7 +213,7 @@ impl<'a> Parser<'a> {
 			.clone()
 			.then(just(TokenKind::Colon).ignore_then(expr.clone()).or_not())
 			.then(just(TokenKind::Assign).ignore_then(expr.clone()).or_not())
-			.map(|((pat, ty), expr)| (pat, ty.map(|ty| Box::new(ty)), expr.map(|expr| Box::new(expr))))
+			.map(|((pat, ty), expr)| (pat, ty.map(Box::new), expr.map(Box::new)))
 			.debug("<let>")
 			.labelled("<let>")
 			.boxed();
@@ -254,7 +254,7 @@ impl<'a> Parser<'a> {
 			.ignore_then(let_.clone())
 			.map(|(mut pat, ty, expr)| {
 				let mut this = this.borrow_mut();
-				make_pat_mutable(&mut pat, &mut this.diagnostics);
+				make_pat_mutable(&mut pat, this.diagnostics);
 				Let { pat, ty, expr }
 			})
 			.debug("<var>")
@@ -344,7 +344,7 @@ impl<'a> Parser<'a> {
 			.map(|((args, ret), block)| Fn {
 				args,
 				block,
-				ret: ret.map(|ret| Box::new(ret)),
+				ret: ret.map(Box::new),
 			})
 			.debug("<fn>")
 			.labelled("<fn>")
@@ -357,7 +357,7 @@ impl<'a> Parser<'a> {
 			.map(|((cond, then), else_)| If {
 				cond: Box::new(cond),
 				then,
-				else_: else_.map(|else_| Box::new(else_)),
+				else_: else_.map(Box::new),
 			});
 
 		let loop_ = just(TokenKind::Loop)
@@ -365,7 +365,7 @@ impl<'a> Parser<'a> {
 			.then(just(TokenKind::While).ignore_then(expr.clone()).or_not())
 			.map(|(block, while_)| Loop {
 				block,
-				while_: while_.map(|while_| Box::new(while_)),
+				while_: while_.map(Box::new),
 			});
 
 		let while_ = just(TokenKind::While)
@@ -417,13 +417,11 @@ impl<'a> Parser<'a> {
 			lambda.map(ExprKind::Fn),
 			just(TokenKind::Break)
 				.ignore_then(expr.clone().or_not())
-				.map(|expr| ExprKind::Break(expr.map(|expr| Box::new(expr)))),
-			just(TokenKind::Continue)
-				.ignore_then(expr.clone().or_not())
-				.map(|expr| ExprKind::Continue(expr.map(|expr| Box::new(expr)))),
+				.map(|expr| ExprKind::Break(expr.map(Box::new))),
+			just(TokenKind::Continue).to(ExprKind::Continue),
 			just(TokenKind::Return)
 				.ignore_then(expr.clone().or_not())
-				.map(|expr| ExprKind::Return(expr.map(|expr| Box::new(expr)))),
+				.map(|expr| ExprKind::Return(expr.map(Box::new))),
 			if_.map(ExprKind::If),
 			loop_.map(ExprKind::Loop),
 			while_.map(ExprKind::While),
@@ -573,6 +571,10 @@ impl<'a> Parser<'a> {
 				span,
 			}
 		})
+		.or(just(TokenKind::Not).map_with_span(|_, span| Expr {
+			node: ExprKind::Never,
+			span,
+		}))
 		.debug("<unary>")
 		.labelled("<unary>")
 		.boxed();
@@ -692,7 +694,7 @@ impl<'a> Parser<'a> {
 										just(TokenKind::LDelim(Delim::Brace)),
 										just(TokenKind::RDelim(Delim::Brace)),
 									)
-									.map(|imports| ImportTree::List(imports)),
+									.map(ImportTree::List),
 							)))
 							.or_not(),
 					)
@@ -702,7 +704,7 @@ impl<'a> Parser<'a> {
 						tree: tree.unwrap_or(ImportTree::None),
 					})
 			}))
-			.map(|import| ItemKind::Import(import))
+			.map(ItemKind::Import)
 			.debug("<import>")
 			.labelled("<import>");
 
@@ -716,7 +718,7 @@ impl<'a> Parser<'a> {
 					ident,
 					Fn {
 						args,
-						ret: ret.map(|ret| Box::new(ret)),
+						ret: ret.map(Box::new),
 						block,
 					},
 				)

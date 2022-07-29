@@ -11,6 +11,7 @@ use crate::{
 	ReportKind,
 	Rodeo,
 	Spur,
+	Type,
 	ValDef,
 	ValDefKind,
 };
@@ -30,6 +31,10 @@ pub struct Hir {
 
 impl Hir {
 	pub fn rodeo(&self) -> &Rodeo { &self.rodeo }
+
+	pub fn resolve_intern(&self, spur: Spur) -> &str { self.rodeo.resolve(&spur) }
+
+	pub fn lang_item_of(&self, val: ValRef) -> Option<LangItem> { self.val_to_lang_item.get(&val).copied() }
 }
 
 impl Index<ValRef> for Hir {
@@ -75,9 +80,11 @@ impl HirBuilder {
 		self.globals.push(ValDef {
 			path: Path::default(),
 			kind: ValDefKind::Const(GlobalLet {
-				ty: None,
+				ty: Type::Void,
+				ty_expr: None,
 				expr: Expr {
-					node: ExprKind::Err,
+					kind: ExprKind::Err,
+					ty: Type::Void,
 					span: Span::default(),
 				},
 			}),

@@ -36,6 +36,7 @@ pub struct Binding {
 pub type Expr = Spanned<ExprKind>;
 #[derive(Debug, Clone)]
 pub enum ExprKind {
+	Never,
 	Type,
 	TypeOf(Box<Expr>),
 	Ptr(Ptr),
@@ -54,7 +55,7 @@ pub enum ExprKind {
 	Unary(Unary),
 	Binary(Binary),
 	Break(Option<Box<Expr>>),
-	Continue(Option<Box<Expr>>),
+	Continue,
 	Return(Option<Box<Expr>>),
 	If(If),
 	Loop(Loop),

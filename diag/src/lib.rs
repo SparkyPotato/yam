@@ -69,12 +69,13 @@ impl Span {
 	pub fn report(self, kind: ReportKind) -> ReportBuilder<Self> { Report::build(kind, self.file, self.start as _) }
 }
 
+#[derive(Default)]
 pub struct FileCacheBuilder {
 	files: HashMap<Spur, Source>,
 }
 
 impl FileCacheBuilder {
-	pub fn new() -> Self { Self { files: HashMap::new() } }
+	pub fn new() -> Self { Self::default() }
 
 	pub fn add_file(&mut self, rodeo: &mut Rodeo, path: &Path) -> Spur {
 		rodeo.get_or_intern(path.as_os_str().to_str().unwrap())

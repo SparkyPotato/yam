@@ -31,11 +31,13 @@ use crate::{
 	ctx::*,
 	hir::*,
 	lang_item::{LangItem, LangItemIdents},
+	types::Type,
 };
 
 pub mod ctx;
 pub mod hir;
 pub mod lang_item;
+pub mod types;
 
 fn register_module_items(module: &Module, prefix: Path, builder: &mut HirBuilder, diags: &mut Vec<Report<Span>>) {
 	for item in module.items.iter() {
@@ -88,7 +90,7 @@ pub fn resolve(module: Module, mut rodeo: Rodeo, diagnostics: &mut Vec<Report<Sp
 		for attr in item.attrs {
 			let attr_span = attr.span;
 			let item = resolver.lang_item(attr);
-			if let Some(_) = item {
+			if item.is_some() {
 				if let Some((_, span)) = lang_item {
 					resolver.diagnostics.push(
 						attr_span
@@ -109,7 +111,7 @@ pub fn resolve(module: Module, mut rodeo: Rodeo, diagnostics: &mut Vec<Report<Sp
 				let val = resolver.builder.resolve(&path).unwrap();
 
 				if let Some((lang, _)) = lang_item {
-					resolver.builder.define_lang_item(lang, val, &mut resolver.diagnostics);
+					resolver.builder.define_lang_item(lang, val, resolver.diagnostics);
 				}
 
 				let f = resolver.resolve_fn(f);
@@ -131,7 +133,7 @@ pub fn resolve(module: Module, mut rodeo: Rodeo, diagnostics: &mut Vec<Report<Sp
 					let val = resolver.builder.resolve(&path).unwrap();
 
 					if let Some((lang, _)) = lang_item {
-						resolver.builder.define_lang_item(lang, val, &mut resolver.diagnostics);
+						resolver.builder.define_lang_item(lang, val, resolver.diagnostics);
 					}
 
 					let l = resolver.resolve_global_let(l, span);
@@ -154,7 +156,7 @@ pub fn resolve(module: Module, mut rodeo: Rodeo, diagnostics: &mut Vec<Report<Sp
 					let val = resolver.builder.resolve(&path).unwrap();
 
 					if let Some((lang, _)) = lang_item {
-						resolver.builder.define_lang_item(lang, val, &mut resolver.diagnostics);
+						resolver.builder.define_lang_item(lang, val, resolver.diagnostics);
 					}
 
 					let l = resolver.resolve_global_let(l, span);
@@ -173,7 +175,7 @@ pub fn resolve(module: Module, mut rodeo: Rodeo, diagnostics: &mut Vec<Report<Sp
 				let val = resolver.builder.resolve(&path).unwrap();
 
 				if let Some((lang, _)) = lang_item {
-					resolver.builder.define_lang_item(lang, val, &mut resolver.diagnostics);
+					resolver.builder.define_lang_item(lang, val, resolver.diagnostics);
 				}
 
 				let s = resolver.resolve_struct(s);
@@ -283,7 +285,8 @@ impl Resolver<'_> {
 								}
 							},
 						},
-						ty: self.resolve_expr(x.ty),
+						ty: Type::Unknown,
+						ty_expr: self.resolve_expr(x.ty),
 						span: x.span,
 					}
 				})
@@ -322,12 +325,14 @@ impl Resolver<'_> {
 					Arg {
 						is_const: x.is_const,
 						pat: self.resolve_pat(x.pat),
-						ty: self.resolve_expr(x.ty),
+						ty: Type::Unknown,
+						ty_expr: self.resolve_expr(x.ty),
 						span: x.span,
 					}
 				})
 				.collect(),
-			ret: f.ret.map(|expr| Box::new(self.resolve_expr(*expr))),
+			ret: Type::Unknown,
+			ret_expr: f.ret.map(|expr| Box::new(self.resolve_expr(*expr))),
 			block: self.resolve_block(f.block),
 		};
 
@@ -339,7 +344,8 @@ impl Resolver<'_> {
 
 	fn resolve_global_let(&mut self, l: Let, span: Span) -> GlobalLet {
 		GlobalLet {
-			ty: l.ty.map(|expr| self.resolve_expr(*expr)),
+			ty: Type::Unknown,
+			ty_expr: l.ty.map(|expr| self.resolve_expr(*expr)),
 			expr: if let Some(expr) = l.expr {
 				self.resolve_expr(*expr)
 			} else {
@@ -351,7 +357,8 @@ impl Resolver<'_> {
 				);
 
 				hir::Expr {
-					node: hir::ExprKind::Err,
+					kind: hir::ExprKind::Err,
+					ty: Type::Void,
 					span,
 				}
 			},
@@ -360,7 +367,8 @@ impl Resolver<'_> {
 
 	fn resolve_expr(&mut self, expr: Expr) -> hir::Expr {
 		hir::Expr {
-			node: self.resolve_expr_kind(expr.node, expr.span),
+			kind: self.resolve_expr_kind(expr.node, expr.span),
+			ty: Type::Unknown,
 			span: expr.span,
 		}
 	}
@@ -411,7 +419,8 @@ impl Resolver<'_> {
 			},
 			ExprKind::Let(l) => hir::ExprKind::Let(hir::Let {
 				pat: self.resolve_pat(l.pat),
-				ty: l.ty.map(|expr| Box::new(self.resolve_expr(*expr))),
+				ty: Type::Unknown,
+				ty_expr: l.ty.map(|expr| Box::new(self.resolve_expr(*expr))),
 				expr: l.expr.map(|expr| Box::new(self.resolve_expr(*expr))),
 				span,
 			}),
@@ -422,8 +431,10 @@ impl Resolver<'_> {
 			}),
 			ExprKind::Cast(cast) => hir::ExprKind::Cast(Cast {
 				expr: Box::new(self.resolve_expr(*cast.expr)),
-				ty: Box::new(self.resolve_expr(*cast.ty)),
+				ty: Type::Unknown,
+				ty_expr: Box::new(self.resolve_expr(*cast.ty)),
 			}),
+			ExprKind::Never => hir::ExprKind::Never,
 			ExprKind::Type => hir::ExprKind::Type,
 			ExprKind::TypeOf(e) => hir::ExprKind::TypeOf(Box::new(self.resolve_expr(*e))),
 			ExprKind::Ptr(ptr) => hir::ExprKind::Ptr(Ptr {
@@ -461,13 +472,32 @@ impl Resolver<'_> {
 				rhs: Box::new(self.resolve_expr(*binary.rhs)),
 			}),
 			ExprKind::Break(expr) => hir::ExprKind::Break(expr.map(|expr| Box::new(self.resolve_expr(*expr)))),
-			ExprKind::Continue(expr) => hir::ExprKind::Continue(expr.map(|expr| Box::new(self.resolve_expr(*expr)))),
+			ExprKind::Continue => hir::ExprKind::Continue,
 			ExprKind::Return(expr) => hir::ExprKind::Return(expr.map(|expr| Box::new(self.resolve_expr(*expr)))),
-			ExprKind::If(if_) => hir::ExprKind::If(If {
-				cond: Box::new(self.resolve_expr(*if_.cond)),
-				then: self.resolve_block(if_.then),
-				else_: if_.else_.map(|else_| Box::new(self.resolve_expr(*else_))),
-			}),
+			ExprKind::If(if_) => {
+				let else_ = if_.else_.map(|x| *x);
+
+				hir::ExprKind::If(If {
+					cond: Box::new(self.resolve_expr(*if_.cond)),
+					then: self.resolve_block(if_.then),
+					else_: match else_ {
+						Some(Expr {
+							node: ExprKind::Block(block),
+							..
+						}) => Some(self.resolve_block(block)),
+						Some(Expr { span, .. }) => {
+							self.diagnostics.push(
+								span.report(ReportKind::Error)
+									.with_message("else must be a block")
+									.with_label(Label::new(span).with_message("surround this with `{<expr>}`"))
+									.finish(),
+							);
+							None
+						},
+						None => None,
+					},
+				})
+			},
 			ExprKind::Loop(loop_) => hir::ExprKind::Loop(Loop {
 				block: self.resolve_block(loop_.block),
 				while_: loop_.while_.map(|cond| Box::new(self.resolve_expr(*cond))),
@@ -495,6 +525,7 @@ impl Resolver<'_> {
 				hir::Pat {
 					node: hir::PatKind::Binding(Binding {
 						mutability: binding.mutability,
+						ty: Type::Unknown,
 						binding: local,
 					}),
 					span: pat.span,
