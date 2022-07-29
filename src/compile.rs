@@ -1,8 +1,8 @@
 use std::path::{Path, PathBuf};
 
-use cfg::lower::lower_to_cfg;
+// use cfg::lower::lower_to_cfg;
 use clap::clap_derive::Parser;
-use codegen::codegen;
+// use codegen::codegen;
 use diag::{
 	ariadne::{Report, ReportKind},
 	emit_diagnostics,
@@ -10,7 +10,7 @@ use diag::{
 	FileCacheBuilder,
 	Span,
 };
-use name_resolve::resolve;
+use hir::resolve;
 use parse::{ast::Module, parse, Rodeo};
 
 #[derive(Parser)]
@@ -33,13 +33,13 @@ pub fn compile(opts: CompileOptions) {
 		},
 	};
 
-	let rodeo = rodeo;
+	let hir = resolve(module, rodeo, &mut diagnostics);
+	// let cfg = lower_to_cfg(ctx, &rodeo, &mut diagnostics);
+	// codegen(&rodeo, cfg);
 
-	let ctx = resolve(module, &rodeo, &mut diagnostics);
-	let cfg = lower_to_cfg(ctx, &rodeo, &mut diagnostics);
-	codegen(&rodeo, cfg);
+	println!("{:#?}", hir);
 
-	let cache = cache.finish(&rodeo);
+	let cache = cache.finish(hir.rodeo());
 	emit_diagnostics(&cache, diagnostics);
 }
 

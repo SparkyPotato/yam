@@ -1,10 +1,12 @@
 use diag::Span;
 use lasso::Spur;
+
 use crate::TokenKind;
 
 #[derive(Debug)]
 pub struct Module {
 	pub items: Vec<Item>,
+	pub source: Spur,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -247,16 +249,23 @@ pub enum ImportTree {
 	List(Vec<Import>),
 }
 
+#[derive(Debug, Copy, Clone)]
+pub struct Token {
+	pub kind: TokenKind,
+	pub data: Spur,
+	pub span: Span,
+}
+
 #[derive(Debug, Clone)]
-pub struct Attrib {
+pub struct Attr {
 	pub name: Ident,
-	pub values: Vec<TokenKind>,
+	pub values: Vec<Token>,
 	pub span: Span,
 }
 
 #[derive(Debug, Clone)]
 pub struct Item {
-	pub attribs: Vec<Attrib>,
+	pub attrs: Vec<Attr>,
 	pub visibility: Visibility,
 	pub kind: ItemKind,
 	pub span: Span,

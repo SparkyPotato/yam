@@ -5,4 +5,4 @@ edition = "2021"
 
 [dependencies]
 diag = { path = "../diag" }
-name_resolve = { path = "../name_resolve" }
+name_resolve = { path = "../hir" }

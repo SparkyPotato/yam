@@ -1,3 +1,5 @@
+use std::hash::Hash;
+
 use diag::Span;
 pub use parse::{
 	ast::{BinOp, Ident, Spanned, UnOp, Visibility},
@@ -6,7 +8,56 @@ pub use parse::{
 
 use crate::ctx::{LocalRef, ValRef};
 
-pub type Path = Vec<Ident>;
+#[derive(Debug, Default, Clone, Eq)]
+pub struct Path(Vec<Ident>);
+
+impl PartialEq for Path {
+	fn eq(&self, other: &Self) -> bool {
+		if self.0.len() != other.0.len() {
+			return false;
+		}
+
+		for (a, b) in self.0.iter().zip(other.0.iter()) {
+			if a.node != b.node {
+				return false;
+			}
+		}
+
+		true
+	}
+}
+
+impl Hash for Path {
+	fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+		for ident in self.0.iter() {
+			ident.node.hash(state);
+		}
+	}
+}
+
+impl Path {
+	pub fn from_ident(ident: Ident) -> Self { Self(vec![ident]) }
+
+	pub fn push(&mut self, ident: Ident) { self.0.push(ident); }
+
+	pub fn with(&self, ident: Ident) -> Self {
+		let mut path = self.clone();
+		path.push(ident);
+		path
+	}
+
+	pub fn is_child_of(&self, parent: &Path) -> bool {
+		for (child, parent) in self.0.iter().zip(parent.0.iter()) {
+			if child != parent {
+				return false;
+			}
+		}
+
+		true
+	}
+
+	pub fn ident(&self) -> &Ident { self.0.last().unwrap() }
+}
 
 #[derive(Debug)]
 pub struct ValDef {

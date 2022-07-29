@@ -4,20 +4,20 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-cfg = { path = "cfg" }
+# cfg = { path = "cfg" }
 diag = { path = "diag" }
-name_resolve = { path = "name_resolve" }
+hir = { path = "hir" }
 parse = { path = "parse" }
-codegen = { path = "codegen" }
+# codegen = { path = "codegen" }
 
 clap = { version = "3.1", features = ["derive"] }
 
 [workspace]
 members = [
-    "cfg",
-    "codegen",
+#    "cfg",
+#    "codegen",
     "diag",
-    "name_resolve",
+    "hir",
     "parse",
 ]
 

@@ -1,3 +1,22 @@
+@lang(u8) const u8 = void;
+@lang(u16) const u16 = void;
+@lang(u32) const u32 = void;
+@lang(u64) const u64 = void;
+@lang(usize) const usize = void;
+
+@lang(i8) const i8 = void;
+@lang(i16) const i16 = void;
+@lang(i32) const i32 = void;
+@lang(i64) const i64 = void;
+@lang(isize) const isize = void;
+
+@lang(f32) const f32 = void;
+@lang(f64) const f64 = void;
+
+@lang(bool) const bool = void;
+
+@lang(void) const void = void;
+
 fn main(argc: i32, argv: *const *const u8) -> i32 {
 
 }

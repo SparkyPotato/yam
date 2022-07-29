@@ -8,44 +8,7 @@ use diag::{
 pub use lasso::{Rodeo, Spur};
 
 use crate::{
-	ast::{
-		Access,
-		Arg,
-		Array,
-		Attrib,
-		BinOp,
-		Binary,
-		Binding,
-		Block,
-		Call,
-		Cast,
-		Expr,
-		ExprKind,
-		Fn,
-		For,
-		Ident,
-		If,
-		Import,
-		ImportTree,
-		Index,
-		Item,
-		ItemKind,
-		Let,
-		Lit,
-		LitKind,
-		Loop,
-		Module,
-		Pat,
-		PatKind,
-		Ptr,
-		Stmt,
-		StmtKind,
-		Struct,
-		UnOp,
-		Unary,
-		Visibility,
-		While,
-	},
+	ast::*,
 	token::{Delim, TokenKind},
 };
 
@@ -58,14 +21,15 @@ pub fn parse(file: Spur, input: &str, rodeo: &mut Rodeo, diagnostics: &mut Vec<R
 		lexer: logos::Lexer::new(input),
 	};
 
-	let (module, errors) = Parser::parse(&Parser::new(input, rodeo, diagnostics)).parse_recovery(Stream::from_iter(
-		Span {
-			start: input.len() as _,
-			end: input.len() as _,
-			file,
-		},
-		lexer,
-	));
+	let (module, errors) =
+		Parser::parse(&Parser::new(input, rodeo, diagnostics), file).parse_recovery(Stream::from_iter(
+			Span {
+				start: input.len() as _,
+				end: input.len() as _,
+				file,
+			},
+			lexer,
+		));
 
 	for error in errors {
 		let mut builder = error.span().report(ReportKind::Error);
@@ -116,7 +80,10 @@ pub fn parse(file: Spur, input: &str, rodeo: &mut Rodeo, diagnostics: &mut Vec<R
 		diagnostics.push(builder.finish());
 	}
 
-	module.unwrap_or_else(|| Module { items: Vec::new() })
+	module.unwrap_or_else(|| Module {
+		items: Vec::new(),
+		source: file,
+	})
 }
 
 struct Lexer<'a> {
@@ -162,7 +129,9 @@ impl<'a> Parser<'a> {
 		this.rodeo.get_or_intern(input)
 	}
 
-	fn parse(this: &'a RefCell<Self>) -> impl CParser<TokenKind, Module, Error = Simple<TokenKind, Span>> + 'a {
+	fn parse(
+		this: &'a RefCell<Self>, file: Spur,
+	) -> impl CParser<TokenKind, Module, Error = Simple<TokenKind, Span>> + 'a {
 		let sym = just(TokenKind::Ident)
 			.map_with_span(|_, span| Self::intern(this, span))
 			.debug("<ident>")
@@ -268,6 +237,7 @@ impl<'a> Parser<'a> {
 
 		let const_ = just(TokenKind::Const)
 			.ignore_then(let_.clone())
+			.then_ignore(just(TokenKind::Semi))
 			.map(|(pat, ty, expr)| ItemKind::Const(Let { pat, ty, expr }))
 			.debug("<const>")
 			.labelled("<const>")
@@ -275,6 +245,7 @@ impl<'a> Parser<'a> {
 
 		let static_ = just(TokenKind::Static)
 			.ignore_then(let_.clone())
+			.then_ignore(just(TokenKind::Semi))
 			.map(|(pat, ty, expr)| ItemKind::Static(Let { pat, ty, expr }))
 			.debug("<static>")
 			.labelled("<static>")
@@ -764,11 +735,20 @@ impl<'a> Parser<'a> {
 
 		let attrib = just(TokenKind::At)
 			.ignore_then(ident.clone())
-			.then(any().repeated().delimited_by(
-				just(TokenKind::LDelim(Delim::Paren)),
-				just(TokenKind::RDelim(Delim::Paren)),
-			))
-			.map_with_span(|(name, values), span| Attrib { name, values, span })
+			.then(
+				none_of([TokenKind::RDelim(Delim::Paren)])
+					.map_with_span(|kind, span| Token {
+						kind,
+						data: Self::intern(this, span),
+						span,
+					})
+					.repeated()
+					.delimited_by(
+						just(TokenKind::LDelim(Delim::Paren)),
+						just(TokenKind::RDelim(Delim::Paren)),
+					),
+			)
+			.map_with_span(|(name, values), span| Attr { name, values, span })
 			.debug("<attrib>")
 			.labelled("<attrib>")
 			.boxed();
@@ -778,7 +758,7 @@ impl<'a> Parser<'a> {
 				.repeated()
 				.then(visibility.then(choice((const_, static_, function_item, struct_item, import))))
 				.map_with_span(|(attribs, (visibility, kind)), span| Item {
-					attribs,
+					attrs: attribs,
 					visibility,
 					kind,
 					span,
@@ -787,6 +767,8 @@ impl<'a> Parser<'a> {
 				.labelled("<item>"),
 		);
 
-		item.repeated().map(|items| Module { items }).then_ignore(end())
+		item.repeated()
+			.map(move |items| Module { items, source: file })
+			.then_ignore(end())
 	}
 }
