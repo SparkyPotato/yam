@@ -110,19 +110,17 @@ pub fn resolve(module: Module, mut rodeo: Rodeo, diagnostics: &mut Vec<Report<Sp
 				let path = Path::from_ident(ident);
 				let val = resolver.builder.resolve(&path).unwrap();
 
+				let def = ValDef {
+					path,
+					kind: ValDefKind::Fn(resolver.resolve_fn(f)),
+					span,
+				};
 				if let Some((lang, _)) = lang_item {
 					resolver.builder.define_lang_item(lang, val, resolver.diagnostics);
+					lang.verify_item(&def, val, resolver.diagnostics);
 				}
 
-				let f = resolver.resolve_fn(f);
-				resolver.builder.define_val(
-					val,
-					ValDef {
-						path,
-						kind: ValDefKind::Fn(f),
-						span,
-					},
-				);
+				resolver.builder.define_val(val, def);
 			},
 			ItemKind::Const(l) => match l.pat.node {
 				PatKind::Binding(b) => {
@@ -132,19 +130,17 @@ pub fn resolve(module: Module, mut rodeo: Rodeo, diagnostics: &mut Vec<Report<Sp
 					});
 					let val = resolver.builder.resolve(&path).unwrap();
 
+					let def = ValDef {
+						path,
+						kind: ValDefKind::Const(resolver.resolve_global_let(l, span)),
+						span,
+					};
 					if let Some((lang, _)) = lang_item {
 						resolver.builder.define_lang_item(lang, val, resolver.diagnostics);
+						lang.verify_item(&def, val, resolver.diagnostics);
 					}
 
-					let l = resolver.resolve_global_let(l, span);
-					resolver.builder.define_val(
-						val,
-						ValDef {
-							path,
-							kind: ValDefKind::Const(l),
-							span,
-						},
-					);
+					resolver.builder.define_val(val, def);
 				},
 			},
 			ItemKind::Static(l) => match l.pat.node {
@@ -155,38 +151,34 @@ pub fn resolve(module: Module, mut rodeo: Rodeo, diagnostics: &mut Vec<Report<Sp
 					});
 					let val = resolver.builder.resolve(&path).unwrap();
 
+					let def = ValDef {
+						path,
+						kind: ValDefKind::Static(resolver.resolve_global_let(l, span)),
+						span,
+					};
 					if let Some((lang, _)) = lang_item {
 						resolver.builder.define_lang_item(lang, val, resolver.diagnostics);
+						lang.verify_item(&def, val, resolver.diagnostics);
 					}
 
-					let l = resolver.resolve_global_let(l, span);
-					resolver.builder.define_val(
-						val,
-						ValDef {
-							path,
-							kind: ValDefKind::Static(l),
-							span,
-						},
-					);
+					resolver.builder.define_val(val, def);
 				},
 			},
 			ItemKind::Struct(ident, s) => {
 				let path = Path::from_ident(ident);
 				let val = resolver.builder.resolve(&path).unwrap();
 
+				let def = ValDef {
+					path,
+					kind: ValDefKind::Struct(resolver.resolve_struct(s)),
+					span,
+				};
 				if let Some((lang, _)) = lang_item {
 					resolver.builder.define_lang_item(lang, val, resolver.diagnostics);
+					lang.verify_item(&def, val, resolver.diagnostics);
 				}
 
-				let s = resolver.resolve_struct(s);
-				resolver.builder.define_val(
-					val,
-					ValDef {
-						path,
-						kind: ValDefKind::Struct(s),
-						span,
-					},
-				);
+				resolver.builder.define_val(val, def);
 			},
 			ItemKind::Import(_) => {},
 		}

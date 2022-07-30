@@ -34,7 +34,7 @@ impl Hir {
 
 	pub fn resolve_intern(&self, spur: Spur) -> &str { self.rodeo.resolve(&spur) }
 
-	pub fn lang_item_of(&self, val: ValRef) -> Option<LangItem> { self.val_to_lang_item.get(&val).copied() }
+	pub fn lang_item(&self, val: ValRef) -> Option<LangItem> { self.val_to_lang_item.get(&val).copied() }
 }
 
 impl Index<ValRef> for Hir {

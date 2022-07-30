@@ -1,19 +1,19 @@
-@lang(u8) const u8 = void;
-@lang(u16) const u16 = void;
-@lang(u32) const u32 = void;
-@lang(u64) const u64 = void;
-@lang(usize) const usize = void;
+@lang(u8) const u8 = u8;
+@lang(u16) const u16 = u16;
+@lang(u32) const u32 = u32;
+@lang(u64) const u64 = u64;
+@lang(usize) const usize = usize;
 
-@lang(i8) const i8 = void;
-@lang(i16) const i16 = void;
-@lang(i32) const i32 = void;
-@lang(i64) const i64 = void;
-@lang(isize) const isize = void;
+@lang(i8) const i8 = i8;
+@lang(i16) const i16 = i16;
+@lang(i32) const i32 = i32;
+@lang(i64) const i64 = i64;
+@lang(isize) const isize = isize;
 
-@lang(f32) const f32 = void;
-@lang(f64) const f64 = void;
+@lang(f32) const f32 = f32;
+@lang(f64) const f64 = f64;
 
-@lang(bool) const bool = void;
+@lang(bool) const bool = bool;
 
 @lang(void) const void = void;
 

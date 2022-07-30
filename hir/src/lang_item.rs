@@ -1,6 +1,11 @@
 use std::fmt::{Debug, Display, Formatter};
 
-use crate::{Rodeo, Spur};
+use diag::{
+	ariadne::{Label, Report, ReportKind},
+	Span,
+};
+
+use crate::{hir::ExprKind, Rodeo, Spur, ValDef, ValDefKind, ValRef};
 
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq)]
 pub enum LangItem {
@@ -38,6 +43,57 @@ impl LangItem {
 			LangItem::Bool,
 			LangItem::Void,
 		]
+	}
+
+	pub fn verify_item(self, def: &ValDef, this: ValRef, diags: &mut Vec<Report<Span>>) {
+		match self {
+			LangItem::U8
+			| LangItem::U16
+			| LangItem::U32
+			| LangItem::U64
+			| LangItem::Usize
+			| LangItem::I8
+			| LangItem::I16
+			| LangItem::I32
+			| LangItem::I64
+			| LangItem::Isize
+			| LangItem::F32
+			| LangItem::F64
+			| LangItem::Bool
+			| LangItem::Void => match &def.kind {
+				ValDefKind::Const(l) => {
+					if let Some(ty) = l.ty_expr.as_ref() {
+						if !matches!(ty.kind, ExprKind::Type) {
+							diags.push(
+								ty.span
+									.report(ReportKind::Error)
+									.with_message("inbuilt type lang items must have type `type`")
+									.with_label(Label::new(ty.span).with_message("change this to `type`"))
+									.finish(),
+							);
+						}
+					}
+
+					if !matches!(l.expr.kind, ExprKind::ValRef(v) if v == this) {
+						diags.push(
+							l.expr
+								.span
+								.report(ReportKind::Error)
+								.with_message("inbuilt type lang items must be initialized by themselves")
+								.with_label(Label::new(l.expr.span).with_message(format!("change this to `{}`", self)))
+								.finish(),
+						)
+					}
+				},
+				_ => diags.push(
+					def.span
+						.report(ReportKind::Error)
+						.with_message("inbuilt type lang items must be `const`s")
+						.with_label(Label::new(def.span))
+						.finish(),
+				),
+			},
+		}
 	}
 }
 
