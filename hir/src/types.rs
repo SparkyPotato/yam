@@ -7,7 +7,7 @@ pub enum Type {
 	Type,
 	Tuple(Vec<Type>),
 	Fn { args: Vec<Type>, ret: Box<Type> },
-	Ref(ValRef),
+	Ty(ValRef),
 	Ptr { mutable: bool, to: Box<Type> },
 	Unresolved(TypeId),
 	Unknown,
@@ -15,3 +15,9 @@ pub enum Type {
 
 #[derive(Copy, Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub struct TypeId(u32);
+
+impl TypeId {
+	pub fn new(id: u32) -> Self { TypeId(id) }
+
+	pub fn id(self) -> u32 { self.0 }
+}
