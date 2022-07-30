@@ -342,8 +342,9 @@ impl<'a> Parser<'a> {
 			.then(just(TokenKind::Arrow).ignore_then(expr.clone()).or_not())
 			.then(block.clone())
 			.map(|((args, ret), block)| Fn {
+				abi: Abi::None,
 				args,
-				block,
+				block: Some(block),
 				ret: ret.map(Box::new),
 			})
 			.debug("<fn>")
@@ -708,15 +709,30 @@ impl<'a> Parser<'a> {
 			.debug("<import>")
 			.labelled("<import>");
 
-		let function_item = just(TokenKind::Fn)
-			.ignore_then(ident.clone())
+		let function_item = just(TokenKind::Extern)
+			.ignore_then(
+				just(TokenKind::StringLiteral)
+					.map_with_span(|_, span| Spanned {
+						node: Self::intern(this, span),
+						span,
+					})
+					.or_not(),
+			)
+			.or_not()
+			.then_ignore(just(TokenKind::Fn))
+			.then(ident.clone())
 			.then(args.clone())
 			.then(just(TokenKind::Arrow).ignore_then(expr.clone()).or_not())
-			.then(block.clone())
-			.map(|(((ident, args), ret), block)| {
+			.then(block.clone().map(Some).or(just(TokenKind::Semi).to(None)))
+			.map(|((((abi, ident), args), ret), block)| {
 				ItemKind::Fn(
 					ident,
 					Fn {
+						abi: match abi {
+							Some(Some(abi)) => Abi::Abi(abi),
+							Some(None) => Abi::Extern,
+							None => Abi::None,
+						},
 						args,
 						ret: ret.map(Box::new),
 						block,

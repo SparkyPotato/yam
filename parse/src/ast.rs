@@ -111,10 +111,18 @@ pub struct Struct {
 }
 
 #[derive(Debug, Clone)]
+pub enum Abi {
+	Abi(Spanned<Spur>),
+	Extern,
+	None,
+}
+
+#[derive(Debug, Clone)]
 pub struct Fn {
+	pub abi: Abi,
 	pub args: Vec<Arg>,
 	pub ret: Option<Box<Expr>>,
-	pub block: Block,
+	pub block: Option<Block>,
 }
 
 #[derive(Debug, Clone)]

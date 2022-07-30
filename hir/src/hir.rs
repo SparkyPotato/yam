@@ -2,7 +2,7 @@ use std::hash::Hash;
 
 use diag::Span;
 pub use parse::{
-	ast::{BinOp, Ident, Spanned, UnOp, Visibility},
+	ast::{Abi, BinOp, Ident, Spanned, UnOp, Visibility},
 	Spur,
 };
 
@@ -74,6 +74,7 @@ pub enum ValDefKind {
 	Static(GlobalLet),
 	Const(GlobalLet),
 	Fn(Fn),
+	FnDecl(FnSignature),
 	Struct(Struct),
 }
 
@@ -93,10 +94,16 @@ pub struct Field {
 
 #[derive(Debug, Clone)]
 pub struct Fn {
+	pub sig: FnSignature,
+	pub block: Block,
+}
+
+#[derive(Debug, Clone)]
+pub struct FnSignature {
+	pub abi: Abi,
 	pub args: Vec<Arg>,
 	pub ret_expr: Option<Box<Expr>>,
 	pub ret: Type,
-	pub block: Block,
 }
 
 pub type Pat = Spanned<PatKind>;

@@ -125,6 +125,8 @@ pub enum TokenKind {
 	Else,
 	#[token("enum")]
 	Enum,
+	#[token("extern")]
+	Extern,
 	#[token("fn")]
 	Fn,
 	#[token("for")]
@@ -229,6 +231,7 @@ impl Display for TokenKind {
 				TokenKind::Const => "const",
 				TokenKind::Else => "else",
 				TokenKind::Enum => "enum",
+				TokenKind::Extern => "extern",
 				TokenKind::Fn => "fn",
 				TokenKind::If => "if",
 				TokenKind::Import => "import",

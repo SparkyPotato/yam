@@ -110,9 +110,14 @@ pub fn resolve(module: Module, mut rodeo: Rodeo, diagnostics: &mut Vec<Report<Sp
 				let path = Path::from_ident(ident);
 				let val = resolver.builder.resolve(&path).unwrap();
 
+				let (sig, block) = resolver.resolve_fn(f, item.span);
+
 				let def = ValDef {
 					path,
-					kind: ValDefKind::Fn(resolver.resolve_fn(f)),
+					kind: match block {
+						Some(block) => ValDefKind::Fn(hir::Fn { sig, block }),
+						None => ValDefKind::FnDecl(sig),
+					},
 					span,
 				};
 				if let Some((lang, _)) = lang_item {
@@ -286,47 +291,61 @@ impl Resolver<'_> {
 		}
 	}
 
-	fn resolve_fn(&mut self, f: Fn) -> hir::Fn {
+	fn resolve_fn(&mut self, f: Fn, span: Span) -> (FnSignature, Option<hir::Block>) {
 		self.local.push_scope();
 
-		let ret = hir::Fn {
-			args: f
-				.args
-				.into_iter()
-				.map(|x| {
-					if x.is_const {
-						self.diagnostics.push(
-							x.span
-								.report(ReportKind::Error)
-								.with_message("functions cannot have `const` arguments")
-								.with_label(Label::new(x.span))
-								.finish(),
-						);
-					}
+		let args = f
+			.args
+			.into_iter()
+			.map(|x| {
+				if x.is_const {
+					self.diagnostics.push(
+						x.span
+							.report(ReportKind::Error)
+							.with_message("functions cannot have `const` arguments")
+							.with_label(Label::new(x.span))
+							.finish(),
+					);
+				}
 
-					if x.visibility == Visibility::Public {
-						self.diagnostics.push(
-							x.span
-								.report(ReportKind::Error)
-								.with_message("functions cannot have `pub` arguments")
-								.with_label(Label::new(x.span))
-								.finish(),
-						);
-					}
+				if x.visibility == Visibility::Public {
+					self.diagnostics.push(
+						x.span
+							.report(ReportKind::Error)
+							.with_message("functions cannot have `pub` arguments")
+							.with_label(Label::new(x.span))
+							.finish(),
+					);
+				}
 
-					Arg {
-						is_const: x.is_const,
-						pat: self.resolve_pat(x.pat),
-						ty: Type::Unknown,
-						ty_expr: self.resolve_expr(x.ty),
-						span: x.span,
-					}
-				})
-				.collect(),
+				Arg {
+					is_const: x.is_const,
+					pat: self.resolve_pat(x.pat),
+					ty: Type::Unknown,
+					ty_expr: self.resolve_expr(x.ty),
+					span: x.span,
+				}
+			})
+			.collect();
+		let ret_expr = f.ret.map(|expr| Box::new(self.resolve_expr(*expr)));
+
+		if matches!(f.abi, Abi::None) && f.block.is_none() {
+			self.diagnostics.push(
+				span.report(ReportKind::Error)
+					.with_message("functions must have a body")
+					.with_label(Label::new(span))
+					.finish(),
+			);
+		}
+
+		let sig = FnSignature {
+			abi: f.abi,
+			args,
+			ret_expr,
 			ret: Type::Unknown,
-			ret_expr: f.ret.map(|expr| Box::new(self.resolve_expr(*expr))),
-			block: self.resolve_block(f.block),
 		};
+
+		let ret = (sig, f.block.map(|block| self.resolve_block(block)));
 
 		self.local.pop_scope();
 		self.local.reset();
