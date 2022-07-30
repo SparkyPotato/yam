@@ -1,5 +1,5 @@
 use clap::Parser;
-use diag::{ariadne::ReportKind, quick_diagnostic};
+use diag::{quick_diagnostic, DiagKind};
 
 use crate::compile::CompileOptions;
 
@@ -13,7 +13,7 @@ fn main() {
 
 	if res.is_err() {
 		eprintln!();
-		quick_diagnostic(ReportKind::Error, "ICE: Internal Compiler Error");
+		quick_diagnostic(DiagKind::Error, "ICE: Internal Compiler Error");
 		eprintln!("This wasn't supposed to happen. Here's some information to help:");
 		eprintln!("yamc version: under heavy development")
 	}

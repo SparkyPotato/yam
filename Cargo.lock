@@ -374,6 +374,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "tyck"
+version = "0.1.0"
+dependencies = [
+ "hir",
+]
+
+[[package]]
 name = "unicode-xid"
 version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -436,6 +443,7 @@ dependencies = [
  "diag",
  "hir",
  "parse",
+ "tyck",
 ]
 
 [[package]]

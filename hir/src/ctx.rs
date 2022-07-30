@@ -1,14 +1,12 @@
 use std::{collections::HashMap, convert::identity, ops::Index};
 
-use diag::{ariadne::Label, Span};
+use diag::{DiagKind, Diagnostic, Diagnostics, Span};
 use parse::ast::Spanned;
 
 use crate::{
 	hir::{Expr, ExprKind, Path},
 	lang_item::LangItem,
 	GlobalLet,
-	Report,
-	ReportKind,
 	Rodeo,
 	Spur,
 	Type,
@@ -74,7 +72,7 @@ impl Default for HirBuilder {
 impl HirBuilder {
 	pub fn new() -> Self { Self::default() }
 
-	pub fn decl_val(&mut self, path: Path, span: Span, diags: &mut Vec<Report<Span>>) -> ValRef {
+	pub fn decl_val(&mut self, path: Path, span: Span, diags: &mut Diagnostics) -> ValRef {
 		let index = self.globals.len();
 
 		self.globals.push(ValDef {
@@ -97,11 +95,9 @@ impl HirBuilder {
 			diags.push(
 				existing
 					.span
-					.report(ReportKind::Error)
-					.with_message("duplicate definition")
-					.with_label(Label::new(span).with_message("already defined here"))
-					.with_label(Label::new(existing.span).with_message("redefined here"))
-					.finish(),
+					.error("duplicate definition")
+					.label(span.label("already defined here"))
+					.label(existing.span.label("redefined here")),
 			);
 		}
 
@@ -115,18 +111,16 @@ impl HirBuilder {
 
 	pub fn resolve(&self, path: &Path) -> Option<ValRef> { self.item_map.get(path).map(|x| x.node) }
 
-	pub fn define_lang_item(&mut self, item: LangItem, def: ValRef, diags: &mut Vec<Report<Span>>) {
+	pub fn define_lang_item(&mut self, item: LangItem, def: ValRef, diags: &mut Diagnostics) {
 		if self.inserted_lang_items[item as usize] {
 			let orig_span = self.globals[self.lang_items[item as usize].0 as usize].span;
 			let this_span = self.globals[def.0 as usize].span;
 
 			diags.push(
 				this_span
-					.report(ReportKind::Error)
-					.with_message("lang item already defined")
-					.with_label(Label::new(orig_span).with_message("already defined here"))
-					.with_label(Label::new(this_span).with_message("redefined here"))
-					.finish(),
+					.error("lang item already defined")
+					.label(orig_span.label("already defined here"))
+					.label(this_span.label("redefined here")),
 			);
 		} else {
 			self.lang_items[item as usize] = def;
@@ -135,16 +129,16 @@ impl HirBuilder {
 		}
 	}
 
-	pub fn finish(self, rodeo: Rodeo, diags: &mut Vec<Report<Span>>, source_id: Spur) -> Hir {
+	pub fn finish(self, rodeo: Rodeo, diags: &mut Diagnostics, source_id: Spur) -> Hir {
 		assert!(self.inserted.into_iter().all(identity));
 
 		for item in LangItem::all() {
 			if !self.inserted_lang_items[*item as usize] {
-				diags.push(
-					Report::build(ReportKind::Error, source_id, 0)
-						.with_message(format!("lang item `{}` is not defined", item))
-						.finish(),
-				);
+				diags.push(Diagnostic::source(
+					DiagKind::Error,
+					format!("lang item `{}` is not defined", item),
+					source_id,
+				));
 			}
 		}
 

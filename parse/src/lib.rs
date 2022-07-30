@@ -1,10 +1,7 @@
 use std::cell::RefCell;
 
 use chumsky::{error::SimpleReason, prelude::*, Parser as CParser, Stream};
-use diag::{
-	ariadne::{Label, Report, ReportKind},
-	Span,
-};
+use diag::{Diagnostics, Span};
 pub use lasso::{Rodeo, Spur};
 
 use crate::{
@@ -15,7 +12,7 @@ use crate::{
 pub mod ast;
 pub mod token;
 
-pub fn parse(file: Spur, input: &str, rodeo: &mut Rodeo, diagnostics: &mut Vec<Report<Span>>) -> Module {
+pub fn parse(file: Spur, input: &str, rodeo: &mut Rodeo, diagnostics: &mut Diagnostics) -> Module {
 	let lexer = Lexer {
 		file,
 		lexer: logos::Lexer::new(input),
@@ -32,13 +29,12 @@ pub fn parse(file: Spur, input: &str, rodeo: &mut Rodeo, diagnostics: &mut Vec<R
 		));
 
 	for error in errors {
-		let mut builder = error.span().report(ReportKind::Error);
+		let span = error.span();
 
-		let mut label = Label::new(error.span());
-		match error.reason() {
-			SimpleReason::Custom(s) => builder.set_message(s),
+		let diag = match error.reason() {
+			SimpleReason::Custom(s) => span.error(s).label(span.mark()),
 			SimpleReason::Unexpected => {
-				builder.set_message(match error.found() {
+				let diag = span.error(match error.found() {
 					Some(tok) => match error.label() {
 						Some(label) => format!("unexpected `{}` while parsing {}", tok, label),
 						None => format!("unexpected `{}`", tok),
@@ -47,37 +43,33 @@ pub fn parse(file: Spur, input: &str, rodeo: &mut Rodeo, diagnostics: &mut Vec<R
 				});
 
 				match error.expected().len() {
-					0 => {},
-					1 => {
-						label = label.with_message(match error.expected().next().unwrap() {
-							Some(tok) => format!("expected `{}`", tok),
-							None => "expected `<eof>`".into(),
-						})
-					},
-					_ => {
-						label = label.with_message(format!(
-							"expected one of {}",
-							error
-								.expected()
-								.map(|tok| match tok {
-									Some(tok) => format!("`{}`", tok),
-									None => "`<eof>`".into(),
-								})
-								.collect::<Vec<_>>()
-								.join(", ")
-						))
-					},
+					0 => diag.label(span.mark()),
+					1 => diag.label(span.label(match error.expected().next().unwrap() {
+						Some(tok) => format!("expected `{}`", tok),
+						None => "expected `<eof>`".into(),
+					})),
+					_ => diag.label(span.label(format!(
+						"expected one of {}",
+						error
+							.expected()
+							.map(|tok| match tok {
+								Some(tok) => format!("`{}`", tok),
+								None => "`<eof>`".into(),
+							})
+							.collect::<Vec<_>>()
+							.join(", ")
+					))),
 				}
 			},
-			SimpleReason::Unclosed { delimiter, .. } => match error.label() {
-				Some(label) => builder.set_message(format!("unclosed `{}` while parsing {}", delimiter, label)),
-				None => builder.set_message(format!("unclosed `{}`", delimiter)),
+			SimpleReason::Unclosed { delimiter, span } => match error.label() {
+				Some(label) => span
+					.error(format!("unclosed `{}` while parsing {}", delimiter, label))
+					.label(span.mark()),
+				None => span.error(format!("unclosed `{}`", delimiter)).label(span.mark()),
 			},
-		}
+		};
 
-		builder.add_label(label);
-
-		diagnostics.push(builder.finish());
+		diagnostics.push(diag);
 	}
 
 	module.unwrap_or_else(|| Module {
@@ -111,11 +103,11 @@ impl Iterator for Lexer<'_> {
 struct Parser<'a> {
 	input: &'a str,
 	rodeo: &'a mut Rodeo,
-	diagnostics: &'a mut Vec<Report<Span>>,
+	diagnostics: &'a mut Diagnostics,
 }
 
 impl<'a> Parser<'a> {
-	fn new(input: &'a str, rodeo: &'a mut Rodeo, diagnostics: &'a mut Vec<Report<Span>>) -> RefCell<Self> {
+	fn new(input: &'a str, rodeo: &'a mut Rodeo, diagnostics: &'a mut Diagnostics) -> RefCell<Self> {
 		RefCell::new(Self {
 			input,
 			rodeo,
@@ -218,17 +210,15 @@ impl<'a> Parser<'a> {
 			.labelled("<let>")
 			.boxed();
 
-		fn make_pat_mutable(pat: &mut Pat, diagnostics: &mut Vec<Report<Span>>) {
+		fn make_pat_mutable(pat: &mut Pat, diagnostics: &mut Diagnostics) {
 			match &mut pat.node {
 				PatKind::Binding(binding) => {
 					if binding.mutability {
 						diagnostics.push(
 							pat.span
-								.report(ReportKind::Warning)
-								.with_message("mutable pattern in `var` declaration")
-								.with_label(Label::new(pat.span).with_message("`var`s are already mutable"))
-								.finish(),
-						)
+								.warning("mutable pattern in `var` declaration")
+								.label(pat.span.label("`var`s are already mutable")),
+						);
 					}
 					binding.mutability = true;
 				},

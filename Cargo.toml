@@ -8,6 +8,7 @@ edition = "2021"
 diag = { path = "diag" }
 hir = { path = "hir" }
 parse = { path = "parse" }
+tyck = { path = "tyck" }
 # codegen = { path = "codegen" }
 
 clap = { version = "3.1", features = ["derive"] }
@@ -19,6 +20,7 @@ members = [
     "diag",
     "hir",
     "parse",
+    "tyck",
 ]
 
 [profile.release]

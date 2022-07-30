@@ -1,0 +1,7 @@
+[package]
+name = "tyck"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+hir = { path = "../hir" }

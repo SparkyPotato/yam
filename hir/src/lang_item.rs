@@ -1,9 +1,6 @@
 use std::fmt::{Debug, Display, Formatter};
 
-use diag::{
-	ariadne::{Label, Report, ReportKind},
-	Span,
-};
+use diag::Diagnostics;
 
 use crate::{hir::ExprKind, Rodeo, Spur, ValDef, ValDefKind, ValRef};
 
@@ -45,7 +42,7 @@ impl LangItem {
 		]
 	}
 
-	pub fn verify_item(self, def: &ValDef, this: ValRef, diags: &mut Vec<Report<Span>>) {
+	pub fn verify_item(self, def: &ValDef, this: ValRef, diags: &mut Diagnostics) {
 		match self {
 			LangItem::U8
 			| LangItem::U16
@@ -66,10 +63,8 @@ impl LangItem {
 						if !matches!(ty.kind, ExprKind::Type) {
 							diags.push(
 								ty.span
-									.report(ReportKind::Error)
-									.with_message("inbuilt type lang items must have type `type`")
-									.with_label(Label::new(ty.span).with_message("change this to `type`"))
-									.finish(),
+									.error("inbuilt type lang items must have type `type`")
+									.label(ty.span.label("change this to `type`")),
 							);
 						}
 					}
@@ -78,19 +73,15 @@ impl LangItem {
 						diags.push(
 							l.expr
 								.span
-								.report(ReportKind::Error)
-								.with_message("inbuilt type lang items must be initialized by themselves")
-								.with_label(Label::new(l.expr.span).with_message(format!("change this to `{}`", self)))
-								.finish(),
+								.error("inbuilt type lang items must be initialized by themselves")
+								.label(l.expr.span.label(format!("change this to `{}`", self))),
 						)
 					}
 				},
 				_ => diags.push(
 					def.span
-						.report(ReportKind::Error)
-						.with_message("inbuilt type lang items must be `const`s")
-						.with_label(Label::new(def.span))
-						.finish(),
+						.error("inbuilt type lang items must be `const`s")
+						.label(def.span.mark()),
 				),
 			},
 		}
@@ -102,7 +93,7 @@ impl Debug for LangItem {
 }
 
 impl Display for LangItem {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
 		write!(
 			f,
 			"{}",

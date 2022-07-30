@@ -1,7 +1,4 @@
-use diag::{
-	ariadne::{Label, Report, ReportKind},
-	Span,
-};
+use diag::{Diagnostics, Span};
 use parse::{
 	ast::{
 		Attr,
@@ -39,7 +36,7 @@ pub mod hir;
 pub mod lang_item;
 pub mod types;
 
-fn register_module_items(module: &Module, prefix: Path, builder: &mut HirBuilder, diags: &mut Vec<Report<Span>>) {
+fn register_module_items(module: &Module, prefix: Path, builder: &mut HirBuilder, diags: &mut Diagnostics) {
 	for item in module.items.iter() {
 		let curr_span = item.span;
 		match &item.kind {
@@ -57,20 +54,14 @@ fn register_module_items(module: &Module, prefix: Path, builder: &mut HirBuilder
 				),
 			}),
 			ItemKind::Import(_) => {
-				diags.push(
-					item.span
-						.report(ReportKind::Error)
-						.with_message("imports are not supported")
-						.with_label(Label::new(item.span))
-						.finish(),
-				);
+				diags.push(item.span.error("imports are not supported").label(item.span.mark()));
 				None
 			},
 		};
 	}
 }
 
-pub fn resolve(module: Module, mut rodeo: Rodeo, diagnostics: &mut Vec<Report<Span>>) -> Hir {
+pub fn resolve(module: Module, mut rodeo: Rodeo, diagnostics: &mut Diagnostics) -> Hir {
 	let mut builder = HirBuilder::new();
 
 	register_module_items(&module, Path::default(), &mut builder, diagnostics);
@@ -94,11 +85,9 @@ pub fn resolve(module: Module, mut rodeo: Rodeo, diagnostics: &mut Vec<Report<Sp
 				if let Some((_, span)) = lang_item {
 					resolver.diagnostics.push(
 						attr_span
-							.report(ReportKind::Error)
-							.with_message("multiple lang attributes on one item")
-							.with_label(Label::new(span).with_message("first lang attribute"))
-							.with_label(Label::new(attr_span).with_message("duplicate lang attribute"))
-							.finish(),
+							.error("multiple lang attributes on one item")
+							.label(span.label("first lang attribute"))
+							.label(attr_span.label("duplicate lang attribute")),
 					);
 				}
 				lang_item = item.map(|x| (x, attr_span));
@@ -195,7 +184,7 @@ pub fn resolve(module: Module, mut rodeo: Rodeo, diagnostics: &mut Vec<Report<Sp
 struct Resolver<'a> {
 	rodeo: &'a Rodeo,
 	builder: &'a mut HirBuilder,
-	diagnostics: &'a mut Vec<Report<Span>>,
+	diagnostics: &'a mut Diagnostics,
 	local: LocalBuilder,
 	idents: LangItemIdents,
 }
@@ -203,14 +192,8 @@ struct Resolver<'a> {
 impl Resolver<'_> {
 	fn lang_item(&mut self, attr: Attr) -> Option<LangItem> {
 		if attr.name.node != self.idents.lang {
-			self.diagnostics.push(
-				attr.name
-					.span
-					.report(ReportKind::Error)
-					.with_message("unknown attribute")
-					.with_label(Label::new(attr.name.span))
-					.finish(),
-			);
+			self.diagnostics
+				.push(attr.name.span.error("unknown attribute").label(attr.name.span.mark()));
 		}
 
 		match attr.values.as_slice() {
@@ -222,12 +205,8 @@ impl Resolver<'_> {
 				if let Some(item) = self.idents.resolve_lang_item(data) {
 					Some(item)
 				} else {
-					self.diagnostics.push(
-						span.report(ReportKind::Error)
-							.with_message("unknown lang item")
-							.with_label(Label::new(span))
-							.finish(),
-					);
+					self.diagnostics
+						.push(span.error("unknown lang item").label(span.mark()));
 
 					None
 				}
@@ -235,10 +214,8 @@ impl Resolver<'_> {
 			_ => {
 				self.diagnostics.push(
 					attr.span
-						.report(ReportKind::Error)
-						.with_message("lang item attribute expects one ident")
-						.with_label(Label::new(attr.name.span))
-						.finish(),
+						.error("lang item attribute expects one ident")
+						.label(attr.name.span.mark()),
 				);
 
 				None
@@ -253,13 +230,8 @@ impl Resolver<'_> {
 				.into_iter()
 				.map(|x| {
 					if x.is_const {
-						self.diagnostics.push(
-							x.span
-								.report(ReportKind::Error)
-								.with_message("structs cannot have `const` fields")
-								.with_label(Label::new(x.span))
-								.finish(),
-						);
+						self.diagnostics
+							.push(x.span.error("structs cannot have `const` fields").label(x.span.mark()));
 					}
 
 					Field {
@@ -269,10 +241,8 @@ impl Resolver<'_> {
 								if binding.mutability {
 									self.diagnostics.push(
 										x.span
-											.report(ReportKind::Error)
-											.with_message("structs cannot have `mut` fields")
-											.with_label(Label::new(x.pat.span))
-											.finish(),
+											.error("structs cannot have `mut` fields")
+											.label(x.pat.span.mark()),
 									);
 								}
 
@@ -301,20 +271,16 @@ impl Resolver<'_> {
 				if x.is_const {
 					self.diagnostics.push(
 						x.span
-							.report(ReportKind::Error)
-							.with_message("functions cannot have `const` arguments")
-							.with_label(Label::new(x.span))
-							.finish(),
+							.error("functions cannot have `const` arguments")
+							.label(x.span.mark()),
 					);
 				}
 
 				if x.visibility == Visibility::Public {
 					self.diagnostics.push(
 						x.span
-							.report(ReportKind::Error)
-							.with_message("functions cannot have `pub` arguments")
-							.with_label(Label::new(x.span))
-							.finish(),
+							.error("functions cannot have `pub` arguments")
+							.label(x.span.mark()),
 					);
 				}
 
@@ -330,12 +296,8 @@ impl Resolver<'_> {
 		let ret_expr = f.ret.map(|expr| Box::new(self.resolve_expr(*expr)));
 
 		if matches!(f.abi, Abi::None) && f.block.is_none() {
-			self.diagnostics.push(
-				span.report(ReportKind::Error)
-					.with_message("functions must have a body")
-					.with_label(Label::new(span))
-					.finish(),
-			);
+			self.diagnostics
+				.push(span.error("functions must have a body").label(span.mark()));
 		}
 
 		let sig = FnSignature {
@@ -360,12 +322,8 @@ impl Resolver<'_> {
 			expr: if let Some(expr) = l.expr {
 				self.resolve_expr(*expr)
 			} else {
-				self.diagnostics.push(
-					span.report(ReportKind::Error)
-						.with_message("globals must have initializers")
-						.with_label(Label::new(span))
-						.finish(),
-				);
+				self.diagnostics
+					.push(span.error("globals must have initializers").label(span.mark()));
 
 				hir::Expr {
 					kind: hir::ExprKind::Err,
@@ -417,12 +375,8 @@ impl Resolver<'_> {
 				match self.builder.resolve(&Path::from_ident(Ident { node: x, span })) {
 					Some(val) => hir::ExprKind::ValRef(val),
 					None => {
-						self.diagnostics.push(
-							span.report(ReportKind::Error)
-								.with_message("undefined identifier")
-								.with_label(Label::new(span))
-								.finish(),
-						);
+						self.diagnostics
+							.push(span.error("undefined identifier").label(span.mark()));
 
 						hir::ExprKind::Err
 					},
@@ -453,12 +407,8 @@ impl Resolver<'_> {
 				to: Box::new(self.resolve_expr(*ptr.to)),
 			}),
 			ExprKind::Fn(_) => {
-				self.diagnostics.push(
-					span.report(ReportKind::Error)
-						.with_message("closures are not support yet")
-						.with_label(Label::new(span))
-						.finish(),
-				);
+				self.diagnostics
+					.push(span.error("closures are not supported yet").label(span.mark()));
 				hir::ExprKind::Err
 			},
 			ExprKind::Call(call) => hir::ExprKind::Call(Call {
@@ -498,10 +448,8 @@ impl Resolver<'_> {
 						}) => Some(self.resolve_block(block)),
 						Some(Expr { span, .. }) => {
 							self.diagnostics.push(
-								span.report(ReportKind::Error)
-									.with_message("else must be a block")
-									.with_label(Label::new(span).with_message("surround this with `{<expr>}`"))
-									.finish(),
+								span.error("else must have a block")
+									.label(span.label("surround this `{<expr>}`")),
 							);
 							None
 						},
@@ -564,10 +512,8 @@ impl Resolver<'_> {
 			StmtKind::Item(_) => {
 				self.diagnostics.push(
 					stmt.span
-						.report(ReportKind::Error)
-						.with_message("items are not supported in this position")
-						.with_label(Label::new(stmt.span))
-						.finish(),
+						.error("items are not supported in this position")
+						.label(stmt.span.mark()),
 				);
 				hir::Stmt {
 					node: hir::StmtKind::Err,
