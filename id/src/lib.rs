@@ -57,6 +57,20 @@ impl<T: Id + Debug, U: Debug> Debug for DenseMap<T, U> {
 
 impl<T: Id, U> DenseMap<T, U> {
 	pub fn builder() -> DenseMapBuilder<T, U> { DenseMapBuilder::default() }
+
+	pub fn iter(&self) -> impl Iterator<Item = (T, &U)> + '_ {
+		self.items
+			.iter()
+			.enumerate()
+			.map(|(id, item)| (T::from_id(id as u32), item))
+	}
+
+	pub fn iter_mut(&mut self) -> impl Iterator<Item = (T, &mut U)> + '_ {
+		self.items
+			.iter_mut()
+			.enumerate()
+			.map(|(id, item)| (T::from_id(id as u32), item))
+	}
 }
 
 impl<T: Id, U> Index<T> for DenseMap<T, U> {
@@ -102,17 +116,32 @@ impl<T: Id, U> DenseMapBuilder<T, U> {
 		T::from_id(index as u32)
 	}
 
-	pub fn already_inserted(&self, id: T) -> bool { self.inserted[id.id() as usize] }
+	pub fn already_inserted(&self, id: T) -> bool { self.inserted.get(id.id() as usize).copied().unwrap_or(false) }
 
 	pub fn insert_at(&mut self, id: T, item: U) {
 		let index = id.id() as usize;
-		self.items.resize_with(index, || MaybeUninit::uninit());
-		self.inserted.resize(index, false);
+		if self.items.len() < index + 1 {
+			self.items.resize_with(index + 1, || MaybeUninit::uninit());
+			self.inserted.resize(index + 1, false);
+		}
 
 		debug_assert!(!self.inserted[index], "IdMapBuilder::insert_at: id already inserted");
 
 		self.inserted[index] = true;
 		self.items[index] = MaybeUninit::new(item);
+	}
+
+	pub fn reset(&mut self) {
+		self.items.clear();
+		self.inserted.clear();
+	}
+
+	pub fn iter(&self) -> impl Iterator<Item = (T, &U)> + '_ {
+		self.inserted
+			.iter()
+			.enumerate()
+			.flat_map(|(i, x)| if *x { Some(i) } else { None })
+			.map(|i| (T::from_id(i as _), unsafe { self.items[i].assume_init_ref() }))
 	}
 
 	pub fn build(self) -> DenseMap<T, U> {

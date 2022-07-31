@@ -2,7 +2,7 @@ use id::Id;
 
 use crate::ValRef;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub enum Type {
 	Void,
 	Never,
@@ -13,6 +13,7 @@ pub enum Type {
 	Ptr { mutable: bool, to: Box<Type> },
 	Unresolved(TypeId),
 	Unknown,
+	Err,
 }
 
 #[derive(Copy, Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]

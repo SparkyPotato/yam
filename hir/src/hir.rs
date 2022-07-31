@@ -87,8 +87,7 @@ pub struct Struct {
 pub struct Field {
 	pub visibility: Visibility,
 	pub name: Ident,
-	pub ty_expr: Expr,
-	pub ty: Type,
+	pub ty: Expr,
 	pub span: Span,
 }
 
@@ -123,8 +122,7 @@ pub struct Binding {
 pub struct Arg {
 	pub is_const: bool,
 	pub pat: Pat,
-	pub ty_expr: Expr,
-	pub ty: Type,
+	pub ty: Expr,
 	pub span: Span,
 }
 
@@ -132,22 +130,23 @@ pub struct Arg {
 pub struct Block {
 	pub is_const: bool,
 	pub stmts: Vec<Stmt>,
+	pub ty: Type,
 	pub span: Span,
 }
 
 pub type Stmt = Spanned<StmtKind>;
 #[derive(Debug, Clone)]
 pub enum StmtKind {
-	Expr(ExprKind),
-	Semi(ExprKind),
+	Expr(ExprData),
+	Semi(ExprData),
 	Err,
 }
 
+pub type Expr = Spanned<ExprData>;
 #[derive(Debug, Clone)]
-pub struct Expr {
+pub struct ExprData {
 	pub kind: ExprKind,
 	pub ty: Type,
-	pub span: Span,
 }
 
 #[derive(Debug, Clone)]
@@ -216,8 +215,7 @@ pub struct Array {
 #[derive(Debug, Clone)]
 pub struct Cast {
 	pub expr: Box<Expr>,
-	pub ty_expr: Box<Expr>,
-	pub ty: Type,
+	pub ty: Box<Expr>,
 }
 
 #[derive(Debug, Clone)]

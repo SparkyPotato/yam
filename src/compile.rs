@@ -29,7 +29,7 @@ pub fn compile(opts: CompileOptions) {
 	};
 
 	let mut hir = resolve(module, rodeo, &mut diagnostics);
-	type_check(&mut hir);
+	type_check(&mut hir, &mut diagnostics);
 
 	println!("{:#?}", hir);
 

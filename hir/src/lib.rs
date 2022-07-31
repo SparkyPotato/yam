@@ -1,4 +1,5 @@
 use diag::{Diagnostics, Span};
+pub use parse::Rodeo;
 use parse::{
 	ast::{
 		Attr,
@@ -20,7 +21,6 @@ use parse::{
 		Visibility,
 	},
 	token::TokenKind,
-	Rodeo,
 	Spur,
 };
 
@@ -72,6 +72,8 @@ pub fn resolve(module: Module, mut rodeo: Rodeo, diagnostics: &mut Diagnostics) 
 		builder: &mut builder,
 		diagnostics,
 		local: LocalBuilder::new(),
+		in_fn: false,
+		in_loop: false,
 	};
 
 	for item in module.items {
@@ -187,6 +189,8 @@ struct Resolver<'a> {
 	diagnostics: &'a mut Diagnostics,
 	local: LocalBuilder,
 	idents: LangItemIdents,
+	in_fn: bool,
+	in_loop: bool,
 }
 
 impl Resolver<'_> {
@@ -252,8 +256,7 @@ impl Resolver<'_> {
 								}
 							},
 						},
-						ty: Type::Unknown,
-						ty_expr: self.resolve_expr(x.ty),
+						ty: self.resolve_expr(x.ty),
 						span: x.span,
 					}
 				})
@@ -287,8 +290,7 @@ impl Resolver<'_> {
 				Arg {
 					is_const: x.is_const,
 					pat: self.resolve_pat(x.pat),
-					ty: Type::Unknown,
-					ty_expr: self.resolve_expr(x.ty),
+					ty: self.resolve_expr(x.ty),
 					span: x.span,
 				}
 			})
@@ -307,7 +309,11 @@ impl Resolver<'_> {
 			ret: Type::Unknown,
 		};
 
+		self.in_fn = true;
+
 		let ret = (sig, f.block.map(|block| self.resolve_block(block)));
+
+		self.in_fn = false;
 
 		self.local.pop_scope();
 		self.local.reset();
@@ -326,8 +332,10 @@ impl Resolver<'_> {
 					.push(span.error("globals must have initializers").label(span.mark()));
 
 				hir::Expr {
-					kind: hir::ExprKind::Err,
-					ty: Type::Void,
+					node: ExprData {
+						kind: hir::ExprKind::Err,
+						ty: Type::Void,
+					},
 					span,
 				}
 			},
@@ -336,8 +344,10 @@ impl Resolver<'_> {
 
 	fn resolve_expr(&mut self, expr: Expr) -> hir::Expr {
 		hir::Expr {
-			kind: self.resolve_expr_kind(expr.node, expr.span),
-			ty: Type::Unknown,
+			node: ExprData {
+				kind: self.resolve_expr_kind(expr.node, expr.span),
+				ty: Type::Unknown,
+			},
 			span: expr.span,
 		}
 	}
@@ -396,8 +406,7 @@ impl Resolver<'_> {
 			}),
 			ExprKind::Cast(cast) => hir::ExprKind::Cast(Cast {
 				expr: Box::new(self.resolve_expr(*cast.expr)),
-				ty: Type::Unknown,
-				ty_expr: Box::new(self.resolve_expr(*cast.ty)),
+				ty: Box::new(self.resolve_expr(*cast.ty)),
 			}),
 			ExprKind::Never => hir::ExprKind::Never,
 			ExprKind::Type => hir::ExprKind::Type,
@@ -432,9 +441,30 @@ impl Resolver<'_> {
 				lhs: Box::new(self.resolve_expr(*binary.lhs)),
 				rhs: Box::new(self.resolve_expr(*binary.rhs)),
 			}),
-			ExprKind::Break(expr) => hir::ExprKind::Break(expr.map(|expr| Box::new(self.resolve_expr(*expr)))),
-			ExprKind::Continue => hir::ExprKind::Continue,
-			ExprKind::Return(expr) => hir::ExprKind::Return(expr.map(|expr| Box::new(self.resolve_expr(*expr)))),
+			ExprKind::Break(expr) => {
+				if !self.in_loop {
+					self.diagnostics
+						.push(span.error("`break` is only allowed inside loops").label(span.mark()));
+				}
+
+				hir::ExprKind::Break(expr.map(|expr| Box::new(self.resolve_expr(*expr))))
+			},
+			ExprKind::Continue => {
+				if !self.in_loop {
+					self.diagnostics
+						.push(span.error("`continue` is only allowed inside loops").label(span.mark()));
+				}
+
+				hir::ExprKind::Continue
+			},
+			ExprKind::Return(expr) => {
+				if !self.in_fn {
+					self.diagnostics
+						.push(span.error("`return` not allowed here").label(span.mark()));
+				}
+
+				hir::ExprKind::Return(expr.map(|expr| Box::new(self.resolve_expr(*expr))))
+			},
 			ExprKind::If(if_) => {
 				let else_ = if_.else_.map(|x| *x);
 
@@ -458,17 +488,32 @@ impl Resolver<'_> {
 				})
 			},
 			ExprKind::Loop(loop_) => hir::ExprKind::Loop(Loop {
-				block: self.resolve_block(loop_.block),
+				block: {
+					self.in_loop = true;
+					let ret = self.resolve_block(loop_.block);
+					self.in_loop = false;
+					ret
+				},
 				while_: loop_.while_.map(|cond| Box::new(self.resolve_expr(*cond))),
 			}),
 			ExprKind::While(while_) => hir::ExprKind::While(While {
 				cond: Box::new(self.resolve_expr(*while_.cond)),
-				block: self.resolve_block(while_.block),
+				block: {
+					self.in_loop = true;
+					let ret = self.resolve_block(while_.block);
+					self.in_loop = false;
+					ret
+				},
 			}),
 			ExprKind::For(for_) => hir::ExprKind::For(For {
 				pat: self.resolve_pat(for_.pat),
 				iter: Box::new(self.resolve_expr(*for_.iter)),
-				block: self.resolve_block(for_.block),
+				block: {
+					self.in_loop = true;
+					let ret = self.resolve_block(for_.block);
+					self.in_loop = false;
+					ret
+				},
 			}),
 			ExprKind::Err => hir::ExprKind::Err,
 			ExprKind::Tuple(x) => hir::ExprKind::Tuple(x.into_iter().map(|x| self.resolve_expr(x)).collect()),
@@ -499,6 +544,7 @@ impl Resolver<'_> {
 		let ret = hir::Block {
 			is_const: block.is_const,
 			stmts: block.stmts.into_iter().map(|stmt| self.resolve_stmt(stmt)).collect(),
+			ty: Type::Unknown,
 			span: block.span,
 		};
 
@@ -521,11 +567,17 @@ impl Resolver<'_> {
 				}
 			},
 			StmtKind::Expr(expr) => hir::Stmt {
-				node: hir::StmtKind::Expr(self.resolve_expr_kind(expr, stmt.span)),
+				node: hir::StmtKind::Expr(ExprData {
+					kind: self.resolve_expr_kind(expr, stmt.span),
+					ty: Type::Unknown,
+				}),
 				span: stmt.span,
 			},
 			StmtKind::Semi(expr) => hir::Stmt {
-				node: hir::StmtKind::Semi(self.resolve_expr_kind(expr, stmt.span)),
+				node: hir::StmtKind::Semi(ExprData {
+					kind: self.resolve_expr_kind(expr, stmt.span),
+					ty: Type::Unknown,
+				}),
 				span: stmt.span,
 			},
 			StmtKind::Err => hir::Stmt {

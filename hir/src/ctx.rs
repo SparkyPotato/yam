@@ -26,10 +26,10 @@ impl Id for LocalRef {
 
 #[derive(Debug)]
 pub struct Hir {
-	rodeo: Rodeo,
-	globals: DenseMap<ValRef, ValDef>,
-	lang_items: DenseMap<LangItem, ValRef>,
-	val_to_lang_item: SparseMap<ValRef, LangItem>,
+	pub rodeo: Rodeo,
+	pub globals: DenseMap<ValRef, ValDef>,
+	pub lang_items: DenseMap<LangItem, ValRef>,
+	pub val_to_lang_item: SparseMap<ValRef, LangItem>,
 }
 
 impl Hir {
@@ -37,7 +37,9 @@ impl Hir {
 
 	pub fn resolve_intern(&self, spur: Spur) -> &str { self.rodeo.resolve(&spur) }
 
-	pub fn lang_item(&self, val: ValRef) -> Option<LangItem> { self.val_to_lang_item.get(val).copied() }
+	pub fn lang_item_of(&self, val: ValRef) -> Option<LangItem> { self.val_to_lang_item.get(val).copied() }
+
+	pub fn lang_item(&self, item: LangItem) -> ValRef { self.lang_items[item] }
 }
 
 impl Index<ValRef> for Hir {

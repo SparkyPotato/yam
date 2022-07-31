@@ -31,22 +31,39 @@ impl Id for LangItem {
 
 impl LangItem {
 	pub fn all() -> &'static [LangItem] {
-		&[
-			LangItem::U8,
-			LangItem::U16,
-			LangItem::U32,
-			LangItem::U64,
-			LangItem::Usize,
-			LangItem::I8,
-			LangItem::I16,
-			LangItem::I32,
-			LangItem::I64,
-			LangItem::Isize,
-			LangItem::F32,
-			LangItem::F64,
-			LangItem::Bool,
-			LangItem::Void,
-		]
+		use LangItem::*;
+
+		&[U8, U16, U32, U64, Usize, I8, I16, I32, I64, Isize, F32, F64, Bool, Void]
+	}
+
+	pub fn ints() -> &'static [LangItem] {
+		use LangItem::*;
+
+		&[U8, U16, U32, U64, Usize, I8, I16, I32, I64, Isize]
+	}
+
+	pub fn floats() -> &'static [LangItem] {
+		use LangItem::*;
+
+		&[F32, F64]
+	}
+
+	pub fn is_int(self) -> bool {
+		use LangItem::*;
+
+		match self {
+			U8 | U16 | U32 | U64 | Usize | I8 | I16 | I32 | I64 | Isize => true,
+			_ => false,
+		}
+	}
+
+	pub fn is_float(self) -> bool {
+		use LangItem::*;
+
+		match self {
+			F32 | F64 => true,
+			_ => false,
+		}
 	}
 
 	pub fn verify_item(self, def: &ValDef, this: ValRef, diags: &mut Diagnostics) {
@@ -67,7 +84,7 @@ impl LangItem {
 			| LangItem::Void => match &def.kind {
 				ValDefKind::Const(l) => {
 					if let Some(ty) = l.ty_expr.as_ref() {
-						if !matches!(ty.kind, ExprKind::Type) {
+						if !matches!(ty.node.kind, ExprKind::Type) {
 							diags.push(
 								ty.span
 									.error("inbuilt type lang items must have type `type`")
@@ -76,7 +93,7 @@ impl LangItem {
 						}
 					}
 
-					if !matches!(l.expr.kind, ExprKind::ValRef(v) if v == this) {
+					if !matches!(l.expr.node.kind, ExprKind::ValRef(v) if v == this) {
 						diags.push(
 							l.expr
 								.span
@@ -91,6 +108,42 @@ impl LangItem {
 						.label(def.span.mark()),
 				),
 			},
+		}
+	}
+
+	pub fn larger_int(a: LangItem, b: LangItem) -> LangItem {
+		match (a, b) {
+			(LangItem::U8, LangItem::U8) => LangItem::U8,
+			(LangItem::U16, LangItem::U16) => LangItem::U16,
+			(LangItem::U32, LangItem::U32) => LangItem::U32,
+			(LangItem::U64, LangItem::U64) => LangItem::U64,
+			(LangItem::Usize, LangItem::Usize) => LangItem::Usize,
+			(LangItem::I8, LangItem::I8) => LangItem::I8,
+			(LangItem::I16, LangItem::I16) => LangItem::I16,
+			(LangItem::I32, LangItem::I32) => LangItem::I32,
+			(LangItem::I64, LangItem::I64) => LangItem::I64,
+			(LangItem::Isize, LangItem::Isize) => LangItem::Isize,
+			(LangItem::U8, LangItem::U16) | (LangItem::U16, LangItem::U8) => LangItem::U16,
+			(LangItem::U8 | LangItem::U16, LangItem::U32) | (LangItem::U32, LangItem::U8 | LangItem::U16) => {
+				LangItem::U32
+			},
+			(LangItem::U8 | LangItem::U16 | LangItem::U32 | LangItem::Usize, LangItem::U64)
+			| (LangItem::U64, LangItem::U8 | LangItem::U16 | LangItem::U32 | LangItem::Usize) => LangItem::U64,
+			(LangItem::I8, LangItem::I16) | (LangItem::I16, LangItem::I8) => LangItem::I16,
+			(LangItem::I8 | LangItem::I16, LangItem::I32) | (LangItem::I32, LangItem::I8 | LangItem::I16) => {
+				LangItem::I32
+			},
+			(LangItem::I8 | LangItem::I16 | LangItem::I32 | LangItem::Isize, LangItem::I64)
+			| (LangItem::I64, LangItem::I8 | LangItem::I16 | LangItem::I32 | LangItem::Isize) => LangItem::I64,
+			_ => unreachable!("didn't get ints: {} and {}", a, b),
+		}
+	}
+
+	pub fn larger_float(a: LangItem, b: LangItem) -> LangItem {
+		match (a, b) {
+			(LangItem::F32, LangItem::F32) => LangItem::F32,
+			(LangItem::F32 | LangItem::F64, LangItem::F64) | (LangItem::F64, LangItem::F32) => LangItem::F64,
+			_ => unreachable!("didn't get floats: {} and {}", a, b),
 		}
 	}
 }

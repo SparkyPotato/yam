@@ -384,6 +384,7 @@ version = "0.1.0"
 dependencies = [
  "diag",
  "hir",
+ "id",
 ]
 
 [[package]]
