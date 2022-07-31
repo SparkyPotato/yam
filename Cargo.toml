@@ -19,6 +19,7 @@ members = [
 #    "codegen",
     "diag",
     "hir",
+    "id",
     "parse",
     "tyck",
 ]

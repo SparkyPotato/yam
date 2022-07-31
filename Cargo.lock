@@ -197,8 +197,13 @@ name = "hir"
 version = "0.1.0"
 dependencies = [
  "diag",
+ "id",
  "parse",
 ]
+
+[[package]]
+name = "id"
+version = "0.1.0"
 
 [[package]]
 name = "indexmap"

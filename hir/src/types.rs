@@ -1,3 +1,5 @@
+use id::Id;
+
 use crate::ValRef;
 
 #[derive(Debug, Clone)]
@@ -16,8 +18,8 @@ pub enum Type {
 #[derive(Copy, Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub struct TypeId(u32);
 
-impl TypeId {
-	pub fn new(id: u32) -> Self { TypeId(id) }
+impl Id for TypeId {
+	fn from_id(id: u32) -> Self { Self(id) }
 
-	pub fn id(self) -> u32 { self.0 }
+	fn id(self) -> u32 { self.0 }
 }

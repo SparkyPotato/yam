@@ -1,10 +1,11 @@
 use std::fmt::{Debug, Display, Formatter};
 
 use diag::Diagnostics;
+use id::Id;
 
 use crate::{hir::ExprKind, Rodeo, Spur, ValDef, ValDefKind, ValRef};
 
-#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq)]
+#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub enum LangItem {
 	U8,
 	U16,
@@ -20,6 +21,12 @@ pub enum LangItem {
 	F64,
 	Bool,
 	Void,
+}
+
+impl Id for LangItem {
+	fn from_id(id: u32) -> Self { Self::all()[id as usize] }
+
+	fn id(self) -> u32 { self as u32 }
 }
 
 impl LangItem {

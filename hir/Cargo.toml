@@ -5,4 +5,5 @@ edition = "2021"
 
 [dependencies]
 diag = { path = "../diag" }
+id = { path = "../id" }
 parse = { path = "../parse" }

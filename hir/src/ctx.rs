@@ -1,30 +1,35 @@
-use std::{collections::HashMap, convert::identity, ops::Index};
+use std::{collections::HashMap, ops::Index};
 
 use diag::{DiagKind, Diagnostic, Diagnostics, Span};
+use id::{DenseMap, DenseMapBuilder, Id, IdGen, SparseMap, SparseMapBuilder};
 use parse::ast::Spanned;
 
-use crate::{
-	hir::{Expr, ExprKind, Path},
-	lang_item::LangItem,
-	GlobalLet,
-	Rodeo,
-	Spur,
-	Type,
-	ValDef,
-	ValDefKind,
-};
+use crate::{hir::Path, lang_item::LangItem, Rodeo, Spur, ValDef};
 
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
 pub struct ValRef(u32);
+
+impl Id for ValRef {
+	fn from_id(id: u32) -> Self { Self(id) }
+
+	fn id(self) -> u32 { self.0 }
+}
+
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
 pub struct LocalRef(u32);
+
+impl Id for LocalRef {
+	fn from_id(id: u32) -> Self { Self(id) }
+
+	fn id(self) -> u32 { self.0 }
+}
 
 #[derive(Debug)]
 pub struct Hir {
 	rodeo: Rodeo,
-	globals: Vec<ValDef>,
-	lang_items: Vec<ValRef>,
-	val_to_lang_item: HashMap<ValRef, LangItem>,
+	globals: DenseMap<ValRef, ValDef>,
+	lang_items: DenseMap<LangItem, ValRef>,
+	val_to_lang_item: SparseMap<ValRef, LangItem>,
 }
 
 impl Hir {
@@ -32,38 +37,34 @@ impl Hir {
 
 	pub fn resolve_intern(&self, spur: Spur) -> &str { self.rodeo.resolve(&spur) }
 
-	pub fn lang_item(&self, val: ValRef) -> Option<LangItem> { self.val_to_lang_item.get(&val).copied() }
+	pub fn lang_item(&self, val: ValRef) -> Option<LangItem> { self.val_to_lang_item.get(val).copied() }
 }
 
 impl Index<ValRef> for Hir {
 	type Output = ValDef;
 
-	fn index(&self, index: ValRef) -> &Self::Output { &self.globals[index.0 as usize] }
+	fn index(&self, index: ValRef) -> &Self::Output { &self.globals[index] }
 }
 
 impl Index<LangItem> for Hir {
 	type Output = ValRef;
 
-	fn index(&self, index: LangItem) -> &Self::Output { &self.lang_items[index as usize] }
+	fn index(&self, index: LangItem) -> &Self::Output { &self.lang_items[index] }
 }
 
 pub struct HirBuilder {
-	globals: Vec<ValDef>,
-	inserted: Vec<bool>,
-	lang_items: Vec<ValRef>,
-	inserted_lang_items: Vec<bool>,
-	val_to_lang_item: HashMap<ValRef, LangItem>,
+	globals: DenseMapBuilder<ValRef, ValDef>,
+	lang_items: DenseMapBuilder<LangItem, ValRef>,
+	val_to_lang_item: SparseMapBuilder<ValRef, LangItem>,
 	item_map: HashMap<Path, Spanned<ValRef>>,
 }
 
 impl Default for HirBuilder {
 	fn default() -> Self {
 		Self {
-			globals: Vec::new(),
-			inserted: Vec::new(),
-			lang_items: vec![ValRef(0); LangItem::all().len()],
-			inserted_lang_items: vec![false; LangItem::all().len()],
-			val_to_lang_item: HashMap::new(),
+			globals: DenseMap::builder(),
+			lang_items: DenseMap::builder(),
+			val_to_lang_item: SparseMap::builder(),
 			item_map: HashMap::new(),
 		}
 	}
@@ -73,24 +74,8 @@ impl HirBuilder {
 	pub fn new() -> Self { Self::default() }
 
 	pub fn decl_val(&mut self, path: Path, span: Span, diags: &mut Diagnostics) -> ValRef {
-		let index = self.globals.len();
+		let val = self.globals.reserve();
 
-		self.globals.push(ValDef {
-			path: Path::default(),
-			kind: ValDefKind::Const(GlobalLet {
-				ty: Type::Void,
-				ty_expr: None,
-				expr: Expr {
-					kind: ExprKind::Err,
-					ty: Type::Void,
-					span: Span::default(),
-				},
-			}),
-			span: Span::default(),
-		});
-		self.inserted.push(false);
-
-		let val = ValRef(index as u32);
 		if let Some(existing) = self.item_map.insert(path, Spanned { node: val, span }) {
 			diags.push(
 				existing
@@ -104,17 +89,14 @@ impl HirBuilder {
 		val
 	}
 
-	pub fn define_val(&mut self, val: ValRef, def: ValDef) {
-		self.globals[val.0 as usize] = def;
-		self.inserted[val.0 as usize] = true;
-	}
+	pub fn define_val(&mut self, val: ValRef, def: ValDef) { self.globals.insert_at(val, def); }
 
 	pub fn resolve(&self, path: &Path) -> Option<ValRef> { self.item_map.get(path).map(|x| x.node) }
 
 	pub fn define_lang_item(&mut self, item: LangItem, def: ValRef, diags: &mut Diagnostics) {
-		if self.inserted_lang_items[item as usize] {
-			let orig_span = self.globals[self.lang_items[item as usize].0 as usize].span;
-			let this_span = self.globals[def.0 as usize].span;
+		if self.lang_items.already_inserted(item) {
+			let orig_span = self.globals[self.lang_items[item]].span;
+			let this_span = self.globals[def].span;
 
 			diags.push(
 				this_span
@@ -123,17 +105,14 @@ impl HirBuilder {
 					.label(this_span.label("redefined here")),
 			);
 		} else {
-			self.lang_items[item as usize] = def;
-			self.inserted_lang_items[item as usize] = true;
-			self.val_to_lang_item.insert(def, item);
+			self.lang_items.insert_at(item, def);
+			self.val_to_lang_item.add(def, item);
 		}
 	}
 
 	pub fn finish(self, rodeo: Rodeo, diags: &mut Diagnostics, source_id: Spur) -> Hir {
-		assert!(self.inserted.into_iter().all(identity));
-
 		for item in LangItem::all() {
-			if !self.inserted_lang_items[*item as usize] {
+			if !self.lang_items.already_inserted(*item) {
 				diags.push(Diagnostic::source(
 					DiagKind::Error,
 					format!("lang item `{}` is not defined", item),
@@ -144,16 +123,16 @@ impl HirBuilder {
 
 		Hir {
 			rodeo,
-			globals: self.globals,
-			lang_items: self.lang_items,
-			val_to_lang_item: self.val_to_lang_item,
+			globals: self.globals.build(),
+			lang_items: self.lang_items.build(),
+			val_to_lang_item: self.val_to_lang_item.build(),
 		}
 	}
 }
 
 #[derive(Default)]
 pub struct LocalBuilder {
-	counter: u32,
+	gen: IdGen<LocalRef>,
 	scopes: Vec<HashMap<Spur, LocalRef>>,
 }
 
@@ -183,14 +162,7 @@ impl LocalBuilder {
 
 	pub fn pop_scope(&mut self) { self.scopes.pop(); }
 
-	pub fn reset(&mut self) {
-		assert!(self.scopes.is_empty());
-		self.counter = 0;
-	}
+	pub fn reset(&mut self) { self.gen = IdGen::new(); }
 
-	fn next(&mut self) -> LocalRef {
-		let counter = self.counter;
-		self.counter += 1;
-		LocalRef(counter)
-	}
+	fn next(&mut self) -> LocalRef { self.gen.next() }
 }

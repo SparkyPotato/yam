@@ -55,7 +55,6 @@ impl TypeEngine {
 	pub fn reconstruct(&self, id: TypeId) -> Type {
 		let info = &self.info[id.id() as usize];
 		match &info.node {
-			TypeInfo::SameAs(id) => self.reconstruct(*id),
 			TypeInfo::Void => Type::Void,
 			TypeInfo::Never => Type::Never,
 			TypeInfo::Type => Type::Type,
@@ -84,7 +83,6 @@ impl TypeEngine {
 }
 
 pub enum TypeInfo {
-	SameAs(TypeId),
 	Void,
 	Never,
 	Type,
