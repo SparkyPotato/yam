@@ -49,7 +49,7 @@ impl Cache<Spur> for &FileCache<'_> {
 }
 
 pub fn quick_diagnostic(kind: DiagKind, message: impl ToString) {
-	Report::<Range<usize>>::build(kind.to_report_kind(), (), 0)
+	Report::<Range<usize>>::build(kind.into_report_kind(), (), 0)
 		.with_message(message)
 		.finish()
 		.eprint(Source::from(""))

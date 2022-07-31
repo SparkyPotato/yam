@@ -16,7 +16,7 @@ pub struct InferenceEngine<'a> {
 	ty_to_ident: DenseMap<ValRef, Ident>,
 	rodeo: &'a Rodeo,
 	pub lang_items: &'a DenseMap<LangItem, ValRef>,
-	inv_lang_items: &'a SparseMap<ValRef, LangItem>,
+	pub inv_lang_items: &'a SparseMap<ValRef, LangItem>,
 	pub diags: &'a mut Diagnostics,
 }
 
@@ -107,34 +107,46 @@ impl InferenceEngine<'_> {
 
 	fn solve_constraint(&mut self, c: &Constraint) -> bool {
 		match c {
-			Constraint::Unify(a, b) => self.unify(*a, *b),
-			Constraint::MustBe(id, ty, _) => {
+			Constraint::Eq(a, b) => self.unify(*a, *b),
+			Constraint::MustBe { id, ty, .. } => {
 				let is = self.reconstruct(*id);
-				is == *ty
+				self.can_coerce(&is, ty)
 			},
-			Constraint::Return { id, fn_id } => {
-				let fn_ty = self.get(*fn_id);
-				match fn_ty {
-					TypeInfo::Fn { ret, .. } => {
-						let id = *id;
-						let ret = *ret;
-						self.unify(id, ret)
-					},
-					_ => false,
-				}
-			},
-			Constraint::Arg { .. } => true,
-			Constraint::Field { .. } => true,
-			Constraint::Unary { .. } => true,
-			Constraint::Binary { .. } => true,
+			Constraint::Return { .. } => false,
+			Constraint::Arg { .. } => false,
+			Constraint::Field { .. } => false,
+			Constraint::Unary { .. } => false,
+			Constraint::Binary { .. } => false,
 		}
 	}
 
 	fn report_constraint_error(&mut self, c: Constraint) {
 		match c {
-			Constraint::Unify(..) => {},
-			Constraint::MustBe(a, ty, span) => {
-				let info = &self.info[a];
+			Constraint::Eq(a, b) => {
+				let info_a = &self.info[a];
+				let info_b = &self.info[b];
+
+				let found = {
+					let mut s = String::new();
+					self.fmt_ty_info(&info_a.node, &mut s);
+					s
+				};
+				let expected = {
+					let mut s = String::new();
+					self.fmt_ty_info(&info_b.node, &mut s);
+					s
+				};
+
+				self.diags.push(
+					info_a
+						.span
+						.error("type mismatch")
+						.label(info_a.span.label(format!("found `{}`", found)))
+						.label(info_b.span.label(format!("expected `{}`", expected))),
+				);
+			},
+			Constraint::MustBe { id, ty, span } => {
+				let info = &self.info[id];
 
 				let found = {
 					let mut s = String::new();
@@ -228,6 +240,38 @@ impl InferenceEngine<'_> {
 					*self.get_mut(a) = TypeInfo::EqTo(b);
 				}
 			},
+			(TypeInfo::Tuple(tys_a), TypeInfo::Tuple(tys_b)) if tys_a.len() == tys_b.len() => {
+				let tys_a = tys_a.clone();
+				let tys_b = tys_b.clone();
+				for (a, b) in tys_a.into_iter().zip(tys_b) {
+					if !self.unify(a, b) {
+						return false;
+					}
+				}
+			},
+			(
+				TypeInfo::Fn {
+					args: args_a,
+					ret: ret_a,
+				},
+				TypeInfo::Fn {
+					args: args_b,
+					ret: ret_b,
+				},
+			) if args_a.len() == args_b.len() => {
+				let args_a = args_a.clone();
+				let args_b = args_b.clone();
+				let ret_a = *ret_a;
+				let ret_b = *ret_b;
+
+				for (a, b) in args_a.into_iter().zip(args_b) {
+					if !self.unify(a, b) {
+						return false;
+					}
+				}
+
+				return self.unify(ret_a, ret_b);
+			},
 			(TypeInfo::Ptr { mutable: true, to: toa }, TypeInfo::Ptr { mutable: true, to: tob }) => {
 				return self.unify(*toa, *tob)
 			},
@@ -241,36 +285,6 @@ impl InferenceEngine<'_> {
 					to: tob,
 				},
 			) => return self.unify(*toa, *tob),
-			(
-				TypeInfo::Ptr {
-					mutable: false,
-					to: toa,
-				},
-				TypeInfo::Ptr { mutable: true, to: tob },
-			) => {
-				let toa = *toa;
-				let tob = *tob;
-				*self.get_mut(b) = TypeInfo::Ptr {
-					mutable: false,
-					to: tob,
-				};
-				return self.unify(toa, tob);
-			},
-			(
-				TypeInfo::Ptr { mutable: true, to: toa },
-				TypeInfo::Ptr {
-					mutable: false,
-					to: tob,
-				},
-			) => {
-				let toa = *toa;
-				let tob = *tob;
-				*self.get_mut(a) = TypeInfo::Ptr {
-					mutable: false,
-					to: toa,
-				};
-				return self.unify(toa, tob);
-			},
 			(a, b) if a == b => {},
 			(a, b) => self.diags.push(
 				ai.span
@@ -292,6 +306,21 @@ impl InferenceEngine<'_> {
 			false
 		} else {
 			true
+		}
+	}
+
+	fn can_coerce(&mut self, from: &Type, to: &Type) -> bool {
+		match (from, to) {
+			(Type::Never, _) => true,
+			(
+				Type::Ptr { mutable: true, to: toa },
+				Type::Ptr {
+					mutable: false,
+					to: tob,
+				},
+			) => self.can_coerce(toa, tob),
+			(a, b) if a == b => true,
+			_ => false,
 		}
 	}
 
@@ -400,8 +429,12 @@ pub enum TypeInfo {
 }
 
 pub enum Constraint {
-	Unify(TypeId, TypeId),
-	MustBe(TypeId, Type, Option<Span>),
+	Eq(TypeId, TypeId),
+	MustBe {
+		id: TypeId,
+		ty: Type,
+		span: Option<Span>,
+	},
 	Return {
 		id: TypeId,
 		fn_id: TypeId,

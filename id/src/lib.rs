@@ -1,11 +1,12 @@
 use std::{
+	cell::{Cell, UnsafeCell},
 	collections::HashMap,
 	convert::identity,
 	fmt::Debug,
 	hash::Hash,
 	marker::PhantomData,
 	mem::MaybeUninit,
-	ops::{Index, IndexMut},
+	ops::{Deref, DerefMut, Index, IndexMut},
 };
 
 pub trait Id: Copy + Hash + Eq {
@@ -32,15 +33,30 @@ impl<T: Id> IdGen<T> {
 	pub fn new() -> Self { Self::default() }
 
 	pub fn next(&mut self) -> T {
-		let counter = self.counter;
+		let id = self.counter;
 		self.counter += 1;
-		T::from_id(counter)
+		T::from_id(id)
 	}
+}
+
+impl<T: Id> Iterator for IdGen<T> {
+	type Item = T;
+
+	fn next(&mut self) -> Option<Self::Item> { Some(self.next()) }
 }
 
 pub struct DenseMap<T, U> {
 	items: Vec<U>,
 	_phantom: PhantomData<T>,
+}
+
+impl<T, U> Default for DenseMap<T, U> {
+	fn default() -> Self {
+		Self {
+			items: Vec::new(),
+			_phantom: PhantomData,
+		}
+	}
 }
 
 impl<T: Id + Debug, U: Debug> Debug for DenseMap<T, U> {
@@ -71,6 +87,14 @@ impl<T: Id, U> DenseMap<T, U> {
 			.enumerate()
 			.map(|(id, item)| (T::from_id(id as u32), item))
 	}
+
+	pub fn make_mut(self) -> DenseMut<T, U> {
+		DenseMut {
+			borrow_flags: vec![Cell::new(0); self.items.len()],
+			items: self.items.into_iter().map(UnsafeCell::new).collect(),
+			_phantom: PhantomData,
+		}
+	}
 }
 
 impl<T: Id, U> Index<T> for DenseMap<T, U> {
@@ -81,6 +105,91 @@ impl<T: Id, U> Index<T> for DenseMap<T, U> {
 
 impl<T: Id, U> IndexMut<T> for DenseMap<T, U> {
 	fn index_mut(&mut self, id: T) -> &mut Self::Output { &mut self.items[id.id() as usize] }
+}
+
+pub struct DenseMut<T, U> {
+	items: Vec<UnsafeCell<U>>,
+	borrow_flags: Vec<Cell<isize>>,
+	_phantom: PhantomData<T>,
+}
+
+impl<T: Id, U> DenseMut<T, U> {
+	pub fn try_get(&self, id: T) -> Option<Ref<T, U>> {
+		let id = id.id() as usize;
+
+		let flag = &self.borrow_flags[id];
+
+		if flag.get() >= 0 {
+			flag.set(flag.get() + 1);
+			Some(Ref { id, source: self })
+		} else {
+			None
+		}
+	}
+
+	pub fn try_get_mut(&self, id: T) -> Option<RefMut<T, U>> {
+		let id = id.id() as usize;
+
+		let flag = &self.borrow_flags[id];
+
+		if flag.get() == 0 {
+			flag.set(-1);
+			Some(RefMut { id, source: self })
+		} else {
+			None
+		}
+	}
+
+	pub fn iter_mut(&self) -> impl Iterator<Item = (T, RefMut<T, U>)> + '_ {
+		(0..self.items.len()).map(|id| {
+			let id = T::from_id(id as u32);
+			(id, self.try_get_mut(id).expect("already borrowed"))
+		})
+	}
+
+	pub fn make_imm(self) -> DenseMap<T, U> {
+		DenseMap {
+			items: self.items.into_iter().map(UnsafeCell::into_inner).collect(),
+			_phantom: PhantomData,
+		}
+	}
+}
+
+pub struct Ref<'a, T, U> {
+	id: usize,
+	source: &'a DenseMut<T, U>,
+}
+
+impl<T, U> Deref for Ref<'_, T, U> {
+	type Target = U;
+
+	fn deref(&self) -> &Self::Target { unsafe { &*self.source.items[self.id].get() } }
+}
+
+impl<T, U> Drop for Ref<'_, T, U> {
+	fn drop(&mut self) {
+		let flag = &self.source.borrow_flags[self.id];
+		flag.set(flag.get() - 1);
+	}
+}
+
+pub struct RefMut<'a, T, U> {
+	id: usize,
+	source: &'a DenseMut<T, U>,
+}
+
+impl<T, U> Deref for RefMut<'_, T, U> {
+	type Target = U;
+
+	fn deref(&self) -> &Self::Target { unsafe { &*self.source.items[self.id].get() } }
+}
+
+impl<T, U> DerefMut for RefMut<'_, T, U> {
+	fn deref_mut(&mut self) -> &mut Self::Target { unsafe { &mut *self.source.items[self.id].get() } }
+}
+
+impl<T, U> Drop for RefMut<'_, T, U> {
+	fn drop(&mut self) { self.source.borrow_flags[self.id].set(0); }
 }
 
 pub struct DenseMapBuilder<T, U> {

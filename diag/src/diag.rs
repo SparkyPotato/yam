@@ -10,7 +10,7 @@ pub enum DiagKind {
 }
 
 impl DiagKind {
-	pub(crate) fn to_report_kind(self) -> ReportKind {
+	pub(crate) fn into_report_kind(self) -> ReportKind {
 		match self {
 			DiagKind::Error => ReportKind::Error,
 			DiagKind::Warning => ReportKind::Warning,
@@ -70,18 +70,14 @@ impl Diagnostic {
 	}
 }
 
+#[derive(Default)]
 pub struct Diagnostics {
 	inner: Vec<Diagnostic>,
 	was_error: bool,
 }
 
 impl Diagnostics {
-	pub fn new() -> Self {
-		Self {
-			inner: Vec::new(),
-			was_error: false,
-		}
-	}
+	pub fn new() -> Self { Self::default() }
 
 	pub fn push(&mut self, diagnostic: Diagnostic) {
 		if matches!(diagnostic.kind, DiagKind::Error) {
@@ -96,7 +92,7 @@ impl Diagnostics {
 	pub fn emit(self, cache: &FileCache) {
 		for diagnostic in self.inner {
 			let mut builder = Report::build(
-				diagnostic.kind.to_report_kind(),
+				diagnostic.kind.into_report_kind(),
 				diagnostic.span.file,
 				diagnostic.span.start as _,
 			);

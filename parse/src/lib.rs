@@ -386,7 +386,6 @@ impl<'a> Parser<'a> {
 					just(TokenKind::RDelim(Delim::Paren)),
 				)
 				.map(|expr| expr.node),
-			block.clone().map(ExprKind::Block),
 			lit.map(ExprKind::Lit),
 			sym.clone().map(ExprKind::Ident),
 			let_.map(ExprKind::Let),
@@ -564,6 +563,10 @@ impl<'a> Parser<'a> {
 		})
 		.or(just(TokenKind::Not).map_with_span(|_, span| Expr {
 			node: ExprKind::Never,
+			span,
+		}))
+		.or(block.clone().map_with_span(|block, span| Expr {
+			node: ExprKind::Block(block),
 			span,
 		}))
 		.debug("<unary>")

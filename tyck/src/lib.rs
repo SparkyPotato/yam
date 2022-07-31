@@ -1,24 +1,28 @@
 use diag::{Diagnostics, Span};
 use hir::{
-	ctx::{Hir, LocalRef},
+	ctx::{Hir, LocalRef, ValRef},
 	hir::*,
 	lang_item::LangItem,
 	types::{Type, TypeId},
 };
-use id::DenseMapBuilder;
+use id::{DenseMapBuilder, DenseMut};
 
-use crate::infer::{Constraint, InferenceEngine, TypeInfo};
+use crate::check::{Constraint, InferenceEngine, TypeInfo};
 
-mod infer;
+mod check;
 
 pub fn type_check(hir: &mut Hir, diags: &mut Diagnostics) {
+	let globals = std::mem::take(&mut hir.globals).make_mut();
+
 	let mut checker = TypeChecker {
 		engine: InferenceEngine::new(hir, &hir.rodeo, &hir.lang_items, &hir.val_to_lang_item, diags),
 		locals: DenseMapBuilder::new(),
+		globals: &globals,
 		ret_ty: None,
+		loop_ty: None,
 	};
 
-	for (val, def) in hir.globals.iter_mut() {
+	for (val, mut def) in globals.iter_mut() {
 		if hir.val_to_lang_item.get(val).is_some() {
 			continue;
 		}
@@ -33,20 +37,20 @@ pub fn type_check(hir: &mut Hir, diags: &mut Diagnostics) {
 		}
 	}
 
-	for (val, def) in hir.globals.iter_mut() {
+	for (val, mut def) in globals.iter_mut() {
 		if hir.val_to_lang_item.get(val).is_some() {
 			continue;
 		}
 
 		match &mut def.kind {
-			ValDefKind::Static(_) | ValDefKind::Const(_) => {
-				unreachable!("static and const globals are not supported yet");
-			},
+			ValDefKind::Static(_) | ValDefKind::Const(_) => unreachable!(),
 			ValDefKind::Fn(f) => checker.check_fn(f),
 			ValDefKind::FnDecl(_) => {},
 			ValDefKind::Struct(_) => {},
 		}
 	}
+
+	hir.globals = globals.make_imm();
 }
 
 enum LocalInfo {
@@ -57,7 +61,9 @@ enum LocalInfo {
 struct TypeChecker<'a> {
 	engine: InferenceEngine<'a>,
 	locals: DenseMapBuilder<LocalRef, LocalInfo>,
+	globals: &'a DenseMut<ValRef, ValDef>,
 	ret_ty: Option<(Type, Option<Span>)>,
+	loop_ty: Option<TypeId>,
 }
 
 impl TypeChecker<'_> {
@@ -128,8 +134,11 @@ impl TypeChecker<'_> {
 
 		self.infer_block(&mut f.block);
 		let id = self.ty_to_id(&f.block.ty, f.block.span);
-		self.engine
-			.constraint(Constraint::MustBe(id, f.sig.ret.clone(), ret_span));
+		self.engine.constraint(Constraint::MustBe {
+			id,
+			ty: f.sig.ret.clone(),
+			span: ret_span,
+		});
 
 		self.engine.solve();
 		self.reconstruct_block(&mut f.block);
@@ -242,8 +251,11 @@ impl TypeChecker<'_> {
 				match (ty, init_ty) {
 					(Some((ty, ty_span)), Some((init_ty, init_span))) => {
 						let init_id = self.ty_to_id(&init_ty, init_span);
-						self.engine
-							.constraint(Constraint::MustBe(init_id, ty.clone(), Some(ty_span)));
+						self.engine.constraint(Constraint::MustBe {
+							id: init_id,
+							ty: ty.clone(),
+							span: Some(ty_span),
+						});
 						self.locals.insert_at(r, LocalInfo::Concrete(ty.clone()));
 						l.ty = ty;
 					},
@@ -332,10 +344,14 @@ impl TypeChecker<'_> {
 
 				return expr.ty = Type::Unresolved(id);
 			},
-			ExprKind::Break(_) => {
-				unreachable!();
+			ExprKind::Break(b) => {
+				if let Some(expr) = b {
+					self.infer_expr(&mut expr.node, expr.span);
+					let id = self.ty_to_id(&expr.node.ty, expr.span);
+					self.engine.constraint(Constraint::Eq(id, self.loop_ty.unwrap()));
+				}
 
-				// return expr.ty = Type::Never;
+				return expr.ty = Type::Never;
 			},
 			ExprKind::Continue => return expr.ty = Type::Never,
 			ExprKind::Return(r) => {
@@ -349,13 +365,47 @@ impl TypeChecker<'_> {
 
 				let id = self.ty_to_id(&ty, span);
 				let (ret, span) = self.ret_ty.clone().unwrap();
-				self.engine.constraint(Constraint::MustBe(id, ret, span));
+				self.engine.constraint(Constraint::MustBe { id, ty: ret, span });
 				return expr.ty = Type::Never;
 			},
-			ExprKind::If(_) => unreachable!(),
-			ExprKind::Loop(_) => unreachable!(),
-			ExprKind::While(_) => unreachable!(),
-			ExprKind::For(_) => unreachable!(),
+			ExprKind::If(i) => {
+				self.infer_expr(&mut i.cond.node, i.cond.span);
+				self.infer_block(&mut i.then);
+
+				i.else_
+					.as_mut()
+					.map(|x| {
+						self.infer_block(x);
+
+						let then_id = self.ty_to_id(&i.then.ty, i.then.span);
+						let else_id = self.ty_to_id(&x.ty, x.span);
+						self.engine.constraint(Constraint::Eq(then_id, else_id));
+
+						TypeInfo::EqTo(then_id)
+					})
+					.unwrap_or(TypeInfo::Void)
+			},
+			ExprKind::Loop(l) => {
+				let info = if l.while_.is_some() {
+					TypeInfo::Void
+				} else {
+					TypeInfo::Never
+				};
+
+				let id = self.engine.insert(info, span);
+
+				self.loop_ty = Some(id);
+				self.infer_block(&mut l.block);
+				self.loop_ty = None;
+
+				return expr.ty = Type::Unresolved(id);
+			},
+			ExprKind::While(w) => {
+				self.infer_expr(&mut w.cond.node, w.cond.span);
+				self.infer_block(&mut w.block);
+				return expr.ty = Type::Void;
+			},
+			ExprKind::For(_) => unreachable!("for is not supported"),
 			ExprKind::Infer => return expr.ty = Type::Err,
 			ExprKind::Err => return expr.ty = Type::Err,
 		};
@@ -448,7 +498,24 @@ impl TypeChecker<'_> {
 
 	fn evaluate_expr_as_ty(&mut self, expr: &mut ExprData, span: Span) {
 		let ty = match &mut expr.kind {
-			ExprKind::ValRef(val) => Type::Ty(*val),
+			ExprKind::ValRef(val) => {
+				if self.engine.inv_lang_items.get(*val).is_some() {
+					Type::Ty(*val)
+				} else if let Some(ty) = self.globals.try_get(*val) {
+					match &ty.kind {
+						ValDefKind::Struct(_) => Type::Ty(*val),
+						ValDefKind::Static(_) | ValDefKind::Const(_) | ValDefKind::Fn(_) | ValDefKind::FnDecl(_) => {
+							self.engine
+								.diags
+								.push(span.error("expected type, found value").label(span.mark()));
+							Type::Err
+						},
+					}
+				} else {
+					self.engine.diags.push(span.error("cycle detected").label(span.mark()));
+					Type::Err
+				}
+			},
 			ExprKind::Never => Type::Never,
 			ExprKind::Type => Type::Type,
 			ExprKind::TypeOf(expr) => {

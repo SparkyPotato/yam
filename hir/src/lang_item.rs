@@ -51,19 +51,13 @@ impl LangItem {
 	pub fn is_int(self) -> bool {
 		use LangItem::*;
 
-		match self {
-			U8 | U16 | U32 | U64 | Usize | I8 | I16 | I32 | I64 | Isize => true,
-			_ => false,
-		}
+		matches!(self, U8 | U16 | U32 | U64 | Usize | I8 | I16 | I32 | I64 | Isize)
 	}
 
 	pub fn is_float(self) -> bool {
 		use LangItem::*;
 
-		match self {
-			F32 | F64 => true,
-			_ => false,
-		}
+		matches!(self, F32 | F64)
 	}
 
 	pub fn verify_item(self, def: &ValDef, this: ValRef, diags: &mut Diagnostics) {
