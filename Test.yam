@@ -17,8 +17,26 @@
 
 @lang(void) const void = void;
 
-fn main(argc: i32, argv: *const *const u8) -> i32 {
-    let call = 0;
+extern "C" fn puts(out: *const u8) -> i32;
 
-    call(argc)
+fn a() { puts("a called"); }
+
+fn b() { puts("b called"); }
+
+fn main(argc: i32, argv: *const *const u8) -> i32 {
+    var i = 0;
+    loop {
+        i = i + 1;
+        if i > 10 {
+            break;
+        }
+
+        if i % 2 == 0 {
+            a();
+        } else {
+            b();
+        }
+    }
+
+    0
 }

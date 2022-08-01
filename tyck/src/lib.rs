@@ -145,7 +145,14 @@ impl TypeChecker<'_> {
 
 		let mut last_stmt_ty = None;
 		for (i, stmt) in block.stmts.iter_mut().enumerate() {
-			if matches!(stmt.node, StmtKind::Expr(_)) && i != last_stmt {
+			if matches!(
+				stmt.node,
+				StmtKind::Expr(ExprData {
+					kind: ExprKind::Block(_) | ExprKind::While(_) | ExprKind::For(_),
+					..
+				})
+			) && i != last_stmt
+			{
 				self.engine.diags.push(
 					stmt.span
 						.error("expected `;` after statement")
@@ -154,12 +161,13 @@ impl TypeChecker<'_> {
 			}
 
 			match &mut stmt.node {
-				StmtKind::Expr(expr) | StmtKind::Semi(expr) => {
+				StmtKind::Expr(expr) => {
 					self.infer_expr(expr, stmt.span);
 					if i == last_stmt {
 						last_stmt_ty = Some(expr.ty.clone());
 					}
 				},
+				StmtKind::Semi(expr) => self.infer_expr(expr, stmt.span),
 				StmtKind::Err => {},
 			}
 		}
@@ -224,10 +232,7 @@ impl TypeChecker<'_> {
 				Lit::String(_) => {
 					return expr.ty = Type::Ptr {
 						mutable: false,
-						to: Box::new(Type::Ptr {
-							mutable: false,
-							to: Box::new(Type::Ty(self.engine.lang_items[LangItem::U8])),
-						}),
+						to: Box::new(Type::Ty(self.engine.lang_items[LangItem::U8])),
 					}
 				},
 				Lit::Char(_) => return expr.ty = Type::Ty(self.engine.lang_items[LangItem::U32]),
@@ -354,11 +359,14 @@ impl TypeChecker<'_> {
 				return expr.ty = Type::Unresolved(id);
 			},
 			ExprKind::Break(b) => {
-				if let Some(expr) = b {
+				let id = if let Some(expr) = b {
 					self.infer_expr(&mut expr.node, expr.span);
-					let id = self.ty_to_id(&expr.node.ty, expr.span);
-					self.engine.constraint(Constraint::Eq(id, self.loop_ty.unwrap()));
-				}
+					self.ty_to_id(&expr.node.ty, expr.span)
+				} else {
+					self.engine.insert(TypeInfo::Void, span)
+				};
+
+				self.engine.constraint(Constraint::Eq(id, self.loop_ty.unwrap()));
 
 				return expr.ty = Type::Never;
 			},
@@ -479,15 +487,58 @@ impl TypeChecker<'_> {
 			},
 			ExprKind::If(if_) => {
 				self.reconstruct_expr(&mut if_.cond.node);
+
+				if if_.cond.node.ty != Type::Ty(self.engine.lang_items[LangItem::Bool]) {
+					self.engine
+						.diags
+						.push(if_.cond.span.error("type mismatch").label(if_.cond.span.label(format!(
+							"expected `bool`, found `{}`",
+							{
+								let mut s = String::new();
+								self.engine.fmt_ty(&if_.cond.node.ty, &mut s);
+								s
+							}
+						))));
+				}
+
 				self.reconstruct_block(&mut if_.then);
 				if_.else_.as_mut().map(|x| self.reconstruct_block(x));
 			},
 			ExprKind::Loop(l) => {
 				self.reconstruct_block(&mut l.block);
-				l.while_.as_mut().map(|x| self.reconstruct_expr(&mut x.node));
+				l.while_.as_mut().map(|x| {
+					self.reconstruct_expr(&mut x.node);
+
+					if x.node.ty != Type::Ty(self.engine.lang_items[LangItem::Bool]) {
+						self.engine
+							.diags
+							.push(x.span.error("type mismatch").label(x.span.label(format!(
+								"expected `bool`, found `{}`",
+								{
+									let mut s = String::new();
+									self.engine.fmt_ty(&x.node.ty, &mut s);
+									s
+								}
+							))));
+					}
+				});
 			},
 			ExprKind::While(w) => {
 				self.reconstruct_expr(&mut w.cond.node);
+
+				if w.cond.node.ty != Type::Ty(self.engine.lang_items[LangItem::Bool]) {
+					self.engine
+						.diags
+						.push(w.cond.span.error("type mismatch").label(w.cond.span.label(format!(
+							"expected `bool`, found `{}`",
+							{
+								let mut s = String::new();
+								self.engine.fmt_ty(&w.cond.node.ty, &mut s);
+								s
+							}
+						))));
+				}
+
 				self.reconstruct_block(&mut w.block);
 			},
 			ExprKind::For(_) => unreachable!(),

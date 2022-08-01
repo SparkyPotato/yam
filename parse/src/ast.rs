@@ -1,3 +1,5 @@
+use std::fmt::{Display, Formatter};
+
 use diag::Span;
 use lasso::Spur;
 
@@ -163,6 +165,20 @@ pub enum UnOp {
 	Deref,
 }
 
+impl Display for UnOp {
+	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+		match self {
+			UnOp::Not => write!(f, "!"),
+			UnOp::Neg => write!(f, "-"),
+			UnOp::Addr => write!(f, "&"),
+			UnOp::DoubleAddr => write!(f, "&&"),
+			UnOp::AddrMut => write!(f, "&mut"),
+			UnOp::DoubleAddrMut => write!(f, "&&mut"),
+			UnOp::Deref => write!(f, "*"),
+		}
+	}
+}
+
 #[derive(Debug, Clone)]
 pub struct Unary {
 	pub op: UnOp,
@@ -201,6 +217,43 @@ pub enum BinOp {
 	ShlAssign,
 	ShrAssign,
 	PlaceConstruct,
+}
+
+impl Display for BinOp {
+	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+		match self {
+			BinOp::Add => write!(f, "+"),
+			BinOp::Sub => write!(f, "-"),
+			BinOp::Mul => write!(f, "*"),
+			BinOp::Div => write!(f, "/"),
+			BinOp::Rem => write!(f, "%"),
+			BinOp::Shl => write!(f, "<<"),
+			BinOp::Shr => write!(f, ">>"),
+			BinOp::Lt => write!(f, "<"),
+			BinOp::Gt => write!(f, ">"),
+			BinOp::Leq => write!(f, "<="),
+			BinOp::Geq => write!(f, ">="),
+			BinOp::Eq => write!(f, "=="),
+			BinOp::Neq => write!(f, "!="),
+			BinOp::BitAnd => write!(f, "&"),
+			BinOp::BitOr => write!(f, "|"),
+			BinOp::BitXor => write!(f, "^"),
+			BinOp::And => write!(f, "&&"),
+			BinOp::Or => write!(f, "||"),
+			BinOp::Assign => write!(f, "="),
+			BinOp::AddAssign => write!(f, "+="),
+			BinOp::SubAssign => write!(f, "-="),
+			BinOp::MulAssign => write!(f, "*="),
+			BinOp::DivAssign => write!(f, "/="),
+			BinOp::RemAssign => write!(f, "%="),
+			BinOp::BitAndAssign => write!(f, "&="),
+			BinOp::BitOrAssign => write!(f, "|="),
+			BinOp::BitXorAssign => write!(f, "^="),
+			BinOp::ShlAssign => write!(f, "<<="),
+			BinOp::ShrAssign => write!(f, ">>="),
+			BinOp::PlaceConstruct => write!(f, "->"),
+		}
+	}
 }
 
 #[derive(Debug, Clone)]

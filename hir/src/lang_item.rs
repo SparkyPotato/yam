@@ -48,7 +48,19 @@ impl LangItem {
 		&[F32, F64]
 	}
 
+	pub fn is_uint(self) -> bool {
+		use LangItem::*;
+
+		matches!(self, U8 | U16 | U32 | U64 | Usize)
+	}
+
 	pub fn is_int(self) -> bool {
+		use LangItem::*;
+
+		matches!(self, I8 | I16 | I32 | I64 | Isize)
+	}
+
+	pub fn is_integer(self) -> bool {
 		use LangItem::*;
 
 		matches!(self, U8 | U16 | U32 | U64 | Usize | I8 | I16 | I32 | I64 | Isize)
@@ -105,30 +117,30 @@ impl LangItem {
 		}
 	}
 
-	pub fn larger_int(a: LangItem, b: LangItem) -> LangItem {
+	pub fn larger_uint(a: LangItem, b: LangItem) -> LangItem {
 		match (a, b) {
 			(LangItem::U8, LangItem::U8) => LangItem::U8,
-			(LangItem::U16, LangItem::U16) => LangItem::U16,
-			(LangItem::U32, LangItem::U32) => LangItem::U32,
-			(LangItem::U64, LangItem::U64) => LangItem::U64,
-			(LangItem::Usize, LangItem::Usize) => LangItem::Usize,
+			(LangItem::U16, LangItem::U16 | LangItem::U8) | (LangItem::U8, LangItem::U16) => LangItem::U16,
+			(LangItem::U32, LangItem::U32 | LangItem::U16 | LangItem::U8)
+			| (LangItem::U16 | LangItem::U8, LangItem::U32) => LangItem::U32,
+			(LangItem::U64, LangItem::U64 | LangItem::U32 | LangItem::U16 | LangItem::U8)
+			| (LangItem::U32 | LangItem::U16 | LangItem::U8, LangItem::U64) => LangItem::U64,
+			(LangItem::Usize, LangItem::Usize | LangItem::U32 | LangItem::U16 | LangItem::U8)
+			| (LangItem::U32 | LangItem::U16 | LangItem::U8, LangItem::Usize) => LangItem::Usize,
+			_ => unreachable!("didn't get uints: {} and {}", a, b),
+		}
+	}
+
+	pub fn larger_int(a: LangItem, b: LangItem) -> LangItem {
+		match (a, b) {
 			(LangItem::I8, LangItem::I8) => LangItem::I8,
-			(LangItem::I16, LangItem::I16) => LangItem::I16,
-			(LangItem::I32, LangItem::I32) => LangItem::I32,
-			(LangItem::I64, LangItem::I64) => LangItem::I64,
-			(LangItem::Isize, LangItem::Isize) => LangItem::Isize,
-			(LangItem::U8, LangItem::U16) | (LangItem::U16, LangItem::U8) => LangItem::U16,
-			(LangItem::U8 | LangItem::U16, LangItem::U32) | (LangItem::U32, LangItem::U8 | LangItem::U16) => {
-				LangItem::U32
-			},
-			(LangItem::U8 | LangItem::U16 | LangItem::U32 | LangItem::Usize, LangItem::U64)
-			| (LangItem::U64, LangItem::U8 | LangItem::U16 | LangItem::U32 | LangItem::Usize) => LangItem::U64,
-			(LangItem::I8, LangItem::I16) | (LangItem::I16, LangItem::I8) => LangItem::I16,
-			(LangItem::I8 | LangItem::I16, LangItem::I32) | (LangItem::I32, LangItem::I8 | LangItem::I16) => {
-				LangItem::I32
-			},
-			(LangItem::I8 | LangItem::I16 | LangItem::I32 | LangItem::Isize, LangItem::I64)
-			| (LangItem::I64, LangItem::I8 | LangItem::I16 | LangItem::I32 | LangItem::Isize) => LangItem::I64,
+			(LangItem::I16, LangItem::I16 | LangItem::I8) | (LangItem::I8, LangItem::I16) => LangItem::I16,
+			(LangItem::I32, LangItem::I32 | LangItem::I16 | LangItem::I8)
+			| (LangItem::I16 | LangItem::I8, LangItem::I32) => LangItem::I32,
+			(LangItem::I64, LangItem::I64 | LangItem::I32 | LangItem::I16 | LangItem::I8)
+			| (LangItem::I32 | LangItem::I16 | LangItem::I8, LangItem::I64) => LangItem::I64,
+			(LangItem::Isize, LangItem::Isize | LangItem::I32 | LangItem::I16 | LangItem::I8)
+			| (LangItem::I32 | LangItem::I16 | LangItem::I8, LangItem::Isize) => LangItem::Isize,
 			_ => unreachable!("didn't get ints: {} and {}", a, b),
 		}
 	}

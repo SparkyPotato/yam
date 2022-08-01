@@ -2,7 +2,7 @@ use std::{collections::VecDeque, fmt::Write};
 
 use diag::{Diagnostics, Span};
 use hir::{
-	ctx::{Hir, ValRef},
+	ctx::ValRef,
 	hir::{BinOp, Ident, Spanned, UnOp, ValDef},
 	lang_item::LangItem,
 	types::{Type, TypeId},
@@ -122,6 +122,15 @@ impl InferenceEngine<'_> {
 					let a = a.clone();
 					let args = args.clone();
 
+					if a.len() != args.len() {
+						let span = self.info[*fn_id].span;
+						self.diags.push(
+							span.error("wrong number of arguments")
+								.label(span.label(format!("expected {} arguments", a.len()))),
+						);
+						return true;
+					}
+
 					for (a, b) in args.into_iter().zip(a) {
 						self.constraints.push_back(Constraint::Eq(a, b));
 					}
@@ -133,45 +142,8 @@ impl InferenceEngine<'_> {
 				_ => false,
 			},
 			Constraint::Field { id, struct_id, field } => false,
-			Constraint::Unary { id, op, expr } => {
-				let id = *id;
-				let expr = *expr;
-				self.constraints.push_back(match op {
-					UnOp::Not | UnOp::Neg => Constraint::Eq(id, expr),
-					UnOp::Addr => {
-						let span = self.info[id].span;
-
-						let res = self.insert(
-							TypeInfo::Ptr {
-								mutable: false,
-								to: *expr,
-							},
-							span,
-						);
-						Constraint::Eq(res, id)
-					},
-					UnOp::DoubleAddr => {
-						let span = self.info[id].span;
-
-						let to = self.insert(
-							TypeInfo::Ptr {
-								mutable: false,
-								to: *expr,
-							},
-							span,
-						);
-
-						let res = self.insert(TypeInfo::Ptr { mutable: false, to }, span);
-						Constraint::Eq(res, id)
-					},
-					UnOp::AddrMut => {},
-					UnOp::DoubleAddrMut => {},
-					UnOp::Deref => {},
-				});
-
-				true
-			},
-			Constraint::Binary { .. } => false,
+			Constraint::Unary { id, op, expr } => self.unary(*id, *op, *expr),
+			Constraint::Binary { id, lhs, op, rhs } => self.binary(*id, *lhs, *op, *rhs),
 		}
 	}
 
@@ -200,7 +172,51 @@ impl InferenceEngine<'_> {
 						.label(info_b.span.label(format!("expected `{}`", expected))),
 				);
 			},
-			_ => {},
+			Constraint::FnCall { fn_id, .. } => {
+				let info = &self.info[fn_id];
+				self.diags
+					.push(
+						info.span
+							.error("cannot call")
+							.label(info.span.label(format!("this has type `{}`", {
+								let mut s = String::new();
+								self.fmt_ty_info(&info.node, &mut s);
+								s
+							}))),
+					);
+			},
+			Constraint::Field { .. } => {},
+			Constraint::Unary { op, expr, .. } => {
+				let info = &self.info[expr];
+				self.diags
+					.push(info.span.error("invalid operation").label(info.span.label(format!(
+						"`{}` cannot be used on type `{}`",
+						op,
+						{
+							let mut s = String::new();
+							self.fmt_ty_info(&info.node, &mut s);
+							s
+						}
+					))));
+			},
+			Constraint::Binary { lhs, op, rhs, .. } => {
+				let info_lhs = &self.info[lhs];
+				let info_rhs = &self.info[rhs];
+				let span = info_lhs.span + info_rhs.span;
+				self.diags.push(
+					span.error(format!("invalid use of `{}`", op))
+						.label(info_lhs.span.label(format!("this has type `{}`", {
+							let mut s = String::new();
+							self.fmt_ty_info(&info_lhs.node, &mut s);
+							s
+						})))
+						.label(info_rhs.span.label(format!("this has type `{}`", {
+							let mut s = String::new();
+							self.fmt_ty_info(&info_rhs.node, &mut s);
+							s
+						}))),
+				);
+			},
 		}
 	}
 
@@ -222,12 +238,12 @@ impl InferenceEngine<'_> {
 			(TypeInfo::Never | TypeInfo::Unknown, _) => *self.get_mut(a) = TypeInfo::EqTo(b),
 			(_, TypeInfo::Never | TypeInfo::Unknown) => *self.get_mut(b) = TypeInfo::EqTo(a),
 			(TypeInfo::IntLit, TypeInfo::Ty(val))
-				if self.inv_lang_items.get(*val).map(|x| x.is_int()).unwrap_or(false) =>
+				if self.inv_lang_items.get(*val).map(|x| x.is_integer()).unwrap_or(false) =>
 			{
 				*self.get_mut(a) = TypeInfo::EqTo(b);
 			},
 			(TypeInfo::Ty(val), TypeInfo::IntLit)
-				if self.inv_lang_items.get(*val).map(|x| x.is_int()).unwrap_or(false) =>
+				if self.inv_lang_items.get(*val).map(|x| x.is_integer()).unwrap_or(false) =>
 			{
 				*self.get_mut(b) = TypeInfo::EqTo(a);
 			},
@@ -237,7 +253,7 @@ impl InferenceEngine<'_> {
 				*self.get_mut(a) = TypeInfo::EqTo(b);
 			},
 			(TypeInfo::Ty(val), TypeInfo::FloatLit)
-				if self.inv_lang_items.get(*val).map(|x| x.is_int()).unwrap_or(false) =>
+				if self.inv_lang_items.get(*val).map(|x| x.is_integer()).unwrap_or(false) =>
 			{
 				*self.get_mut(a) = TypeInfo::EqTo(b);
 			},
@@ -310,6 +326,310 @@ impl InferenceEngine<'_> {
 		}
 	}
 
+	fn unary(&mut self, id: TypeId, op: UnOp, expr: TypeId) -> bool {
+		let span = self.info[id].span;
+
+		let cons = match op {
+			UnOp::Not | UnOp::Neg => Constraint::Eq(id, expr),
+			UnOp::Addr => {
+				let res = self.insert(
+					TypeInfo::Ptr {
+						mutable: false,
+						to: expr,
+					},
+					span,
+				);
+				Constraint::Eq(res, id)
+			},
+			UnOp::DoubleAddr => {
+				let to = self.insert(
+					TypeInfo::Ptr {
+						mutable: false,
+						to: expr,
+					},
+					span,
+				);
+				let res = self.insert(TypeInfo::Ptr { mutable: false, to }, span);
+
+				Constraint::Eq(res, id)
+			},
+			UnOp::AddrMut => {
+				let res = self.insert(
+					TypeInfo::Ptr {
+						mutable: true,
+						to: expr,
+					},
+					span,
+				);
+				Constraint::Eq(res, id)
+			},
+			UnOp::DoubleAddrMut => {
+				let to = self.insert(
+					TypeInfo::Ptr {
+						mutable: true,
+						to: expr,
+					},
+					span,
+				);
+				let res = self.insert(TypeInfo::Ptr { mutable: false, to }, span);
+
+				Constraint::Eq(res, id)
+			},
+			UnOp::Deref => match self.resolve(expr) {
+				TypeInfo::Ptr { to, .. } => Constraint::Eq(*to, id),
+				_ => return false,
+			},
+		};
+
+		self.constraints.push_back(cons);
+
+		true
+	}
+
+	fn binary(&mut self, id: TypeId, lhs: TypeId, op: BinOp, rhs: TypeId) -> bool {
+		let lhsi = self.resolve(lhs).clone();
+		let rhsi = self.resolve(rhs).clone();
+
+		let int = |this: &mut Self, lhsi: &TypeInfo, rhsi: &TypeInfo| {
+			Some(match (lhsi, rhsi) {
+				(TypeInfo::IntLit, TypeInfo::IntLit) => {
+					this.constraint(Constraint::Eq(lhs, rhs));
+					Constraint::Eq(id, lhs)
+				},
+				(TypeInfo::Ty(l), TypeInfo::Ty(r))
+					if this.inv_lang_items.get(*l).map(|x| x.is_int()).unwrap_or(false)
+						&& this.inv_lang_items.get(*r).map(|x| x.is_int()).unwrap_or(false) =>
+				{
+					let l = *this.inv_lang_items.get(*l).unwrap();
+					let r = *this.inv_lang_items.get(*r).unwrap();
+					let larger = LangItem::larger_int(l, r);
+					if larger == l {
+						Constraint::Eq(id, lhs)
+					} else {
+						Constraint::Eq(id, rhs)
+					}
+				},
+				(TypeInfo::Ty(l), TypeInfo::Ty(r))
+					if this.inv_lang_items.get(*l).map(|x| x.is_uint()).unwrap_or(false)
+						&& this.inv_lang_items.get(*r).map(|x| x.is_uint()).unwrap_or(false) =>
+				{
+					let l = *this.inv_lang_items.get(*l).unwrap();
+					let r = *this.inv_lang_items.get(*r).unwrap();
+					let larger = LangItem::larger_uint(l, r);
+					if larger == l {
+						Constraint::Eq(id, lhs)
+					} else {
+						Constraint::Eq(id, rhs)
+					}
+				},
+				(TypeInfo::Ty(v), TypeInfo::IntLit)
+					if this
+						.inv_lang_items
+						.get(*v)
+						.map(|x| x.is_uint() || x.is_int())
+						.unwrap_or(false) =>
+				{
+					this.constraint(Constraint::Eq(lhs, rhs));
+					Constraint::Eq(id, lhs)
+				},
+				(TypeInfo::IntLit, TypeInfo::Ty(v))
+					if this
+						.inv_lang_items
+						.get(*v)
+						.map(|x| x.is_uint() || x.is_int())
+						.unwrap_or(false) =>
+				{
+					this.constraint(Constraint::Eq(lhs, rhs));
+					Constraint::Eq(id, rhs)
+				},
+				_ => return None,
+			})
+		};
+
+		let float = |this: &mut Self, lhsi: &TypeInfo, rhsi: &TypeInfo| {
+			Some(match (lhsi, rhsi) {
+				(TypeInfo::FloatLit, TypeInfo::FloatLit) => {
+					this.constraint(Constraint::Eq(lhs, rhs));
+					Constraint::Eq(id, lhs)
+				},
+				(TypeInfo::Ty(l), TypeInfo::Ty(r))
+					if this.inv_lang_items.get(*l).map(|x| x.is_float()).unwrap_or(false)
+						&& this.inv_lang_items.get(*r).map(|x| x.is_float()).unwrap_or(false) =>
+				{
+					let l = *this.inv_lang_items.get(*l).unwrap();
+					let r = *this.inv_lang_items.get(*r).unwrap();
+					let larger = LangItem::larger_float(l, r);
+					if larger == l {
+						Constraint::Eq(id, lhs)
+					} else {
+						Constraint::Eq(id, rhs)
+					}
+				},
+				(TypeInfo::Ty(v), TypeInfo::FloatLit)
+					if this.inv_lang_items.get(*v).map(|x| x.is_float()).unwrap_or(false) =>
+				{
+					this.constraint(Constraint::Eq(lhs, rhs));
+					Constraint::Eq(id, lhs)
+				},
+				(TypeInfo::FloatLit, TypeInfo::Ty(v))
+					if this.inv_lang_items.get(*v).map(|x| x.is_float()).unwrap_or(false) =>
+				{
+					this.constraint(Constraint::Eq(lhs, rhs));
+					Constraint::Eq(id, rhs)
+				},
+				_ => return None,
+			})
+		};
+
+		let arith = |this: &mut Self, lhsi: &TypeInfo, rhsi: &TypeInfo| {
+			int(this, lhsi, rhsi).or_else(|| float(this, lhsi, rhsi))
+		};
+
+		let cons = match op {
+			BinOp::Add => {
+				if let Some(c) = arith(self, &lhsi, &rhsi) {
+					c
+				} else {
+					match (lhsi, rhsi) {
+						(TypeInfo::Ptr { .. }, TypeInfo::Ty(r))
+							if self
+								.inv_lang_items
+								.get(r)
+								.map(|x| x.is_uint() || x.is_int())
+								.unwrap_or(false) =>
+						{
+							Constraint::Eq(id, lhs)
+						},
+						(TypeInfo::Ptr { .. }, TypeInfo::IntLit) => Constraint::Eq(id, lhs),
+						_ => return false,
+					}
+				}
+			},
+			BinOp::Sub => {
+				if let Some(c) = arith(self, &lhsi, &rhsi) {
+					c
+				} else {
+					match (lhsi, rhsi) {
+						(TypeInfo::Ptr { to: tol, .. }, TypeInfo::Ptr { to: tor, .. }) => {
+							let tol = tol;
+							let tor = tor;
+							self.constraint(Constraint::Eq(tol, tor));
+
+							let i = self.insert(TypeInfo::Ty(self.lang_items[LangItem::Isize]), self.info[lhs].span);
+							Constraint::Eq(id, i)
+						},
+						_ => return false,
+					}
+				}
+			},
+			BinOp::Mul | BinOp::Div | BinOp::Rem => {
+				if let Some(c) = arith(self, &lhsi, &rhsi) {
+					c
+				} else {
+					return false;
+				}
+			},
+			BinOp::Shl | BinOp::Shr => match (lhsi, rhsi) {
+				(TypeInfo::IntLit, TypeInfo::IntLit) => {
+					self.constraint(Constraint::Eq(lhs, rhs));
+					Constraint::Eq(id, lhs)
+				},
+				(TypeInfo::Ty(l), TypeInfo::Ty(r))
+					if self
+						.inv_lang_items
+						.get(l)
+						.map(|x| x.is_uint() || x.is_int())
+						.unwrap_or(false) && self.inv_lang_items.get(r).map(|x| x.is_uint()).unwrap_or(false) =>
+				{
+					Constraint::Eq(id, lhs)
+				},
+				(TypeInfo::Ty(l), TypeInfo::IntLit)
+					if self
+						.inv_lang_items
+						.get(l)
+						.map(|x| x.is_uint() || x.is_int())
+						.unwrap_or(false) =>
+				{
+					self.constraint(Constraint::Eq(lhs, rhs));
+					Constraint::Eq(id, lhs)
+				},
+				(TypeInfo::IntLit, TypeInfo::Ty(l))
+					if self.inv_lang_items.get(l).map(|x| x.is_uint()).unwrap_or(false) =>
+				{
+					self.constraint(Constraint::Eq(lhs, rhs));
+					Constraint::Eq(id, lhs)
+				},
+				_ => return false,
+			},
+			BinOp::Lt | BinOp::Gt | BinOp::Leq | BinOp::Geq | BinOp::Eq | BinOp::Neq => {
+				match (lhsi, rhsi) {
+					(TypeInfo::Ty(v), TypeInfo::IntLit) | (TypeInfo::IntLit, TypeInfo::Ty(v))
+						if self
+							.inv_lang_items
+							.get(v)
+							.map(|x| x.is_uint() || x.is_int())
+							.unwrap_or(false) =>
+					{
+						self.constraint(Constraint::Eq(lhs, rhs));
+					},
+					(TypeInfo::Ty(v), TypeInfo::FloatLit) | (TypeInfo::FloatLit, TypeInfo::Ty(v))
+						if self.inv_lang_items.get(v).map(|x| x.is_float()).unwrap_or(false) =>
+					{
+						self.constraint(Constraint::Eq(lhs, rhs));
+					},
+					(a, b) if a == b => {},
+					_ => return false,
+				}
+
+				let i = self.insert(TypeInfo::Ty(self.lang_items[LangItem::Bool]), self.info[lhs].span);
+				Constraint::Eq(id, i)
+			},
+			BinOp::BitAnd | BinOp::BitOr | BinOp::BitXor => {
+				if let Some(c) = int(self, &lhsi, &rhsi) {
+					c
+				} else {
+					return false;
+				}
+			},
+			BinOp::And | BinOp::Or => match (lhsi, rhsi) {
+				(TypeInfo::Ty(l), TypeInfo::Ty(r))
+					if self
+						.inv_lang_items
+						.get(l)
+						.map(|x| *x == LangItem::Bool)
+						.unwrap_or(false) && self
+						.inv_lang_items
+						.get(r)
+						.map(|x| *x == LangItem::Bool)
+						.unwrap_or(false) =>
+				{
+					Constraint::Eq(id, lhs)
+				},
+				_ => return false,
+			},
+			BinOp::Assign => {
+				let void = self.insert(TypeInfo::Void, self.info[lhs].span);
+				self.constraint(Constraint::Eq(id, void));
+				Constraint::Eq(lhs, rhs)
+			},
+			BinOp::AddAssign
+			| BinOp::SubAssign
+			| BinOp::MulAssign
+			| BinOp::DivAssign
+			| BinOp::RemAssign
+			| BinOp::BitAndAssign
+			| BinOp::BitOrAssign
+			| BinOp::BitXorAssign
+			| BinOp::ShlAssign
+			| BinOp::ShrAssign => unreachable!("unsupported"),
+			BinOp::PlaceConstruct => unreachable!("placement construction is not supported"),
+		};
+
+		self.constraint(cons);
+
+		true
+	}
+
 	fn can_coerce(&mut self, from: &Type, to: &Type) -> bool {
 		match (from, to) {
 			(Type::Never, _) => true,
@@ -371,7 +691,7 @@ impl InferenceEngine<'_> {
 		.unwrap();
 	}
 
-	fn fmt_ty(&self, ty: &Type, w: &mut impl Write) {
+	pub fn fmt_ty(&self, ty: &Type, w: &mut impl Write) {
 		match ty {
 			Type::Void => w.write_str("void"),
 			Type::Never => w.write_str("!"),
