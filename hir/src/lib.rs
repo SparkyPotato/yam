@@ -34,6 +34,7 @@ use crate::{
 pub mod ctx;
 pub mod hir;
 pub mod lang_item;
+pub mod pretty;
 pub mod types;
 
 fn register_module_items(module: &Module, prefix: Path, builder: &mut HirBuilder, diags: &mut Diagnostics) {
@@ -472,13 +473,15 @@ impl Resolver<'_> {
 					cond: Box::new(self.resolve_expr(*if_.cond)),
 					then: self.resolve_block(if_.then),
 					else_: match else_ {
-						Some(Expr {
-							node: ExprKind::Block(block),
-							..
-						}) => Some(self.resolve_block(block)),
+						Some(
+							expr @ Expr {
+								node: ExprKind::Block(_) | ExprKind::If(_),
+								..
+							},
+						) => Some(Box::new(self.resolve_expr(expr))),
 						Some(Expr { span, .. }) => {
 							self.diagnostics.push(
-								span.error("else must have a block")
+								span.error("else must have a block or `if`")
 									.label(span.label("surround this `{<expr>}`")),
 							);
 							None

@@ -30,10 +30,14 @@ pub fn compile(opts: CompileOptions) {
 
 	let mut hir = resolve(module, rodeo, &mut diagnostics);
 	type_check(&mut hir, &mut diagnostics);
+	
+	println!("{:?}", hir);
 
-	println!("{:#?}", hir);
-
-	if !diagnostics.was_error() {}
+	if diagnostics.was_error() {
+		let cache = cache.finish(hir.rodeo());
+		diagnostics.emit(&cache);
+		return;
+	}
 
 	let cache = cache.finish(hir.rodeo());
 	diagnostics.emit(&cache);

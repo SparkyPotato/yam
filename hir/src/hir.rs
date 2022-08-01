@@ -11,7 +11,7 @@ use crate::{
 	types::Type,
 };
 
-#[derive(Debug, Default, Clone, Eq)]
+#[derive(Default, Clone, Eq)]
 pub struct Path(Vec<Ident>);
 
 impl PartialEq for Path {
@@ -58,18 +58,18 @@ impl Path {
 
 		true
 	}
+	
+	pub fn iter(&self) -> impl Iterator<Item = &Ident> { self.0.iter() }
 
 	pub fn ident(&self) -> &Ident { self.0.last().unwrap() }
 }
 
-#[derive(Debug)]
 pub struct ValDef {
 	pub path: Path,
 	pub kind: ValDefKind,
 	pub span: Span,
 }
 
-#[derive(Debug)]
 pub enum ValDefKind {
 	Static(GlobalLet),
 	Const(GlobalLet),
@@ -78,12 +78,12 @@ pub enum ValDefKind {
 	Struct(Struct),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Struct {
 	pub fields: Vec<Field>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Field {
 	pub visibility: Visibility,
 	pub name: Ident,
@@ -91,13 +91,13 @@ pub struct Field {
 	pub span: Span,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Fn {
 	pub sig: FnSignature,
 	pub block: Block,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct FnSignature {
 	pub abi: Abi,
 	pub args: Vec<Arg>,
@@ -106,19 +106,19 @@ pub struct FnSignature {
 }
 
 pub type Pat = Spanned<PatKind>;
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub enum PatKind {
 	Binding(Binding),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Binding {
 	pub mutability: bool,
 	pub binding: LocalRef,
 	pub ty: Type,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Arg {
 	pub is_const: bool,
 	pub pat: Pat,
@@ -126,7 +126,7 @@ pub struct Arg {
 	pub span: Span,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Block {
 	pub is_const: bool,
 	pub stmts: Vec<Stmt>,
@@ -135,7 +135,7 @@ pub struct Block {
 }
 
 pub type Stmt = Spanned<StmtKind>;
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub enum StmtKind {
 	Expr(ExprData),
 	Semi(ExprData),
@@ -143,13 +143,13 @@ pub enum StmtKind {
 }
 
 pub type Expr = Spanned<ExprData>;
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct ExprData {
 	pub kind: ExprKind,
 	pub ty: Type,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub enum ExprKind {
 	ValRef(ValRef),
 	LocalRef(LocalRef),
@@ -181,7 +181,7 @@ pub enum ExprKind {
 	Err,
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Copy, Clone)]
 pub enum Lit {
 	Bool(bool),
 	Char(char),
@@ -190,7 +190,7 @@ pub enum Lit {
 	String(Spur),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Let {
 	pub pat: Pat,
 	pub ty_expr: Option<Box<Expr>>,
@@ -199,82 +199,82 @@ pub struct Let {
 	pub span: Span,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct GlobalLet {
 	pub ty_expr: Option<Expr>,
 	pub ty: Type,
 	pub expr: Expr,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Array {
 	pub expr: Box<Expr>,
 	pub count: Box<Expr>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Cast {
 	pub expr: Box<Expr>,
 	pub ty: Box<Expr>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Ptr {
 	pub mutability: bool,
 	pub to: Box<Expr>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Call {
 	pub target: Box<Expr>,
 	pub args: Vec<Expr>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Index {
 	pub target: Box<Expr>,
 	pub index: Box<Expr>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Access {
 	pub target: Box<Expr>,
 	pub field: Ident,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Unary {
 	pub op: UnOp,
 	pub expr: Box<Expr>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Binary {
 	pub lhs: Box<Expr>,
 	pub op: BinOp,
 	pub rhs: Box<Expr>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct If {
 	pub cond: Box<Expr>,
 	pub then: Block,
-	pub else_: Option<Block>,
+	pub else_: Option<Box<Expr>>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Loop {
 	pub block: Block,
 	pub while_: Option<Box<Expr>>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct While {
 	pub cond: Box<Expr>,
 	pub block: Block,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct For {
 	pub pat: Pat,
 	pub iter: Box<Expr>,

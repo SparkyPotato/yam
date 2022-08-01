@@ -1,12 +1,12 @@
-use std::{collections::HashMap, ops::Index};
+use std::{collections::HashMap, fmt::Debug, ops::Index};
 
 use diag::{DiagKind, Diagnostic, Diagnostics, Span};
 use id::{DenseMap, DenseMapBuilder, Id, IdGen, SparseMap, SparseMapBuilder};
 use parse::ast::Spanned;
 
-use crate::{hir::Path, lang_item::LangItem, Rodeo, Spur, ValDef};
+use crate::{hir::Path, lang_item::LangItem, pretty::HirWriter, Rodeo, Spur, ValDef};
 
-#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
+#[derive(Copy, Clone, Hash, PartialEq, Eq)]
 pub struct ValRef(u32);
 
 impl Id for ValRef {
@@ -15,7 +15,7 @@ impl Id for ValRef {
 	fn id(self) -> u32 { self.0 }
 }
 
-#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
+#[derive(Copy, Clone, Hash, PartialEq, Eq)]
 pub struct LocalRef(u32);
 
 impl Id for LocalRef {
@@ -24,12 +24,15 @@ impl Id for LocalRef {
 	fn id(self) -> u32 { self.0 }
 }
 
-#[derive(Debug)]
 pub struct Hir {
 	pub rodeo: Rodeo,
 	pub globals: DenseMap<ValRef, ValDef>,
 	pub lang_items: DenseMap<LangItem, ValRef>,
 	pub val_to_lang_item: SparseMap<ValRef, LangItem>,
+}
+
+impl Debug for Hir {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { HirWriter::new(self, f).write() }
 }
 
 impl Hir {

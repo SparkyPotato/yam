@@ -146,11 +146,11 @@ impl TypeChecker<'_> {
 		let mut last_stmt_ty = None;
 		for (i, stmt) in block.stmts.iter_mut().enumerate() {
 			if matches!(
-				stmt.node,
+				&stmt.node,
 				StmtKind::Expr(ExprData {
-					kind: ExprKind::Block(_) | ExprKind::While(_) | ExprKind::For(_),
+					kind,
 					..
-				})
+				}) if !matches!(kind, ExprKind::Block(_) | ExprKind::While(_) | ExprKind::For(_) | ExprKind::If(_))
 			) && i != last_stmt
 			{
 				self.engine.diags.push(
@@ -393,10 +393,10 @@ impl TypeChecker<'_> {
 				i.else_
 					.as_mut()
 					.map(|x| {
-						self.infer_block(x);
+						self.infer_expr(&mut x.node, x.span);
 
 						let then_id = self.ty_to_id(&i.then.ty, i.then.span);
-						let else_id = self.ty_to_id(&x.ty, x.span);
+						let else_id = self.ty_to_id(&x.node.ty, x.span);
 						self.engine.constraint(Constraint::Eq(then_id, else_id));
 
 						TypeInfo::EqTo(then_id)
@@ -502,7 +502,7 @@ impl TypeChecker<'_> {
 				}
 
 				self.reconstruct_block(&mut if_.then);
-				if_.else_.as_mut().map(|x| self.reconstruct_block(x));
+				if_.else_.as_mut().map(|x| self.reconstruct_expr(&mut x.node));
 			},
 			ExprKind::Loop(l) => {
 				self.reconstruct_block(&mut l.block);

@@ -2,7 +2,7 @@ use id::Id;
 
 use crate::ValRef;
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq)]
 pub enum Type {
 	Void,
 	Never,

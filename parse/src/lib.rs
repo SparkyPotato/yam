@@ -193,9 +193,20 @@ impl<'a> Parser<'a> {
 			TokenKind::FloatLiteral => LitKind::Float,
 			TokenKind::StringLiteral => LitKind::String,
 		}
-		.map_with_span(|kind, span| Lit {
+		.map_with_span(|kind, span: Span| Lit {
 			kind,
-			sym: Self::intern(this, span),
+			sym: Self::intern(
+				this,
+				if matches!(kind, LitKind::String) {
+					Span {
+						start: span.start + 1,
+						end: span.end - 1,
+						file: span.file,
+					}
+				} else {
+					span
+				},
+			),
 		})
 		.debug("<lit>")
 		.labelled("<lit>")
@@ -705,8 +716,15 @@ impl<'a> Parser<'a> {
 		let function_item = just(TokenKind::Extern)
 			.ignore_then(
 				just(TokenKind::StringLiteral)
-					.map_with_span(|_, span| Spanned {
-						node: Self::intern(this, span),
+					.map_with_span(|_, span: Span| Spanned {
+						node: Self::intern(
+							this,
+							Span {
+								start: span.start + 1,
+								end: span.end - 1,
+								file: span.file,
+							},
+						),
 						span,
 					})
 					.or_not(),
