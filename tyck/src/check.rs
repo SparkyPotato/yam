@@ -3,18 +3,19 @@ use std::{collections::VecDeque, fmt::Write};
 use diag::{Diagnostics, Span};
 use hir::{
 	ctx::{Hir, ValRef},
-	hir::{BinOp, Ident, Spanned, UnOp},
+	hir::{BinOp, Ident, Spanned, UnOp, ValDef},
 	lang_item::LangItem,
 	types::{Type, TypeId},
 	Rodeo,
 };
-use id::{DenseMap, DenseMapBuilder, SparseMap};
+use id::{DenseMap, DenseMapBuilder, DenseMut, SparseMap};
 
 pub struct InferenceEngine<'a> {
 	info: DenseMapBuilder<TypeId, Spanned<TypeInfo>>,
 	constraints: VecDeque<Constraint>,
 	ty_to_ident: DenseMap<ValRef, Ident>,
 	rodeo: &'a Rodeo,
+	globals: &'a DenseMut<ValRef, ValDef>,
 	pub lang_items: &'a DenseMap<LangItem, ValRef>,
 	pub inv_lang_items: &'a SparseMap<ValRef, LangItem>,
 	pub diags: &'a mut Diagnostics,
@@ -22,7 +23,7 @@ pub struct InferenceEngine<'a> {
 
 impl<'a> InferenceEngine<'a> {
 	pub fn new(
-		hir: &Hir, rodeo: &'a Rodeo, lang_items: &'a DenseMap<LangItem, ValRef>,
+		rodeo: &'a Rodeo, globals: &'a DenseMut<ValRef, ValDef>, lang_items: &'a DenseMap<LangItem, ValRef>,
 		inv_lang_items: &'a SparseMap<ValRef, LangItem>, diags: &'a mut Diagnostics,
 	) -> Self {
 		Self {
@@ -30,12 +31,13 @@ impl<'a> InferenceEngine<'a> {
 			constraints: VecDeque::new(),
 			ty_to_ident: {
 				let mut builder = DenseMapBuilder::new();
-				for (val, def) in hir.globals.iter() {
+				for (val, def) in globals.iter_mut() {
 					builder.insert_at(val, *def.path.ident());
 				}
 				builder.build()
 			},
 			rodeo,
+			globals,
 			lang_items,
 			inv_lang_items,
 			diags,
@@ -51,24 +53,31 @@ impl InferenceEngine<'_> {
 		self.constraints.clear();
 	}
 
-	pub fn get(&mut self, id: TypeId) -> &TypeInfo { &self.info[id].node }
+	pub fn resolve(&self, id: TypeId) -> &TypeInfo {
+		match &self.info[id].node {
+			TypeInfo::EqTo(id) => self.resolve(*id),
+			x => x,
+		}
+	}
 
 	pub fn get_mut(&mut self, id: TypeId) -> &mut TypeInfo { &mut self.info[id].node }
 
 	pub fn constraint(&mut self, c: Constraint) { self.constraints.push_back(c); }
 
 	pub fn solve(&mut self) {
-		let mut last_len = self.constraints.len();
 		loop {
+			let mut solved = false;
 			for _ in 0..self.constraints.len() {
 				if let Some(c) = self.constraints.pop_front() {
-					if !self.solve_constraint(&c) {
+					if self.solve_constraint(&c) {
+						solved = true
+					} else {
 						self.constraints.push_back(c);
 					}
 				}
 			}
 
-			if last_len == self.constraints.len() {
+			if !solved {
 				for c in std::mem::take(&mut self.constraints) {
 					self.report_constraint_error(c);
 				}
@@ -77,8 +86,6 @@ impl InferenceEngine<'_> {
 
 				break;
 			}
-
-			last_len = self.constraints.len();
 		}
 	}
 
@@ -108,14 +115,62 @@ impl InferenceEngine<'_> {
 	fn solve_constraint(&mut self, c: &Constraint) -> bool {
 		match c {
 			Constraint::Eq(a, b) => self.unify(*a, *b),
-			Constraint::MustBe { id, ty, .. } => {
-				let is = self.reconstruct(*id);
-				self.can_coerce(&is, ty)
+			Constraint::FnCall { fn_id, args, ret_id } => match self.resolve(*fn_id) {
+				TypeInfo::Fn { args: a, ret } => {
+					let ret = *ret;
+					let ret_id = *ret_id;
+					let a = a.clone();
+					let args = args.clone();
+
+					for (a, b) in args.into_iter().zip(a) {
+						self.constraints.push_back(Constraint::Eq(a, b));
+					}
+
+					self.constraints.push_back(Constraint::Eq(ret, ret_id));
+
+					true
+				},
+				_ => false,
 			},
-			Constraint::Return { .. } => false,
-			Constraint::Arg { .. } => false,
-			Constraint::Field { .. } => false,
-			Constraint::Unary { .. } => false,
+			Constraint::Field { id, struct_id, field } => false,
+			Constraint::Unary { id, op, expr } => {
+				let id = *id;
+				let expr = *expr;
+				self.constraints.push_back(match op {
+					UnOp::Not | UnOp::Neg => Constraint::Eq(id, expr),
+					UnOp::Addr => {
+						let span = self.info[id].span;
+
+						let res = self.insert(
+							TypeInfo::Ptr {
+								mutable: false,
+								to: *expr,
+							},
+							span,
+						);
+						Constraint::Eq(res, id)
+					},
+					UnOp::DoubleAddr => {
+						let span = self.info[id].span;
+
+						let to = self.insert(
+							TypeInfo::Ptr {
+								mutable: false,
+								to: *expr,
+							},
+							span,
+						);
+
+						let res = self.insert(TypeInfo::Ptr { mutable: false, to }, span);
+						Constraint::Eq(res, id)
+					},
+					UnOp::AddrMut => {},
+					UnOp::DoubleAddrMut => {},
+					UnOp::Deref => {},
+				});
+
+				true
+			},
 			Constraint::Binary { .. } => false,
 		}
 	}
@@ -144,30 +199,6 @@ impl InferenceEngine<'_> {
 						.label(info_a.span.label(format!("found `{}`", found)))
 						.label(info_b.span.label(format!("expected `{}`", expected))),
 				);
-			},
-			Constraint::MustBe { id, ty, span } => {
-				let info = &self.info[id];
-
-				let found = {
-					let mut s = String::new();
-					self.fmt_ty_info(&info.node, &mut s);
-					s
-				};
-				let expected = {
-					let mut s = String::new();
-					self.fmt_ty(&ty, &mut s);
-					s
-				};
-
-				self.diags.push({
-					let diag = info.span.error("type mismatch");
-					if let Some(span) = span {
-						diag.label(info.span.label(format!("found `{}`", found)))
-							.label(span.label(format!("expected `{}`", expected)))
-					} else {
-						diag.label(info.span.label(format!("found `{}`, expected `{}`", found, expected)))
-					}
-				});
 			},
 			_ => {},
 		}
@@ -210,44 +241,16 @@ impl InferenceEngine<'_> {
 			{
 				*self.get_mut(a) = TypeInfo::EqTo(b);
 			},
-			(TypeInfo::Ty(av), TypeInfo::Ty(bv))
-				if self.inv_lang_items.get(*av).map(|x| x.is_int()).unwrap_or(false)
-					&& self.inv_lang_items.get(*bv).map(|x| x.is_int()).unwrap_or(false) =>
-			{
-				let la = *self.inv_lang_items.get(*av).unwrap();
-				let lb = *self.inv_lang_items.get(*bv).unwrap();
-
-				let larger = LangItem::larger_int(la, lb);
-
-				if larger == la {
-					*self.get_mut(b) = TypeInfo::EqTo(a);
-				} else {
-					*self.get_mut(a) = TypeInfo::EqTo(b);
-				}
-			},
-			(TypeInfo::Ty(av), TypeInfo::Ty(bv))
-				if self.inv_lang_items.get(*av).map(|x| x.is_float()).unwrap_or(false)
-					&& self.inv_lang_items.get(*bv).map(|x| x.is_float()).unwrap_or(false) =>
-			{
-				let la = *self.inv_lang_items.get(*av).unwrap();
-				let lb = *self.inv_lang_items.get(*bv).unwrap();
-
-				let larger = LangItem::larger_float(la, lb);
-
-				if larger == la {
-					*self.get_mut(b) = TypeInfo::EqTo(a);
-				} else {
-					*self.get_mut(a) = TypeInfo::EqTo(b);
-				}
-			},
 			(TypeInfo::Tuple(tys_a), TypeInfo::Tuple(tys_b)) if tys_a.len() == tys_b.len() => {
 				let tys_a = tys_a.clone();
 				let tys_b = tys_b.clone();
+				let mut ret = true;
 				for (a, b) in tys_a.into_iter().zip(tys_b) {
 					if !self.unify(a, b) {
-						return false;
+						ret = false;
 					}
 				}
+				return ret;
 			},
 			(
 				TypeInfo::Fn {
@@ -264,27 +267,25 @@ impl InferenceEngine<'_> {
 				let ret_a = *ret_a;
 				let ret_b = *ret_b;
 
+				let mut ret = true;
 				for (a, b) in args_a.into_iter().zip(args_b) {
 					if !self.unify(a, b) {
-						return false;
+						ret = false;
 					}
 				}
 
-				return self.unify(ret_a, ret_b);
-			},
-			(TypeInfo::Ptr { mutable: true, to: toa }, TypeInfo::Ptr { mutable: true, to: tob }) => {
-				return self.unify(*toa, *tob)
+				return self.unify(ret_a, ret_b) && ret;
 			},
 			(
 				TypeInfo::Ptr {
-					mutable: false,
+					mutable: mut_a,
 					to: toa,
 				},
 				TypeInfo::Ptr {
-					mutable: false,
+					mutable: mut_b,
 					to: tob,
 				},
-			) => return self.unify(*toa, *tob),
+			) if mut_a == mut_b => return self.unify(*toa, *tob),
 			(a, b) if a == b => {},
 			(a, b) => self.diags.push(
 				ai.span
@@ -430,19 +431,10 @@ pub enum TypeInfo {
 
 pub enum Constraint {
 	Eq(TypeId, TypeId),
-	MustBe {
-		id: TypeId,
-		ty: Type,
-		span: Option<Span>,
-	},
-	Return {
-		id: TypeId,
+	FnCall {
 		fn_id: TypeId,
-	},
-	Arg {
-		id: TypeId,
-		arg_idx: usize,
-		fn_id: TypeId,
+		args: Vec<TypeId>,
+		ret_id: TypeId,
 	},
 	Field {
 		id: TypeId,

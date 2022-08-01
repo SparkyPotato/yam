@@ -15,7 +15,7 @@ pub fn type_check(hir: &mut Hir, diags: &mut Diagnostics) {
 	let globals = std::mem::take(&mut hir.globals).make_mut();
 
 	let mut checker = TypeChecker {
-		engine: InferenceEngine::new(hir, &hir.rodeo, &hir.lang_items, &hir.val_to_lang_item, diags),
+		engine: InferenceEngine::new(&hir.rodeo, &globals, &hir.lang_items, &hir.val_to_lang_item, diags),
 		locals: DenseMapBuilder::new(),
 		globals: &globals,
 		ret_ty: None,
@@ -53,16 +53,11 @@ pub fn type_check(hir: &mut Hir, diags: &mut Diagnostics) {
 	hir.globals = globals.make_imm();
 }
 
-enum LocalInfo {
-	Inferred(TypeId),
-	Concrete(Type),
-}
-
 struct TypeChecker<'a> {
 	engine: InferenceEngine<'a>,
-	locals: DenseMapBuilder<LocalRef, LocalInfo>,
+	locals: DenseMapBuilder<LocalRef, TypeId>,
 	globals: &'a DenseMut<ValRef, ValDef>,
-	ret_ty: Option<(Type, Option<Span>)>,
+	ret_ty: Option<(Type, Span)>,
 	loop_ty: Option<TypeId>,
 }
 
@@ -122,23 +117,20 @@ impl TypeChecker<'_> {
 		for arg in f.sig.args.iter() {
 			match &arg.pat.node {
 				PatKind::Binding(binding) => {
-					let info = LocalInfo::Concrete(arg.ty.node.ty.clone());
+					let id = self.ty_to_id(&arg.ty.node.ty, arg.ty.span);
 
-					self.locals.insert_at(binding.binding, info);
+					self.locals.insert_at(binding.binding, id);
 				},
 			}
 		}
 
-		let ret_span = f.sig.ret_expr.as_ref().map(|x| x.span);
+		let ret_span = f.sig.ret_expr.as_ref().map(|x| x.span).unwrap_or(f.block.span);
 		self.ret_ty = Some((f.sig.ret.clone(), ret_span));
 
 		self.infer_block(&mut f.block);
 		let id = self.ty_to_id(&f.block.ty, f.block.span);
-		self.engine.constraint(Constraint::MustBe {
-			id,
-			ty: f.sig.ret.clone(),
-			span: ret_span,
-		});
+		let ret_id = self.ty_to_id(&f.sig.ret, ret_span);
+		self.engine.constraint(Constraint::Eq(id, ret_id));
 
 		self.engine.solve();
 		self.reconstruct_block(&mut f.block);
@@ -195,13 +187,26 @@ impl TypeChecker<'_> {
 
 	fn infer_expr(&mut self, expr: &mut ExprData, span: Span) {
 		let info = match &mut expr.kind {
-			ExprKind::ValRef(_) => unreachable!(),
-			ExprKind::LocalRef(l) => {
-				return match &self.locals[*l] {
-					LocalInfo::Inferred(id) => expr.ty = Type::Unresolved(*id),
-					LocalInfo::Concrete(ty) => expr.ty = ty.clone(),
+			ExprKind::ValRef(val) => {
+				if let Some(def) = self.globals.try_get(*val) {
+					return expr.ty = match &def.kind {
+						ValDefKind::Static(_) | ValDefKind::Const(_) => {
+							unreachable!("statics and consts are not supported")
+						},
+						ValDefKind::Fn(Fn { sig, .. }) | ValDefKind::FnDecl(sig) => Type::Fn {
+							args: sig.args.iter().map(|x| x.ty.node.ty.clone()).collect(),
+							ret: Box::new(sig.ret.clone()),
+						},
+						ValDefKind::Struct(s) => Type::Type,
+					};
+				} else {
+					self.engine
+						.diags
+						.push(span.error("recursion doesn't work yet").label(span.mark()));
+					TypeInfo::Unknown
 				}
 			},
+			ExprKind::LocalRef(l) => TypeInfo::EqTo(self.locals[*l]),
 			ExprKind::Never => TypeInfo::Type,
 			ExprKind::Type => TypeInfo::Type,
 			ExprKind::TypeOf(ex) => {
@@ -248,28 +253,29 @@ impl TypeChecker<'_> {
 					PatKind::Binding(binding) => binding.binding,
 				};
 
-				match (ty, init_ty) {
+				let id = match (ty, init_ty) {
 					(Some((ty, ty_span)), Some((init_ty, init_span))) => {
+						let ty_id = self.ty_to_id(&ty, ty_span);
 						let init_id = self.ty_to_id(&init_ty, init_span);
-						self.engine.constraint(Constraint::MustBe {
-							id: init_id,
-							ty: ty.clone(),
-							span: Some(ty_span),
-						});
-						self.locals.insert_at(r, LocalInfo::Concrete(ty.clone()));
+						self.engine.constraint(Constraint::Eq(ty_id, init_id));
 						l.ty = ty;
+
+						ty_id
 					},
-					(Some((ty, _)), None) => {
-						self.locals.insert_at(r, LocalInfo::Concrete(ty.clone()));
+					(Some((ty, span)), None) => {
+						let ty_id = self.ty_to_id(&ty, span);
 						l.ty = ty;
+						ty_id
 					},
 					(None, Some((init_ty, init_span))) => {
 						let init_id = self.ty_to_id(&init_ty, init_span);
-						self.locals.insert_at(r, LocalInfo::Inferred(init_id));
 						l.ty = Type::Unresolved(init_id);
+						init_id
 					},
-					(None, None) => {},
-				}
+					(None, None) => self.engine.insert(TypeInfo::Unknown, span),
+				};
+
+				self.locals.insert_at(r, id);
 
 				return expr.ty = Type::Void;
 			},
@@ -286,17 +292,20 @@ impl TypeChecker<'_> {
 				self.infer_expr(&mut c.target.node, c.target.span);
 				let fn_id = self.ty_to_id(&c.target.node.ty, c.target.span);
 
-				for (arg_idx, arg) in c.args.iter_mut().enumerate() {
-					self.infer_expr(&mut arg.node, arg.span);
-					let id = self.ty_to_id(&arg.node.ty, arg.span);
-					self.engine.constraint(Constraint::Arg { id, arg_idx, fn_id })
-				}
+				let args = c
+					.args
+					.iter_mut()
+					.map(|x| {
+						self.infer_expr(&mut x.node, x.span);
+						self.ty_to_id(&x.node.ty, x.span)
+					})
+					.collect();
 
-				let id = self.engine.insert(TypeInfo::Unknown, span);
+				let ret_id = self.engine.insert(TypeInfo::Unknown, span);
 
-				self.engine.constraint(Constraint::Return { id, fn_id });
+				self.engine.constraint(Constraint::FnCall { fn_id, args, ret_id });
 
-				return expr.ty = Type::Unresolved(id);
+				return expr.ty = Type::Unresolved(ret_id);
 			},
 			ExprKind::Index(_) => unreachable!("indexing not implemented"),
 			ExprKind::Access(access) => {
@@ -365,7 +374,8 @@ impl TypeChecker<'_> {
 
 				let id = self.ty_to_id(&ty, span);
 				let (ret, span) = self.ret_ty.clone().unwrap();
-				self.engine.constraint(Constraint::MustBe { id, ty: ret, span });
+				let ret_id = self.ty_to_id(&ret, span);
+				self.engine.constraint(Constraint::Eq(id, ret_id));
 				return expr.ty = Type::Never;
 			},
 			ExprKind::If(i) => {
@@ -418,7 +428,7 @@ impl TypeChecker<'_> {
 		self.reconstruct(&mut expr.ty);
 
 		match &mut expr.kind {
-			ExprKind::ValRef(_) => unreachable!(),
+			ExprKind::ValRef(_) => {},
 			ExprKind::LocalRef(_) => {},
 			ExprKind::Never => {},
 			ExprKind::Type => {},

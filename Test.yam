@@ -17,6 +17,8 @@
 
 @lang(void) const void = void;
 
-fn main(argc: i32, argv: *const *const u8) -> ! {
-    2 + 2
+fn main(argc: i32, argv: *const *const u8) -> i32 {
+    let call = 0;
+
+    call(argc)
 }
