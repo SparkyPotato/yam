@@ -21,6 +21,7 @@ members = [
     "hir",
     "id",
     "parse",
+    "ssir",
     "tyck",
 ]
 
