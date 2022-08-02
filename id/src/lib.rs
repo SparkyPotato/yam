@@ -88,6 +88,13 @@ impl<T: Id, U> DenseMap<T, U> {
 			.map(|(id, item)| (T::from_id(id as u32), item))
 	}
 
+	pub fn into_iter(self) -> impl Iterator<Item = (T, U)> {
+		self.items
+			.into_iter()
+			.enumerate()
+			.map(|(id, item)| (T::from_id(id as u32), item))
+	}
+
 	pub fn make_mut(self) -> DenseMut<T, U> {
 		DenseMut {
 			borrow_flags: vec![Cell::new(0); self.items.len()],
@@ -105,6 +112,23 @@ impl<T: Id, U> Index<T> for DenseMap<T, U> {
 
 impl<T: Id, U> IndexMut<T> for DenseMap<T, U> {
 	fn index_mut(&mut self, id: T) -> &mut Self::Output { &mut self.items[id.id() as usize] }
+}
+
+impl<T: Id, U> FromIterator<(T, U)> for DenseMap<T, U> {
+	fn from_iter<I: IntoIterator<Item = (T, U)>>(iter: I) -> Self {
+		let mut ex = 0;
+		Self {
+			items: iter
+				.into_iter()
+				.map(|(i, v)| {
+					assert!(i.id() == ex, "expected different id order");
+					ex += 1;
+					v
+				})
+				.collect(),
+			_phantom: PhantomData,
+		}
+	}
 }
 
 pub struct DenseMut<T, U> {
@@ -251,6 +275,24 @@ impl<T: Id, U> DenseMapBuilder<T, U> {
 			.map(|i| (T::from_id(i as _), unsafe { self.items[i].assume_init_ref() }))
 	}
 
+	pub fn iter_mut(&mut self) -> impl Iterator<Item = (T, &mut U)> + '_ {
+		self.items
+			.iter_mut()
+			.zip(self.inserted.iter())
+			.enumerate()
+			.map(|(i, (item, inserted))| {
+				assert!(*inserted, "item not inserted");
+				(T::from_id(i as _), unsafe { item.assume_init_mut() })
+			})
+	}
+	
+	pub fn into_iter(self) -> impl Iterator<Item = (T, U)> {
+		self.items.into_iter().zip(self.inserted).enumerate().map(|(i, (item, inserted))| {
+			assert!(inserted, "item not inserted");
+			(T::from_id(i as _), unsafe { item.assume_init() })
+		})
+	}
+
 	pub fn build(self) -> DenseMap<T, U> {
 		assert!(
 			self.inserted.into_iter().all(identity),
@@ -299,6 +341,8 @@ impl<T: Id, U> SparseMap<T, U> {
 	pub fn get(&self, id: T) -> Option<&U> { self.items.get(&id) }
 
 	pub fn get_mut(&mut self, id: T) -> Option<&mut U> { self.items.get_mut(&id) }
+
+	pub fn iter(&self) -> impl Iterator<Item = (T, &U)> + '_ { self.items.iter().map(|(id, item)| (*id, item)) }
 }
 
 impl<T: Id, U> Index<T> for SparseMap<T, U> {

@@ -6,6 +6,7 @@ use clap::clap_derive::Parser;
 use diag::{quick_diagnostic, DiagKind, Diagnostics, FileCacheBuilder};
 use hir::resolve;
 use parse::{ast::Module, parse, Rodeo};
+use ssir::lower;
 use tyck::type_check;
 
 #[derive(Parser)]
@@ -30,8 +31,6 @@ pub fn compile(opts: CompileOptions) {
 
 	let mut hir = resolve(module, rodeo, &mut diagnostics);
 	type_check(&mut hir, &mut diagnostics);
-	
-	println!("{:?}", hir);
 
 	if diagnostics.was_error() {
 		let cache = cache.finish(hir.rodeo());
@@ -39,7 +38,10 @@ pub fn compile(opts: CompileOptions) {
 		return;
 	}
 
-	let cache = cache.finish(hir.rodeo());
+	let ssir = lower(hir);
+	println!("{:#?}", ssir);
+
+	let cache = cache.finish(ssir.rodeo());
 	diagnostics.emit(&cache);
 }
 
