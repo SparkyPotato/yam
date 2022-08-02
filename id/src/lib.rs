@@ -234,8 +234,6 @@ impl<T: Id, U> DenseMapBuilder<T, U> {
 			self.inserted.resize(index + 1, false);
 		}
 
-		debug_assert!(!self.inserted[index], "IdMapBuilder::insert_at: id already inserted");
-
 		self.inserted[index] = true;
 		self.items[index] = MaybeUninit::new(item);
 	}
