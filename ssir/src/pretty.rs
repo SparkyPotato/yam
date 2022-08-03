@@ -23,7 +23,7 @@ impl<T: Write> SsirWriter<'_, T> {
 
 		for (_, global) in self.ssir.values.iter() {
 			self.global(global)?;
-			writeln!(self.w, "\n")?;
+			writeln!(self.w)?;
 		}
 
 		Ok(())
@@ -119,7 +119,9 @@ impl<T: Write> SsirWriter<'_, T> {
 		writeln!(self.w, "):")?;
 
 		for (value, instr) in block.instrs() {
-			write!(self.w, "    %{} = ", value.id())?;
+			write!(self.w, "    ")?;
+			self.value(value)?;
+			write!(self.w, " = ")?;
 			self.instr(&instr.kind)?;
 			write!(self.w, ": ")?;
 			self.ty(&instr.ty)?;
@@ -144,39 +146,56 @@ impl<T: Write> SsirWriter<'_, T> {
 				self.path(&self.ssir.values[*g].path)?;
 			},
 			InstrKind::Call { target, args } => {
-				write!(self.w, "call %{}(", target.id())?;
+				write!(self.w, "call ")?;
+				self.value(*target)?;
+				write!(self.w, "(")?;
 				for (i, arg) in args.iter().enumerate() {
 					if i > 0 {
 						write!(self.w, ", ")?;
 					}
-					write!(self.w, "%{}", arg.id())?;
+					self.value(*arg)?;
 				}
 				write!(self.w, ")")?;
 			},
-			InstrKind::Cast(v) => write!(self.w, "cast %{}", v.id())?,
-			InstrKind::Unary { op, value } => write!(self.w, "{} %{}", op, value.id())?,
-			InstrKind::Binary { left, op, right } => write!(self.w, "%{} {} %{}", left.id(), op, right.id())?,
+			InstrKind::Cast(v) => {
+				write!(self.w, "cast ")?;
+				self.value(*v)?;
+			},
+			InstrKind::Unary { op, value } => {
+				write!(self.w, "{} ", op)?;
+				self.value(*value)?;
+			},
+			InstrKind::Binary { left, op, right } => {
+				self.value(*left)?;
+				write!(self.w, " {} ", op)?;
+				self.value(*right)?;
+			},
 			InstrKind::Jump { to, args } => {
 				write!(self.w, "jmp b{}(", to.id())?;
 				for (i, arg) in args.iter().enumerate() {
 					if i > 0 {
 						write!(self.w, ", ")?;
 					}
-					write!(self.w, "%{}", arg.id())?;
+					self.value(*arg)?;
 				}
 				write!(self.w, ")")?;
 			},
 			InstrKind::JumpIf { cond, to, args } => {
-				write!(self.w, "jmp if %{} b{}(", cond.id(), to.id())?;
+				write!(self.w, "jmp if ")?;
+				self.value(*cond)?;
+				write!(self.w, " b{}(", to.id())?;
 				for (i, arg) in args.iter().enumerate() {
 					if i > 0 {
 						write!(self.w, ", ")?;
 					}
-					write!(self.w, "%{}", arg.id())?;
+					self.value(*arg)?;
 				}
 				write!(self.w, ")")?;
 			},
-			InstrKind::Ret(ret) => write!(self.w, "ret %{}", ret.id())?,
+			InstrKind::Ret(ret) => {
+				write!(self.w, "ret ")?;
+				self.value(*ret)?;
+			},
 		}
 
 		Ok(())
@@ -229,5 +248,13 @@ impl<T: Write> SsirWriter<'_, T> {
 		}
 
 		Ok(())
+	}
+
+	pub fn value(&mut self, value: Value) -> Result {
+		if value.id() >= Value::UNKNOWN.id() {
+			write!(self.w, "unknown")
+		} else {
+			write!(self.w, "%{}", value.id())
+		}
 	}
 }

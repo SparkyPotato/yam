@@ -232,6 +232,27 @@ impl<T: Id, U> Default for DenseMapBuilder<T, U> {
 	}
 }
 
+impl<T: Id, U: Clone> Clone for DenseMapBuilder<T, U> {
+	fn clone(&self) -> Self {
+		Self {
+			items: self
+				.items
+				.iter()
+				.enumerate()
+				.map(|(i, x)| {
+					if self.inserted[i] {
+						unsafe { MaybeUninit::new(x.assume_init_ref().clone()) }
+					} else {
+						MaybeUninit::uninit()
+					}
+				})
+				.collect(),
+			inserted: self.inserted.clone(),
+			_phantom: PhantomData,
+		}
+	}
+}
+
 impl<T: Id, U> DenseMapBuilder<T, U> {
 	pub fn new() -> Self { Self::default() }
 
@@ -285,12 +306,16 @@ impl<T: Id, U> DenseMapBuilder<T, U> {
 				(T::from_id(i as _), unsafe { item.assume_init_mut() })
 			})
 	}
-	
+
 	pub fn into_iter(self) -> impl Iterator<Item = (T, U)> {
-		self.items.into_iter().zip(self.inserted).enumerate().map(|(i, (item, inserted))| {
-			assert!(inserted, "item not inserted");
-			(T::from_id(i as _), unsafe { item.assume_init() })
-		})
+		self.items
+			.into_iter()
+			.zip(self.inserted)
+			.enumerate()
+			.map(|(i, (item, inserted))| {
+				assert!(inserted, "item not inserted");
+				(T::from_id(i as _), unsafe { item.assume_init() })
+			})
 	}
 
 	pub fn build(self) -> DenseMap<T, U> {

@@ -38,6 +38,7 @@ pub fn compile(opts: CompileOptions) {
 		return;
 	}
 
+	println!("{:#?}", hir);
 	let ssir = lower(hir);
 	println!("{:#?}", ssir);
 

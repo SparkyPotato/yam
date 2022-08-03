@@ -92,7 +92,6 @@ impl Lowerer {
 
 		let ret = self.lower_block(f.block);
 		self.builder.instr(InstrKind::Ret(ret), Type::Void);
-		self.builder.finalize_block(block);
 
 		let ret = ssir::Fn {
 			abi: f.sig.abi,
@@ -106,11 +105,11 @@ impl Lowerer {
 	}
 
 	pub fn lower_block(&mut self, block: Block) -> Value {
-		let mut last_val = Value::UNKNOWN;
+		let mut last_val = None;
 
 		for stmt in block.stmts {
 			match stmt.node {
-				StmtKind::Expr(expr) => last_val = self.lower_expr(expr),
+				StmtKind::Expr(expr) => last_val = Some(self.lower_expr(expr)),
 				StmtKind::Semi(expr) => {
 					self.lower_expr(expr);
 				},
@@ -118,7 +117,11 @@ impl Lowerer {
 			}
 		}
 
-		last_val
+		if let Some(last_val) = last_val {
+			last_val
+		} else {
+			self.builder.instr(InstrKind::Void, Type::Void)
+		}
 	}
 
 	pub fn lower_expr(&mut self, expr: ExprData) -> Value {
@@ -136,7 +139,7 @@ impl Lowerer {
 					PatKind::Binding(b) => b.binding,
 				};
 				let value = self.lower_expr(l.expr.expect("expected initializer").node);
-				self.builder.add_var(r, value);
+				self.builder.add_var(r, l.ty, value);
 
 				InstrKind::Void
 			},
@@ -296,12 +299,13 @@ impl Lowerer {
 					},
 					Type::Void,
 				);
-				self.builder.finalize_block(if_block);
 
 				self.builder.set_block(else_block);
-				if let Some(else_) = if_.else_ {
-					self.lower_expr(else_.node);
-				}
+				let value = if let Some(else_) = if_.else_ {
+					self.lower_expr(else_.node)
+				} else {
+					self.builder.instr(InstrKind::Void, Type::Void)
+				};
 				self.builder.instr(
 					InstrKind::Jump {
 						to: end,
@@ -309,7 +313,6 @@ impl Lowerer {
 					},
 					Type::Void,
 				);
-				self.builder.finalize_block(else_block);
 
 				self.builder.set_block(end);
 				return self.builder.add_arg(expr.ty);
@@ -317,7 +320,6 @@ impl Lowerer {
 			ExprKind::Loop(l) => {
 				let loop_block = self.builder.add_block();
 				let end_block = self.builder.add_block();
-				let value = self.builder.add_arg(expr.ty);
 
 				self.builder.instr(
 					InstrKind::Jump {
@@ -359,9 +361,55 @@ impl Lowerer {
 					);
 				}
 
-				return value;
+				self.builder.set_block(end_block);
+				return self.builder.add_arg(expr.ty);
 			},
-			ExprKind::While(w) => unreachable!("no while yet"),
+			ExprKind::While(w) => {
+				let cond_block = self.builder.add_block();
+				let loop_block = self.builder.add_block();
+				let end_block = self.builder.add_block();
+
+				self.builder.instr(
+					InstrKind::Jump {
+						to: cond_block,
+						args: Vec::new(),
+					},
+					Type::Void,
+				);
+
+				self.builder.set_block(cond_block);
+				let cond = self.lower_expr(w.cond.node);
+				self.builder.instr(
+					InstrKind::JumpIf {
+						cond,
+						to: loop_block,
+						args: Vec::new(),
+					},
+					Type::Void,
+				);
+				self.builder.instr(
+					InstrKind::Jump {
+						to: end_block,
+						args: Vec::new(),
+					},
+					Type::Void,
+				);
+
+				self.builder.set_block(loop_block);
+				self.loop_start = Some(loop_block);
+				self.loop_end = Some(end_block);
+				self.lower_block(w.block);
+				self.builder.instr(
+					InstrKind::Jump {
+						to: cond_block,
+						args: Vec::new(),
+					},
+					Type::Void,
+				);
+
+				self.builder.set_block(end_block);
+				return self.builder.instr(InstrKind::Void, Type::Void);
+			},
 			ExprKind::For(_) => unreachable!("for loops are not supported"),
 			ExprKind::Err => unreachable!("error expression found but compilation wasn't aborted before"),
 		};

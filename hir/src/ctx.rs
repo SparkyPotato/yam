@@ -15,7 +15,7 @@ impl Id for ValRef {
 	fn id(self) -> u32 { self.0 }
 }
 
-#[derive(Copy, Clone, Hash, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, Hash, PartialEq, Eq)]
 pub struct LocalRef(u32);
 
 impl Id for LocalRef {

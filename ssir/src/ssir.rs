@@ -56,7 +56,7 @@ pub struct Fn {
 	pub blocks: DenseMap<Block, BasicBlock>,
 }
 
-#[derive(Copy, Clone, Eq, PartialEq, Hash)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 pub struct Block(u32);
 
 impl Block {
@@ -69,11 +69,11 @@ impl Id for Block {
 	fn from_id(id: u32) -> Self { Self(id) }
 }
 
-#[derive(Copy, Clone, Eq, PartialEq, Hash)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 pub struct Value(u32);
 
 impl Value {
-	pub const UNKNOWN: Self = Self(u32::MAX);
+	pub const UNKNOWN: Self = Self(u32::MAX / 2);
 }
 
 impl Id for Value {
@@ -82,8 +82,15 @@ impl Id for Value {
 	fn from_id(id: u32) -> Self { Self(id) }
 }
 
+impl Value {
+	pub fn is_resolved(self) -> bool { self.0 < Self::UNKNOWN.0 }
+
+	pub fn unresolved(value: u32) -> Self { Self(Self::UNKNOWN.0 + value) }
+}
+
 #[derive(Copy, Clone, Eq, PartialEq, Hash)]
-struct InstrId(u32);
+pub struct InstrId(u32);
+
 impl Id for InstrId {
 	fn id(self) -> u32 { self.0 }
 
@@ -110,9 +117,9 @@ impl BasicBlock {
 }
 
 pub struct BlockBuilder {
-	args: Vec<Type>,
-	instrs: DenseMapBuilder<InstrId, Instr>,
-	added_args: u32,
+	pub args: Vec<Type>,
+	pub instrs: DenseMapBuilder<InstrId, Instr>,
+	pub added_args: u32,
 }
 
 impl BlockBuilder {
@@ -143,44 +150,57 @@ impl BlockBuilder {
 		self.added_args += 1;
 
 		self.args.push(ty);
+		self.finalize_args();
+
+		Value(id)
+	}
+
+	pub fn add_arg_unfinalized(&mut self, ty: Type) -> Value {
+		let id = self.args.len() as u32;
+		self.added_args += 1;
+
+		self.args.push(ty);
 
 		Value(id)
 	}
 
 	pub fn finalize_args(&mut self) {
-		for (id, instr) in self.instrs.iter_mut() {
+		let added = self.added_args;
+		let finalize = move |value: &mut Value| {
+			if value.0 < Value::UNKNOWN.id() {
+				value.0 += added;
+			}
+		};
+
+		for (_, instr) in self.instrs.iter_mut() {
 			match &mut instr.kind {
 				InstrKind::Void => {},
 				InstrKind::Literal(_) => {},
 				InstrKind::Global(_) => {},
 				InstrKind::Call { target, args } => {
-					*target = Value(id.0 + self.added_args);
+					finalize(target);
 					for arg in args {
-						*arg = Value(id.0 + self.added_args);
+						finalize(arg);
 					}
 				},
-				InstrKind::Cast(c) => {
-					*c = Value(id.0 + self.added_args);
-				},
-				InstrKind::Unary { value, .. } => {
-					*value = Value(id.0 + self.added_args);
-				},
+				InstrKind::Cast(c) => finalize(c),
+				InstrKind::Unary { value, .. } => finalize(value),
 				InstrKind::Binary { left, right, .. } => {
-					*left = Value(id.0 + self.added_args);
-					*right = Value(id.0 + self.added_args);
+					finalize(left);
+					finalize(right);
 				},
 				InstrKind::Jump { args, .. } => {
 					for arg in args {
-						*arg = Value(id.0 + self.added_args);
+						finalize(arg);
 					}
 				},
 				InstrKind::JumpIf { cond, args, .. } => {
-					*cond = Value(id.0 + self.added_args);
+					finalize(cond);
 					for arg in args {
-						*arg = Value(id.0 + self.added_args);
+						finalize(arg);
 					}
 				},
-				InstrKind::Ret(r) => *r = Value(id.0 + self.added_args),
+				InstrKind::Ret(r) => finalize(r),
 			}
 		}
 
@@ -204,11 +224,13 @@ impl BlockBuilder {
 	fn val_to_instr_id(&self, id: Value) -> InstrId { InstrId(id.0 - self.args.len() as u32) }
 }
 
+#[derive(Clone)]
 pub struct Instr {
 	pub kind: InstrKind,
 	pub ty: Type,
 }
 
+#[derive(Clone)]
 pub enum InstrKind {
 	Void,
 	Literal(Lit),
