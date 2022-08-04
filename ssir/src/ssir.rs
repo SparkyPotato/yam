@@ -53,7 +53,7 @@ pub enum TyDefKind {
 pub struct Fn {
 	pub abi: Abi,
 	pub ret: Type,
-	pub blocks: DenseMap<Block, BasicBlock>,
+	pub blocks: DenseMapBuilder<Block, BasicBlock>,
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
@@ -97,151 +97,68 @@ impl Id for InstrId {
 	fn from_id(id: u32) -> Self { Self(id) }
 }
 
+enum InstrIdOrArg {
+	Id(InstrId),
+	Arg(u32),
+}
+
 pub struct BasicBlock {
-	args: Vec<Type>,
-	instrs: DenseMap<InstrId, Instr>,
+	args: Vec<(Type, Value)>,
+	instrs: DenseMapBuilder<InstrId, Instr>,
+	val_map: DenseMapBuilder<Value, InstrIdOrArg>,
 }
 
 impl BasicBlock {
-	pub fn args(&self) -> impl Iterator<Item = (Value, &Type)> {
-		self.args.iter().enumerate().map(|(i, x)| (Value(i as _), x))
-	}
-
-	pub fn instrs(&self) -> impl Iterator<Item = (Value, &Instr)> + '_ {
-		self.instrs.iter().map(|x| (self.instr_id_to_val(x.0), x.1))
-	}
-
-	fn instr_id_to_val(&self, id: InstrId) -> Value { Value(id.0 + self.args.len() as u32) }
-
-	fn val_to_instr_id(&self, id: Value) -> InstrId { InstrId(id.0 - self.args.len() as u32) }
-}
-
-pub struct BlockBuilder {
-	pub args: Vec<Type>,
-	pub instrs: DenseMapBuilder<InstrId, Instr>,
-	pub added_args: u32,
-}
-
-impl BlockBuilder {
 	pub fn new() -> Self {
 		Self {
 			args: Vec::new(),
 			instrs: DenseMapBuilder::new(),
-			added_args: 0,
+			val_map: DenseMapBuilder::new(),
 		}
 	}
 
-	pub fn instr(&mut self, instr: Instr) -> Value {
-		let id = self.instrs.add(instr);
-		self.instr_id_to_val(id)
+	pub fn arg(&mut self, ty: Type) -> Value {
+		let value = self.val_map.add(InstrIdOrArg::Arg(self.args.len() as u32));
+		self.args.push((ty, value));
+		value
 	}
 
-	pub fn build(self) -> BasicBlock {
-		assert_eq!(self.added_args, 0, "BlockBuilder::finalize_args not called");
+	pub fn value_instr(&mut self, instr: ValueInstr, ty: Type) -> Value {
+		let value = self.val_map.add(InstrIdOrArg::Id(InstrId(0)));
+		let id = self.instrs.add(Instr::Value { value, instr, ty });
+		self.value_to_instr[value] = InstrIdOrArg::Id(id);
 
-		BasicBlock {
-			args: self.args,
-			instrs: self.instrs.build(),
-		}
+		value
 	}
 
-	pub fn add_arg(&mut self, ty: Type) -> Value {
-		let id = self.args.len() as u32;
-		self.added_args += 1;
+	pub fn non_value_instr(&mut self, instr: NonValueInstr) -> InstrId { self.instrs.add(Instr::NonValue(instr)) }
 
-		self.args.push(ty);
-		self.finalize_args();
+	pub fn args(&self) -> impl Iterator<Item = (Value, &Type)> { self.args.iter().map(|x| (x.1, &x.0)) }
 
-		Value(id)
-	}
-
-	pub fn add_arg_unfinalized(&mut self, ty: Type) -> Value {
-		let id = self.args.len() as u32;
-		self.added_args += 1;
-
-		self.args.push(ty);
-
-		Value(id)
-	}
-
-	pub fn finalize_args(&mut self) {
-		let added = self.added_args;
-		let finalize = move |value: &mut Value| {
-			if value.0 < Value::UNKNOWN.id() {
-				value.0 += added;
-			}
-		};
-
-		for (_, instr) in self.instrs.iter_mut() {
-			match &mut instr.kind {
-				InstrKind::Void => {},
-				InstrKind::Literal(_) => {},
-				InstrKind::Global(_) => {},
-				InstrKind::Call { target, args } => {
-					finalize(target);
-					for arg in args {
-						finalize(arg);
-					}
-				},
-				InstrKind::Cast(c) => finalize(c),
-				InstrKind::Unary { value, .. } => finalize(value),
-				InstrKind::Binary { left, right, .. } => {
-					finalize(left);
-					finalize(right);
-				},
-				InstrKind::Jump { args, .. } => {
-					for arg in args {
-						finalize(arg);
-					}
-				},
-				InstrKind::JumpIf { cond, args, .. } => {
-					finalize(cond);
-					for arg in args {
-						finalize(arg);
-					}
-				},
-				InstrKind::Ret(r) => finalize(r),
-			}
-		}
-
-		self.added_args = 0;
-	}
-
-	pub fn instrs(&mut self) -> impl Iterator<Item = (Value, &mut Instr)> + '_ {
-		let len = self.args.len() as u32;
-		self.instrs
-			.iter_mut()
-			.map(move |(id, instr)| (Value(id.0 + len), instr))
-	}
-
-	pub fn get_instr(&mut self, id: Value) -> &mut Instr {
-		let id = self.val_to_instr_id(id);
-		&mut self.instrs[id]
-	}
-
-	fn instr_id_to_val(&self, id: InstrId) -> Value { Value(id.0 + self.args.len() as u32) }
-
-	fn val_to_instr_id(&self, id: Value) -> InstrId { InstrId(id.0 - self.args.len() as u32) }
+	pub fn instrs(&self) -> impl Iterator<Item = (InstrId, &Instr)> { self.instrs.iter() }
 }
 
 #[derive(Clone)]
-pub struct Instr {
-	pub kind: InstrKind,
-	pub ty: Type,
+pub enum Instr {
+	Value { value: Value, instr: ValueInstr, ty: Type },
+	NonValue(NonValueInstr),
 }
 
 #[derive(Clone)]
-pub enum InstrKind {
-	Void,
+pub enum ValueInstr {
 	Literal(Lit),
 	Global(ValRef),
 	Call { target: Value, args: Vec<Value> },
 	Cast(Value),
 	Unary { op: UnOp, value: Value },
 	Binary { op: BinOp, left: Value, right: Value },
+}
+
+#[derive(Clone)]
+pub enum NonValueInstr {
 	Jump { to: Block, args: Vec<Value> },
 	JumpIf { cond: Value, to: Block, args: Vec<Value> },
-	Ret(Value),
+	Ret(Option<Value>),
 }
 
 #[derive(Debug, Copy, Clone)]

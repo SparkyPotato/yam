@@ -107,45 +107,50 @@ impl<T: Write> SsirWriter<'_, T> {
 
 	pub fn block(&mut self, id: Block, block: &BasicBlock) -> Result {
 		write!(self.w, "  b{}(", id.id())?;
-		for (i, arg) in block.args() {
-			let i = i.id();
+		for (i, arg) in block.args().enumerate() {
 			if i > 0 {
 				write!(self.w, ", ")?;
 			}
 
-			write!(self.w, "%{}: ", i)?;
-			self.ty(&arg)?;
+			self.value(arg.0)?;
+			write!(self.w, ": ")?;
+			self.ty(&arg.1)?;
 		}
 		writeln!(self.w, "):")?;
 
-		for (value, instr) in block.instrs() {
-			write!(self.w, "    ")?;
-			self.value(value)?;
-			write!(self.w, " = ")?;
-			self.instr(&instr.kind)?;
-			write!(self.w, ": ")?;
-			self.ty(&instr.ty)?;
-			writeln!(self.w)?;
+		for (id, instr) in block.instrs() {
+			write!(self.w, "#{:>3}", id.id())?;
+
+			match instr {
+				Instr::Value { value, instr, ty } => {
+					self.value(*value)?;
+					write!(self.w, " = ")?;
+					self.val_instr(&instr.kind)?;
+					write!(self.w, ": ")?;
+					self.ty(&instr.ty)?;
+					writeln!(self.w)?;
+				},
+				Instr::NonValue(_) => {},
+			}
 		}
 
 		Ok(())
 	}
 
-	pub fn instr(&mut self, instr: &InstrKind) -> Result {
+	pub fn val_instr(&mut self, instr: &ValueInstr) -> Result {
 		match instr {
-			InstrKind::Void => write!(self.w, "void")?,
-			InstrKind::Literal(l) => match l {
+			ValueInstr::Literal(l) => match l {
 				Lit::Bool(b) => write!(self.w, "{}", b)?,
 				Lit::Int(i) => write!(self.w, "{}", i)?,
 				Lit::Float(f) => write!(self.w, "{}", f)?,
 				Lit::Char(c) => write!(self.w, "'{}'", c)?,
 				Lit::String(s) => write!(self.w, "\"{}\"", self.ssir.resolve_intern(*s))?,
 			},
-			InstrKind::Global(g) => {
+			ValueInstr::Global(g) => {
 				write!(self.w, "load ")?;
 				self.path(&self.ssir.values[*g].path)?;
 			},
-			InstrKind::Call { target, args } => {
+			ValueInstr::Call { target, args } => {
 				write!(self.w, "call ")?;
 				self.value(*target)?;
 				write!(self.w, "(")?;
@@ -157,20 +162,27 @@ impl<T: Write> SsirWriter<'_, T> {
 				}
 				write!(self.w, ")")?;
 			},
-			InstrKind::Cast(v) => {
+			ValueInstr::Cast(v) => {
 				write!(self.w, "cast ")?;
 				self.value(*v)?;
 			},
-			InstrKind::Unary { op, value } => {
+			ValueInstr::Unary { op, value } => {
 				write!(self.w, "{} ", op)?;
 				self.value(*value)?;
 			},
-			InstrKind::Binary { left, op, right } => {
+			ValueInstr::Binary { left, op, right } => {
 				self.value(*left)?;
 				write!(self.w, " {} ", op)?;
 				self.value(*right)?;
 			},
-			InstrKind::Jump { to, args } => {
+		}
+
+		Ok(())
+	}
+
+	pub fn non_val_instr(&mut self, instr: &NonValueInstr) -> Result {
+		match instr {
+			NonValueInstr::Jump { to, args } => {
 				write!(self.w, "jmp b{}(", to.id())?;
 				for (i, arg) in args.iter().enumerate() {
 					if i > 0 {
@@ -180,7 +192,7 @@ impl<T: Write> SsirWriter<'_, T> {
 				}
 				write!(self.w, ")")?;
 			},
-			InstrKind::JumpIf { cond, to, args } => {
+			NonValueInstr::JumpIf { cond, to, args } => {
 				write!(self.w, "jmp if ")?;
 				self.value(*cond)?;
 				write!(self.w, " b{}(", to.id())?;
@@ -192,9 +204,11 @@ impl<T: Write> SsirWriter<'_, T> {
 				}
 				write!(self.w, ")")?;
 			},
-			InstrKind::Ret(ret) => {
+			NonValueInstr::Ret(ret) => {
 				write!(self.w, "ret ")?;
-				self.value(*ret)?;
+				if let Some(ret) = ret {
+					self.value(*ret)?;
+				}
 			},
 		}
 
