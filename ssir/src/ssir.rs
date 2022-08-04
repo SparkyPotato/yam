@@ -1,7 +1,7 @@
 use std::fmt::{Debug, Display, Formatter};
 
 use diag::Span;
-use hir::{
+pub use hir::{
 	ctx::ValRef,
 	hir::{Abi, FnSignature, Lit, Path, Spur, Struct},
 	lang_item::LangItem,
@@ -16,6 +16,7 @@ pub struct Ssir {
 	pub rodeo: Rodeo,
 	pub values: SparseMap<ValRef, ValDef>,
 	pub tys: SparseMap<ValRef, TyDef>,
+	pub inv_lang_item: SparseMap<ValRef, LangItem>,
 }
 
 impl Debug for Ssir {

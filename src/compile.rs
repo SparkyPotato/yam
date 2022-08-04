@@ -1,7 +1,12 @@
-use std::path::{Path, PathBuf};
+use std::{
+	fs::File,
+	io::BufWriter,
+	path::{Path, PathBuf},
+};
 
 // use cfg::lower::lower_to_cfg;
 use clap::clap_derive::Parser;
+use codegen::{codegen, native_triple, CodegenSettings, OptimizeLevel};
 // use codegen::codegen;
 use diag::{quick_diagnostic, DiagKind, Diagnostics, FileCacheBuilder};
 use hir::resolve;
@@ -14,6 +19,8 @@ use tyck::type_check;
 pub struct CompileOptions {
 	/// The path of the main package file.
 	path: PathBuf,
+	/// The output path.
+	output: PathBuf,
 }
 
 pub fn compile(opts: CompileOptions) {
@@ -38,9 +45,18 @@ pub fn compile(opts: CompileOptions) {
 		return;
 	}
 
-	println!("{:#?}", hir);
 	let ssir = lower(hir);
-	println!("{:#?}", ssir);
+
+	let file = File::create(&opts.output).unwrap();
+	let mut writer = BufWriter::new(file);
+	codegen(
+		&ssir,
+		CodegenSettings {
+			writer: &mut writer,
+			optimize: OptimizeLevel::None,
+			triple: native_triple(),
+		},
+	);
 
 	let cache = cache.finish(ssir.rodeo());
 	diagnostics.emit(&cache);

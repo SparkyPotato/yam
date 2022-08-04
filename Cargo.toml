@@ -9,13 +9,13 @@ hir = { path = "hir" }
 parse = { path = "parse" }
 ssir = { path = "ssir" }
 tyck = { path = "tyck" }
-# codegen = { path = "codegen" }
+codegen = { path = "codegen" }
 
 clap = { version = "3.1", features = ["derive"] }
 
 [workspace]
 members = [
-#    "codegen",
+    "codegen",
     "diag",
     "hir",
     "id",

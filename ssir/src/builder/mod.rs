@@ -67,21 +67,14 @@ impl FnBuilder {
 
 	pub fn set_block(&mut self, block: Block) { self.curr_block = block; }
 
-	pub fn add_var(&mut self, var: LocalRef, ty: Type, value: Option<Value>) {
-		if let Some(value) = value {
-			let meta = &mut self.metadata[self.curr_block];
-			meta.vars.insert(
-				var,
-				LocalStack {
-					values: vec![(InstrId::from_id(0), value)],
-				},
-			);
+	pub fn add_var(&mut self, var: LocalRef, ty: Type) {
+		let meta = &mut self.metadata[self.curr_block];
+		meta.vars.insert(var, LocalStack { values: Vec::new() });
 
-			self.locals.insert_at(var, ty);
-		}
+		self.locals.insert_at(var, ty);
 	}
 
-	pub fn mutate_var(&mut self, var: LocalRef, value: Option<Value>) {
+	pub fn set_var(&mut self, var: LocalRef, value: Option<Value>) {
 		if let Some(value) = value {
 			let meta = &mut self.metadata[self.curr_block];
 			let stack = meta.vars.get_mut(&var).unwrap();

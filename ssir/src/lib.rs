@@ -76,6 +76,7 @@ pub fn lower(hir: Hir) -> Ssir {
 		rodeo: hir.rodeo,
 		values: values.build(),
 		tys: tys.build(),
+		inv_lang_item: hir.val_to_lang_item,
 	}
 }
 
@@ -135,8 +136,12 @@ impl Lowerer {
 				let r = match l.pat.node {
 					PatKind::Binding(b) => b.binding,
 				};
-				let value = self.lower_expr(l.expr.expect("expected initializer").node);
-				self.builder.add_var(r, l.ty, value);
+				self.builder.add_var(r, l.ty);
+
+				if let Some(expr) = l.expr {
+					let value = self.lower_expr(expr.node);
+					self.builder.set_var(r, value);
+				}
 
 				return None;
 			},
@@ -207,7 +212,7 @@ impl Lowerer {
 							_ => unreachable!("unsupported left side of assignment"),
 						};
 
-						self.builder.mutate_var(l, rhs);
+						self.builder.set_var(l, rhs);
 
 						return None;
 					},

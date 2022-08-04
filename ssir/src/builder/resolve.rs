@@ -130,14 +130,13 @@ impl FnBuilder {
 		) {
 			let from_meta = &meta[from];
 			let to_meta = &meta[to];
-			args.extend(to_meta.temp_args_locals.iter().map(|x| {
+			args.extend(to_meta.temp_args_locals.iter().filter_map(|x| {
 				from_meta.vars[x]
 					.values
 					.iter()
 					.rev()
-					.find(|x| x.0.id() < id.id())
-					.unwrap()
-					.1
+					.find(|x| x.0.id() <= id.id())
+					.map(|x| x.1)
 			}));
 		}
 
