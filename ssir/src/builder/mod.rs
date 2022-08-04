@@ -5,7 +5,7 @@ use hir::{
 	hir::{Arg, PatKind},
 	types::Type,
 };
-use id::{DenseMap, DenseMapBuilder, Id};
+use id::{DenseMapBuilder, Id};
 
 use crate::ssir::*;
 
@@ -15,7 +15,7 @@ mod resolve;
 #[derive(Debug)]
 struct BlockMeta {
 	jumped_to_from: Vec<Block>,
-	vars: HashMap<LocalRef, (Value, bool)>,
+	vars: HashMap<LocalRef, Option<Value>>,
 	unresolved_values: HashMap<Value, LocalRef>,
 	temp_args_locals: Vec<LocalRef>,
 	unknown_vars: u32,
@@ -23,7 +23,7 @@ struct BlockMeta {
 
 pub struct FnBuilder {
 	curr_block: Block,
-	blocks: DenseMapBuilder<Block, BlockBuilder>,
+	blocks: DenseMapBuilder<Block, BasicBlock>,
 	metadata: DenseMapBuilder<Block, BlockMeta>,
 	locals: DenseMapBuilder<LocalRef, Type>,
 }
@@ -46,7 +46,7 @@ impl FnBuilder {
 	}
 
 	pub fn add_block(&mut self) -> Block {
-		let id = self.blocks.add(BlockBuilder::new());
+		let id = self.blocks.add(BasicBlock::new());
 		self.metadata.insert_at(
 			id,
 			BlockMeta {
@@ -62,52 +62,30 @@ impl FnBuilder {
 
 	pub fn set_block(&mut self, block: Block) { self.curr_block = block; }
 
-	pub fn add_var(&mut self, var: LocalRef, ty: Type, value: Value) {
+	pub fn add_var(&mut self, var: LocalRef, ty: Type, value: Option<Value>) {
 		let meta = &mut self.metadata[self.curr_block];
-		meta.vars.insert(var, (value, false));
+		meta.vars.insert(var, value);
 
 		self.locals.insert_at(var, ty);
 	}
 
-	pub fn mutate_var(&mut self, var: LocalRef, value: Value) {
+	pub fn mutate_var(&mut self, var: LocalRef, value: Option<Value>) {
 		let meta = &mut self.metadata[self.curr_block];
-		meta.vars.insert(var, (value, false));
+		meta.vars.insert(var, value);
 	}
 
-	pub fn get_var(&mut self, var: LocalRef) -> Value {
+	pub fn get_var(&mut self, var: LocalRef) -> Option<Value> {
 		let meta = &mut self.metadata[self.curr_block];
 
-		meta.vars
-			.entry(var)
-			.or_insert_with(|| {
-				let id = Value::unresolved(meta.unknown_vars);
-				meta.unresolved_values.insert(id, var);
-				meta.unknown_vars += 1;
-				(id, false)
-			})
-			.0
+		*meta.vars.entry(var).or_insert_with(|| {
+			let id = Value::unresolved(meta.unknown_vars);
+			meta.unresolved_values.insert(id, var);
+			meta.unknown_vars += 1;
+			Some(id)
+		})
 	}
 
-	pub fn add_arg(&mut self, ty: Type) -> Value { self.blocks[self.curr_block].add_arg(ty) }
-
-	pub fn instr(&mut self, instr: InstrKind, ty: Type) -> Value {
-		debug_assert!(self.curr_block != Block::UNKNOWN);
-
-		let block = &mut self.blocks[self.curr_block];
-
-		let jumping_to = match &instr {
-			InstrKind::Jump { to, .. } | InstrKind::JumpIf { to, .. } => Some(*to),
-			_ => None,
-		};
-
-		let value = block.instr(Instr { kind: instr, ty });
-
-		if let Some(to) = jumping_to {
-			self.metadata[to].jumped_to_from.push(self.curr_block);
-		}
-
-		value
-	}
+	pub fn add_arg(&mut self, ty: Type) -> Value { self.blocks[self.curr_block].arg(ty) }
 
 	pub fn fn_init_block(&mut self, args: impl IntoIterator<Item = Arg>) -> Block {
 		let block = self.add_block();
@@ -116,11 +94,11 @@ impl FnBuilder {
 		let b = &mut self.blocks[block];
 
 		for arg in args {
-			let value = b.add_arg(arg.ty.node.ty.clone());
+			let value = b.arg(arg.ty.node.ty.clone());
 			match arg.pat.node {
 				PatKind::Binding(b) => {
 					self.locals.insert_at(b.binding, arg.ty.node.ty);
-					meta.vars.insert(b.binding, (value, false));
+					meta.vars.insert(b.binding, Some(value));
 				},
 			}
 		}
@@ -134,24 +112,10 @@ impl FnBuilder {
 			self.create_block_args(block);
 		}
 
-		for (block, b) in self.blocks.iter_mut() {
-			let added_args = b.added_args;
-			b.finalize_args();
-			for (_, (value, ignore)) in self.metadata[block].vars.iter_mut() {
-				if value.is_resolved() && !*ignore {
-					*value = Value::from_id(value.id() + added_args);
-				}
-			}
-		}
-
 		for &block in blocks.iter() {
 			self.pass_args(block);
 		}
 
-		let blocks = std::mem::take(&mut self.blocks);
-		blocks
-			.into_iter()
-			.map(|(block, block_builder)| (block, block_builder.build()))
-			.collect()
+		std::mem::take(&mut self.blocks)
 	}
 }

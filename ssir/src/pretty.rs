@@ -118,19 +118,22 @@ impl<T: Write> SsirWriter<'_, T> {
 		}
 		writeln!(self.w, "):")?;
 
-		for (id, instr) in block.instrs() {
-			write!(self.w, "#{:>3}", id.id())?;
+		for (_, instr) in block.instrs() {
+			write!(self.w, "    ")?;
 
 			match instr {
 				Instr::Value { value, instr, ty } => {
 					self.value(*value)?;
 					write!(self.w, " = ")?;
-					self.val_instr(&instr.kind)?;
-					write!(self.w, ": ")?;
-					self.ty(&instr.ty)?;
+					self.val_instr(instr)?;
+					write!(self.w, " : ")?;
+					self.ty(ty)?;
 					writeln!(self.w)?;
 				},
-				Instr::NonValue(_) => {},
+				Instr::NonValue(instr) => {
+					self.non_val_instr(instr)?;
+					writeln!(self.w)?;
+				},
 			}
 		}
 
@@ -183,7 +186,7 @@ impl<T: Write> SsirWriter<'_, T> {
 	pub fn non_val_instr(&mut self, instr: &NonValueInstr) -> Result {
 		match instr {
 			NonValueInstr::Jump { to, args } => {
-				write!(self.w, "jmp b{}(", to.id())?;
+				write!(self.w, "jump b{}(", to.id())?;
 				for (i, arg) in args.iter().enumerate() {
 					if i > 0 {
 						write!(self.w, ", ")?;
@@ -193,7 +196,7 @@ impl<T: Write> SsirWriter<'_, T> {
 				write!(self.w, ")")?;
 			},
 			NonValueInstr::JumpIf { cond, to, args } => {
-				write!(self.w, "jmp if ")?;
+				write!(self.w, "jump if ")?;
 				self.value(*cond)?;
 				write!(self.w, " b{}(", to.id())?;
 				for (i, arg) in args.iter().enumerate() {

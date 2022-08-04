@@ -126,7 +126,7 @@ impl BasicBlock {
 	pub fn value_instr(&mut self, instr: ValueInstr, ty: Type) -> Value {
 		let value = self.val_map.add(InstrIdOrArg::Id(InstrId(0)));
 		let id = self.instrs.add(Instr::Value { value, instr, ty });
-		self.value_to_instr[value] = InstrIdOrArg::Id(id);
+		self.val_map[value] = InstrIdOrArg::Id(id);
 
 		value
 	}
@@ -136,6 +136,10 @@ impl BasicBlock {
 	pub fn args(&self) -> impl Iterator<Item = (Value, &Type)> { self.args.iter().map(|x| (x.1, &x.0)) }
 
 	pub fn instrs(&self) -> impl Iterator<Item = (InstrId, &Instr)> { self.instrs.iter() }
+
+	pub fn instrs_mut(&mut self) -> impl Iterator<Item = (InstrId, &mut Instr)> { self.instrs.iter_mut() }
+
+	pub fn clone_instrs(&self) -> DenseMapBuilder<InstrId, Instr> { self.instrs.clone() }
 }
 
 #[derive(Clone)]

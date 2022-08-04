@@ -7,7 +7,7 @@ use id::SparseMapBuilder;
 
 use crate::{
 	builder::FnBuilder,
-	ssir::{InstrKind, Ssir, Value},
+	ssir::{Ssir, Value},
 };
 
 mod builder;
@@ -91,7 +91,7 @@ impl Lowerer {
 		self.builder.set_block(block);
 
 		let ret = self.lower_block(f.block);
-		self.builder.instr(InstrKind::Ret(ret), Type::Void);
+		self.builder.ret(ret);
 
 		let ret = ssir::Fn {
 			abi: f.sig.abi,
@@ -104,35 +104,32 @@ impl Lowerer {
 		ret
 	}
 
-	pub fn lower_block(&mut self, block: Block) -> Value {
+	pub fn lower_block(&mut self, block: Block) -> Option<Value> {
 		let mut last_val = None;
 
 		for stmt in block.stmts {
 			match stmt.node {
-				StmtKind::Expr(expr) => last_val = Some(self.lower_expr(expr)),
+				StmtKind::Expr(expr) => last_val = self.lower_expr(expr),
 				StmtKind::Semi(expr) => {
 					self.lower_expr(expr);
+					last_val = None;
 				},
 				StmtKind::Err => unreachable!("error statement was found but compilation wasn't aborted before"),
 			}
 		}
 
-		if let Some(last_val) = last_val {
-			last_val
-		} else {
-			self.builder.instr(InstrKind::Void, Type::Void)
-		}
+		last_val
 	}
 
-	pub fn lower_expr(&mut self, expr: ExprData) -> Value {
-		let kind = match expr.kind {
-			ExprKind::ValRef(v) => InstrKind::Global(v),
+	pub fn lower_expr(&mut self, expr: ExprData) -> Option<Value> {
+		Some(match expr.kind {
+			ExprKind::ValRef(v) => self.builder.global(v, expr.ty),
 			ExprKind::LocalRef(l) => return self.builder.get_var(l),
 			ExprKind::Never | ExprKind::Type | ExprKind::TypeOf(_) | ExprKind::Ptr(_) | ExprKind::Infer => {
 				unreachable!("expected only value expressions")
 			},
 			ExprKind::Tuple(_) => unreachable!("tuples unsupported"),
-			ExprKind::Lit(l) => InstrKind::Literal(l),
+			ExprKind::Lit(l) => self.builder.lit(l, expr.ty),
 			ExprKind::Block(b) => return self.lower_block(b),
 			ExprKind::Let(l) => {
 				let r = match l.pat.node {
@@ -141,63 +138,46 @@ impl Lowerer {
 				let value = self.lower_expr(l.expr.expect("expected initializer").node);
 				self.builder.add_var(r, l.ty, value);
 
-				InstrKind::Void
+				return None;
 			},
 			ExprKind::List(_) | ExprKind::Array(_) => unreachable!("arrays unsupported"),
-			ExprKind::Cast(c) => InstrKind::Cast(self.lower_expr(c.expr.node)),
+			ExprKind::Cast(c) => {
+				let value = self.lower_expr(c.expr.node).expect("cannot cast void");
+				self.builder.cast(value, expr.ty)
+			},
 			ExprKind::Fn(_) => unreachable!("closures unsupported"),
 			ExprKind::Call(c) => {
-				let target = self.lower_expr(c.target.node);
-				let args = c.args.into_iter().map(|e| self.lower_expr(e.node)).collect();
-				InstrKind::Call { target, args }
+				let target = self.lower_expr(c.target.node).expect("cannot call void");
+				let args = c
+					.args
+					.into_iter()
+					.map(|e| self.lower_expr(e.node).expect("cannot pass void params"))
+					.collect();
+				self.builder.call(target, args, expr.ty)
 			},
 			ExprKind::Index(_) => unreachable!("indexing unsupported"),
 			ExprKind::Access(_) => unreachable!("field access unsupported"),
 			ExprKind::Unary(u) => {
-				let e = self.lower_expr(u.expr.node);
+				let e = self
+					.lower_expr(u.expr.node)
+					.expect("cannot apply unary operator to void");
 				let op = match u.op {
 					UnOp::Not => ssir::UnOp::Not,
 					UnOp::Neg => ssir::UnOp::Neg,
 					UnOp::Addr => ssir::UnOp::Addr,
 					UnOp::DoubleAddr => {
-						let first = self.builder.instr(
-							InstrKind::Unary {
-								op: ssir::UnOp::Addr,
-								value: e,
-							},
-							Self::deref(&expr.ty),
-						);
-
-						return self.builder.instr(
-							InstrKind::Unary {
-								op: ssir::UnOp::Addr,
-								value: first,
-							},
-							expr.ty,
-						);
+						let first = self.builder.unary(ssir::UnOp::Addr, e, Self::deref(&expr.ty));
+						return Some(self.builder.unary(ssir::UnOp::Addr, first, expr.ty));
 					},
 					UnOp::AddrMut => ssir::UnOp::AddrMut,
 					UnOp::DoubleAddrMut => {
-						let first = self.builder.instr(
-							InstrKind::Unary {
-								op: ssir::UnOp::AddrMut,
-								value: e,
-							},
-							Self::deref(&expr.ty),
-						);
-
-						return self.builder.instr(
-							InstrKind::Unary {
-								op: ssir::UnOp::Addr,
-								value: first,
-							},
-							expr.ty,
-						);
+						let first = self.builder.unary(ssir::UnOp::AddrMut, e, Self::deref(&expr.ty));
+						return Some(self.builder.unary(ssir::UnOp::Addr, first, expr.ty));
 					},
 					UnOp::Deref => ssir::UnOp::Deref,
 				};
 
-				InstrKind::Unary { op, value: e }
+				self.builder.unary(op, e, expr.ty)
 			},
 			ExprKind::Binary(b) => {
 				let op = match b.op {
@@ -228,7 +208,7 @@ impl Lowerer {
 						let rhs = self.lower_expr(b.rhs.node);
 						self.builder.mutate_var(l, rhs);
 
-						return self.builder.instr(InstrKind::Void, Type::Void);
+						return None;
 					},
 					BinOp::AddAssign
 					| BinOp::SubAssign
@@ -243,91 +223,71 @@ impl Lowerer {
 					| BinOp::PlaceConstruct => unreachable!("unsupported ops"),
 				};
 
-				let left = self.lower_expr(b.lhs.node);
-				let right = self.lower_expr(b.rhs.node);
+				let left = self
+					.lower_expr(b.lhs.node)
+					.expect("cannot apply binary operator to void");
+				let right = self
+					.lower_expr(b.rhs.node)
+					.expect("cannot apply binary operator to void");
 
-				InstrKind::Binary { op, left, right }
+				self.builder.binary(left, op, right, expr.ty)
 			},
 			ExprKind::Break(b) => {
 				let loop_block = self.loop_end.unwrap();
-				let value = b
-					.map(|x| self.lower_expr(x.node))
-					.unwrap_or_else(|| self.builder.instr(InstrKind::Void, Type::Void));
-				InstrKind::Jump {
-					to: loop_block,
-					args: vec![value],
+				let value = b.map(|x| self.lower_expr(x.node)).flatten();
+
+				if let Some(value) = value {
+					self.builder.jump(loop_block, vec![value]);
+				} else {
+					self.builder.jump(loop_block, Vec::new());
 				}
+
+				return None;
 			},
-			ExprKind::Continue => InstrKind::Jump {
-				to: self.loop_start.unwrap(),
-				args: Vec::new(),
+			ExprKind::Continue => {
+				self.builder.jump(self.loop_start.unwrap(), Vec::new());
+				return None;
 			},
 			ExprKind::Return(r) => {
-				let ret = r
-					.map(|x| self.lower_expr(x.node))
-					.unwrap_or_else(|| self.builder.instr(InstrKind::Void, Type::Void));
-				InstrKind::Ret(ret)
+				let ret = r.map(|x| self.lower_expr(x.node)).flatten();
+				self.builder.ret(ret);
+				return None;
 			},
 			ExprKind::If(if_) => {
-				let cond = self.lower_expr(if_.cond.node);
+				let cond = self.lower_expr(if_.cond.node).expect("cannot apply if to void");
 				let if_block = self.builder.add_block();
 				let else_block = self.builder.add_block();
 				let end = self.builder.add_block();
 
-				self.builder.instr(
-					InstrKind::JumpIf {
-						cond,
-						to: if_block,
-						args: Vec::new(),
-					},
-					Type::Void,
-				);
-				self.builder.instr(
-					InstrKind::Jump {
-						to: else_block,
-						args: Vec::new(),
-					},
-					Type::Void,
-				);
+				self.builder.jump_if(cond, if_block, Vec::new());
+				self.builder.jump(else_block, Vec::new());
 
 				self.builder.set_block(if_block);
-				let value = self.lower_block(if_.then);
-				self.builder.instr(
-					InstrKind::Jump {
-						to: end,
-						args: vec![value],
-					},
-					Type::Void,
-				);
+				if let Some(value) = self.lower_block(if_.then) {
+					self.builder.jump(end, vec![value]);
+				} else {
+					self.builder.jump(end, Vec::new());
+				}
 
 				self.builder.set_block(else_block);
-				let value = if let Some(else_) = if_.else_ {
-					self.lower_expr(else_.node)
+				if let Some(value) = if_.else_.map(|x| self.lower_expr(x.node)).flatten() {
+					self.builder.jump(end, vec![value]);
 				} else {
-					self.builder.instr(InstrKind::Void, Type::Void)
-				};
-				self.builder.instr(
-					InstrKind::Jump {
-						to: end,
-						args: vec![value],
-					},
-					Type::Void,
-				);
+					self.builder.jump(end, Vec::new());
+				}
 
 				self.builder.set_block(end);
-				return self.builder.add_arg(expr.ty);
+				return if !matches!(expr.ty, Type::Void) {
+					Some(self.builder.add_arg(expr.ty))
+				} else {
+					None
+				};
 			},
 			ExprKind::Loop(l) => {
 				let loop_block = self.builder.add_block();
 				let end_block = self.builder.add_block();
 
-				self.builder.instr(
-					InstrKind::Jump {
-						to: loop_block,
-						args: Vec::new(),
-					},
-					Type::Void,
-				);
+				self.builder.jump(loop_block, Vec::new());
 
 				self.builder.set_block(loop_block);
 				self.loop_start = Some(loop_block);
@@ -335,86 +295,44 @@ impl Lowerer {
 				self.lower_block(l.block);
 
 				if let Some(w) = l.while_ {
-					let cond = self.lower_expr(w.node);
-					self.builder.instr(
-						InstrKind::JumpIf {
-							cond,
-							to: loop_block,
-							args: Vec::new(),
-						},
-						Type::Void,
-					);
-					self.builder.instr(
-						InstrKind::Jump {
-							to: end_block,
-							args: Vec::new(),
-						},
-						Type::Void,
-					);
+					let cond = self.lower_expr(w.node).expect("cannot apply while to void");
+					self.builder.jump_if(cond, loop_block, Vec::new());
+					self.builder.jump(end_block, Vec::new());
 				} else {
-					self.builder.instr(
-						InstrKind::Jump {
-							to: loop_block,
-							args: Vec::new(),
-						},
-						Type::Void,
-					);
+					self.builder.jump(loop_block, Vec::new());
 				}
 
 				self.builder.set_block(end_block);
-				return self.builder.add_arg(expr.ty);
+				return if !matches!(expr.ty, Type::Void) {
+					Some(self.builder.add_arg(expr.ty))
+				} else {
+					None
+				};
 			},
 			ExprKind::While(w) => {
 				let cond_block = self.builder.add_block();
 				let loop_block = self.builder.add_block();
 				let end_block = self.builder.add_block();
 
-				self.builder.instr(
-					InstrKind::Jump {
-						to: cond_block,
-						args: Vec::new(),
-					},
-					Type::Void,
-				);
+				self.builder.jump(cond_block, Vec::new());
 
 				self.builder.set_block(cond_block);
-				let cond = self.lower_expr(w.cond.node);
-				self.builder.instr(
-					InstrKind::JumpIf {
-						cond,
-						to: loop_block,
-						args: Vec::new(),
-					},
-					Type::Void,
-				);
-				self.builder.instr(
-					InstrKind::Jump {
-						to: end_block,
-						args: Vec::new(),
-					},
-					Type::Void,
-				);
+				let cond = self.lower_expr(w.cond.node).expect("cannot apply while to void");
+				self.builder.jump_if(cond, loop_block, Vec::new());
+				self.builder.jump(end_block, Vec::new());
 
 				self.builder.set_block(loop_block);
 				self.loop_start = Some(loop_block);
 				self.loop_end = Some(end_block);
 				self.lower_block(w.block);
-				self.builder.instr(
-					InstrKind::Jump {
-						to: cond_block,
-						args: Vec::new(),
-					},
-					Type::Void,
-				);
+				self.builder.jump(cond_block, Vec::new());
 
 				self.builder.set_block(end_block);
-				return self.builder.instr(InstrKind::Void, Type::Void);
+				return None;
 			},
 			ExprKind::For(_) => unreachable!("for loops are not supported"),
 			ExprKind::Err => unreachable!("error expression found but compilation wasn't aborted before"),
-		};
-
-		self.builder.instr(kind, expr.ty)
+		})
 	}
 
 	fn deref(ty: &Type) -> Type {
