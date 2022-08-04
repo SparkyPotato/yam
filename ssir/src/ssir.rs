@@ -8,7 +8,7 @@ use hir::{
 	types::Type,
 	Rodeo,
 };
-use id::{DenseMap, DenseMapBuilder, Id, SparseMap};
+use id::{DenseMapBuilder, Id, SparseMap};
 
 use crate::pretty::SsirWriter;
 
@@ -88,7 +88,7 @@ impl Value {
 	pub fn unresolved(value: u32) -> Self { Self(Self::UNKNOWN.0 + value) }
 }
 
-#[derive(Copy, Clone, Eq, PartialEq, Hash)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 pub struct InstrId(u32);
 
 impl Id for InstrId {
@@ -140,6 +140,13 @@ impl BasicBlock {
 	pub fn instrs_mut(&mut self) -> impl Iterator<Item = (InstrId, &mut Instr)> { self.instrs.iter_mut() }
 
 	pub fn clone_instrs(&self) -> DenseMapBuilder<InstrId, Instr> { self.instrs.clone() }
+
+	pub fn value_to_instr(&self, value: Value) -> InstrId {
+		match self.val_map[value] {
+			InstrIdOrArg::Id(id) => id,
+			_ => unreachable!("expected value to be an instruction"),
+		}
+	}
 }
 
 #[derive(Clone)]

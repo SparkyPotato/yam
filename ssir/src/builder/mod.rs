@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use hir::{
 	ctx::LocalRef,
@@ -13,9 +13,14 @@ mod instr_api;
 mod resolve;
 
 #[derive(Debug)]
+struct LocalStack {
+	values: Vec<(InstrId, Value)>,
+}
+
+#[derive(Debug)]
 struct BlockMeta {
 	jumped_to_from: Vec<Block>,
-	vars: HashMap<LocalRef, Option<Value>>,
+	vars: HashMap<LocalRef, LocalStack>,
 	unresolved_values: HashMap<Value, LocalRef>,
 	temp_args_locals: Vec<LocalRef>,
 	unknown_vars: u32,
@@ -63,26 +68,43 @@ impl FnBuilder {
 	pub fn set_block(&mut self, block: Block) { self.curr_block = block; }
 
 	pub fn add_var(&mut self, var: LocalRef, ty: Type, value: Option<Value>) {
-		let meta = &mut self.metadata[self.curr_block];
-		meta.vars.insert(var, value);
+		if let Some(value) = value {
+			let meta = &mut self.metadata[self.curr_block];
+			meta.vars.insert(
+				var,
+				LocalStack {
+					values: vec![(InstrId::from_id(0), value)],
+				},
+			);
 
-		self.locals.insert_at(var, ty);
+			self.locals.insert_at(var, ty);
+		}
 	}
 
 	pub fn mutate_var(&mut self, var: LocalRef, value: Option<Value>) {
-		let meta = &mut self.metadata[self.curr_block];
-		meta.vars.insert(var, value);
+		if let Some(value) = value {
+			let meta = &mut self.metadata[self.curr_block];
+			let stack = meta.vars.get_mut(&var).unwrap();
+			stack
+				.values
+				.push((self.blocks[self.curr_block].value_to_instr(value), value));
+		}
 	}
 
 	pub fn get_var(&mut self, var: LocalRef) -> Option<Value> {
 		let meta = &mut self.metadata[self.curr_block];
 
-		*meta.vars.entry(var).or_insert_with(|| {
+		let stack = meta.vars.entry(var).or_insert_with(|| {
 			let id = Value::unresolved(meta.unknown_vars);
 			meta.unresolved_values.insert(id, var);
 			meta.unknown_vars += 1;
-			Some(id)
-		})
+
+			LocalStack {
+				values: vec![(InstrId::from_id(0), id)],
+			}
+		});
+
+		Some(stack.values.last().unwrap().1)
 	}
 
 	pub fn add_arg(&mut self, ty: Type) -> Value { self.blocks[self.curr_block].arg(ty) }
@@ -98,7 +120,12 @@ impl FnBuilder {
 			match arg.pat.node {
 				PatKind::Binding(b) => {
 					self.locals.insert_at(b.binding, arg.ty.node.ty);
-					meta.vars.insert(b.binding, Some(value));
+					meta.vars.insert(
+						b.binding,
+						LocalStack {
+							values: vec![(InstrId::from_id(0), value)],
+						},
+					);
 				},
 			}
 		}

@@ -200,12 +200,13 @@ impl Lowerer {
 					BinOp::And => ssir::BinOp::And,
 					BinOp::Or => ssir::BinOp::Or,
 					BinOp::Assign => {
+						let rhs = self.lower_expr(b.rhs.node);
+
 						let l = match b.lhs.node.kind {
 							ExprKind::LocalRef(l) => l,
 							_ => unreachable!("unsupported left side of assignment"),
 						};
 
-						let rhs = self.lower_expr(b.rhs.node);
 						self.builder.mutate_var(l, rhs);
 
 						return None;

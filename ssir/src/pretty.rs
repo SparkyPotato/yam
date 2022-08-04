@@ -69,6 +69,7 @@ impl<T: Write> SsirWriter<'_, T> {
 		}
 		write!(self.w, ") -> ")?;
 		self.ty(&sig.ret)?;
+		writeln!(self.w)?;
 
 		Ok(())
 	}
