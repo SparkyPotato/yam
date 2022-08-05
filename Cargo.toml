@@ -1,27 +1,16 @@
-[package]
-name = "yamc"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies]
-diag = { path = "diag" }
-hir = { path = "hir" }
-parse = { path = "parse" }
-ssir = { path = "ssir" }
-tyck = { path = "tyck" }
-codegen = { path = "codegen" }
-
-clap = { version = "3.1", features = ["derive"] }
-
 [workspace]
 members = [
-    "codegen",
+    "ast",
+#    "codegen",
     "diag",
-    "hir",
-    "id",
+#    "hir",
+#    "id",
+    "intern",
+    "lex",
     "parse",
-    "ssir",
-    "tyck",
+#    "ssir",
+    "syntax",
+#    "tyck",
 ]
 
 [profile.release]

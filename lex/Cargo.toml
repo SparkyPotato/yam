@@ -1,9 +1,10 @@
 [package]
-name = "diag"
+name = "lex"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+diag = { path = "../diag" }
 intern = { path = "../intern" }
 
-ariadne = "0.1"
+logos = "0.12.1"

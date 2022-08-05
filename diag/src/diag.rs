@@ -1,5 +1,5 @@
 use ariadne::{Report, ReportKind};
-use lasso::Spur;
+use intern::{Id, Resolver};
 
 use crate::{FileCache, Span};
 
@@ -52,7 +52,7 @@ impl Diagnostic {
 		}
 	}
 
-	pub fn source(kind: DiagKind, message: impl ToString, source: Spur) -> Self {
+	pub fn source(kind: DiagKind, message: impl ToString, source: Id<str>) -> Self {
 		Self::new(
 			kind,
 			message,
@@ -89,7 +89,7 @@ impl Diagnostics {
 
 	pub fn was_error(&self) -> bool { self.was_error }
 
-	pub fn emit(self, cache: &FileCache) {
+	pub fn emit<T: Resolver<str>>(self, cache: &FileCache<T>) {
 		for diagnostic in self.inner {
 			let mut builder = Report::build(
 				diagnostic.kind.into_report_kind(),
@@ -107,5 +107,56 @@ impl Diagnostics {
 
 			builder.finish().eprint(cache).expect("Failed to emit diagnostic");
 		}
+	}
+}
+
+pub mod test {
+	use std::fmt::{Debug, Display};
+
+	use ariadne::{CharSet, Config, Source};
+
+	use super::*;
+
+	impl Diagnostics {
+		pub fn emit_test(self, source: &str) -> String {
+			let cache = Cache {
+				source: Source::from(source),
+			};
+			let mut s = Vec::new();
+
+			for diagnostic in self.inner {
+				let mut builder = Report::build(
+					diagnostic.kind.into_report_kind(),
+					diagnostic.span.file,
+					diagnostic.span.start as _,
+				)
+				.with_config(Config::default().with_color(false).with_char_set(CharSet::Ascii));
+				builder.set_message(diagnostic.message);
+				for label in diagnostic.labels {
+					builder.add_label(if let Some(message) = label.message {
+						ariadne::Label::new(label.span).with_message(message)
+					} else {
+						ariadne::Label::new(label.span)
+					});
+				}
+
+				builder
+					.finish()
+					.write(&cache, &mut s)
+					.expect("Failed to emit diagnostic");
+			}
+
+			String::from_utf8(s).expect("Failed to convert to string")
+		}
+	}
+
+	struct Cache {
+		source: Source,
+	}
+
+	impl ariadne::Cache<Id<str>> for &Cache {
+		fn fetch(&mut self, _: &Id<str>) -> Result<&Source, Box<dyn Debug + '_>> { Ok(&self.source) }
+
+		fn display<'a>(&self, _: &'a Id<str>) -> Option<Box<dyn Display + 'a>> { None }
 	}
 }

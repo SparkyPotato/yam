@@ -6,45 +6,45 @@ use std::{
 };
 
 use ariadne::{Cache, Report, Source};
-use lasso::{Rodeo, Spur};
+use intern::{Id, Interner, Resolver};
 
 mod span;
 pub use span::Span;
 mod diag;
-pub use diag::*;
+pub use crate::diag::*;
 
 #[derive(Default)]
 pub struct FileCacheBuilder {
-	files: HashMap<Spur, Source>,
+	files: HashMap<Id<str>, Source>,
 }
 
 impl FileCacheBuilder {
 	pub fn new() -> Self { Self::default() }
 
-	pub fn add_file(&mut self, rodeo: &mut Rodeo, path: &Path) -> Spur {
-		rodeo.get_or_intern(path.as_os_str().to_str().unwrap())
+	pub fn add_file<T: Interner<str>>(&mut self, interner: &mut T, path: &Path) -> Id<str> {
+		interner.intern(path.as_os_str().to_str().unwrap())
 	}
 
-	pub fn set_file(&mut self, file: Spur, data: String) { self.files.insert(file, Source::from(data)); }
+	pub fn set_file(&mut self, file: Id<str>, data: String) { self.files.insert(file, Source::from(data)); }
 
-	pub fn finish(self, rodeo: &Rodeo) -> FileCache {
+	pub fn finish<T: Resolver<str>>(self, intern: &T) -> FileCache<T> {
 		FileCache {
 			files: self.files,
-			rodeo,
+			intern,
 		}
 	}
 }
 
-pub struct FileCache<'a> {
-	files: HashMap<Spur, Source>,
-	rodeo: &'a Rodeo,
+pub struct FileCache<'a, T> {
+	files: HashMap<Id<str>, Source>,
+	intern: &'a T,
 }
 
-impl Cache<Spur> for &FileCache<'_> {
-	fn fetch(&mut self, id: &Spur) -> Result<&Source, Box<dyn Debug + '_>> { Ok(&self.files[id]) }
+impl<T: Resolver<str>> Cache<Id<str>> for &FileCache<'_, T> {
+	fn fetch(&mut self, id: &Id<str>) -> Result<&Source, Box<dyn Debug + '_>> { Ok(&self.files[id]) }
 
-	fn display<'a>(&self, id: &'a Spur) -> Option<Box<dyn Display + 'a>> {
-		Some(Box::new(String::from(self.rodeo.resolve(id))))
+	fn display<'a>(&self, id: &'a Id<str>) -> Option<Box<dyn Display + 'a>> {
+		Some(Box::new(String::from(self.intern.resolve(*id))))
 	}
 }
 

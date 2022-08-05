@@ -5,7 +5,10 @@ edition = "2021"
 
 [dependencies]
 diag = { path = "../diag" }
+intern = { path = "../intern" }
+lex = { path = "../lex" }
+syntax = { path = "../syntax" }
 
-chumsky = "0.8"
-lasso = { version = "0.6", features = ["ahash"] }
-logos = "0.12"
+[dev-dependencies]
+expect-test = "1.4.0"
+pretty_assertions = "1.2.1"

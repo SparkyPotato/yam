@@ -1,14 +1,14 @@
-use std::ops::{Add, Index, Range};
+use std::ops::{Add, Index};
 
-use lasso::Spur;
+use intern::Id;
 
 use crate::{DiagKind, Diagnostic, Label};
 
-#[derive(Debug, Default, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Default, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct Span {
 	pub start: u32,
 	pub end: u32,
-	pub file: Spur,
+	pub file: Id<str>,
 }
 
 impl Add for Span {
@@ -32,32 +32,13 @@ impl Index<Span> for str {
 }
 
 impl ariadne::Span for Span {
-	type SourceId = Spur;
+	type SourceId = Id<str>;
 
 	fn source(&self) -> &Self::SourceId { &self.file }
 
 	fn start(&self) -> usize { self.start as _ }
 
 	fn end(&self) -> usize { self.end as _ }
-}
-
-impl chumsky::Span for Span {
-	type Context = Spur;
-	type Offset = u32;
-
-	fn new(file: Self::Context, range: Range<Self::Offset>) -> Self {
-		Span {
-			start: range.start,
-			end: range.end,
-			file,
-		}
-	}
-
-	fn context(&self) -> Self::Context { self.file }
-
-	fn start(&self) -> Self::Offset { self.start }
-
-	fn end(&self) -> Self::Offset { self.end }
 }
 
 impl Span {
