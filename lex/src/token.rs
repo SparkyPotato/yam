@@ -217,6 +217,25 @@ impl Display for TokenKind {
 	}
 }
 
+impl TokenKind {
+	pub fn is_delim_kw(self) -> bool {
+		matches!(
+			self,
+			T![break]
+				| T![const] | T![continue]
+				| T![else] | T![enum]
+				| T![extern] | T![fn]
+				| T![for] | T![if]
+				| T![import] | T![let]
+				| T![loop] | T![mod]
+				| T![pub] | T![return]
+				| T![static] | T![type]
+				| T![union] | T![var]
+				| T![where] | T![while]
+		)
+	}
+}
+
 #[macro_export]
 macro_rules! T {
 	(lit(_)) => {

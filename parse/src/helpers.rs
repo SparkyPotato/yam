@@ -7,19 +7,21 @@ use crate::Parser;
 impl Parser<'_, '_, '_> {
 	pub fn is_empty(&self) -> bool { matches!(self.api.peek().kind, T![eof]) }
 
-	pub fn expect(&mut self, kind: TokenKind) -> Span {
+	pub fn expect(&mut self, kind: TokenKind, next: &[TokenKind]) -> Span {
 		let token = self.api.peek();
 
 		if token.kind != kind {
-			let diag = token.span.error(format!("expected `{}`", kind));
+			if !self.silent {
+				let diag = token.span.error(format!("expected `{}`", kind));
 
-			self.diags.push(if self.api.is_span_eof(token.span) {
-				diag
-			} else {
-				diag.label(token.span.label(format!("found `{}`", token.kind)))
-			});
+				self.diags.push(if self.api.is_span_eof(token.span) {
+					diag
+				} else {
+					diag.label(token.span.label(format!("found `{}`", token.kind)))
+				});
+			}
 
-			self.recover_with_tokentree()
+			self.try_recover(next)
 		} else {
 			self.api.bump();
 
@@ -32,24 +34,25 @@ impl Parser<'_, '_, '_> {
 		loop {
 			let next = self.api.peek();
 			if next.kind == end {
-				self.api.bump();
 				break;
 			}
 
 			if !end_comma {
-				self.diags.push(
-					next.span
-						.error(format!("expected `,` or `{}`", end))
-						.label(next.span.label(format!("found `{}`", next.kind))),
-				);
+				if !self.silent {
+					self.diags.push(
+						next.span
+							.error(format!("expected `,` or `{}`", end))
+							.label(next.span.label(format!("found `{}`", next.kind))),
+					);
+				}
 
 				let b = self.api.start_node(SyntaxKind::Err);
 				loop {
-					self.api.bump();
 					let next = self.api.peek();
 					if next.kind == end || next.kind == T![eof] {
 						break;
 					}
+					self.api.bump();
 				}
 				self.api.finish_node(b);
 				self.api.bump();
@@ -69,14 +72,17 @@ impl Parser<'_, '_, '_> {
 		}
 	}
 
-	pub fn recover_with_tokentree(&mut self) -> Span {
+	pub fn try_recover(&mut self, next: &[TokenKind]) -> Span {
 		let b = self.api.start_node(SyntaxKind::Err);
+
+		self.silent = true;
 
 		let mut delim_stack = Vec::new();
 		let ret = loop {
 			let curr = self.api.peek();
 			self.api.bump();
 			match curr.kind {
+				x if x.is_delim_kw() || (delim_stack.is_empty() && next.contains(&x)) => break curr.span,
 				T![ldelim: delim] => delim_stack.push(delim),
 				T![rdelim: delim] => match delim_stack.last() {
 					Some(_) => {
@@ -88,6 +94,7 @@ impl Parser<'_, '_, '_> {
 					None => break curr.span,
 				},
 				T![;] => break curr.span,
+				T![,] => break curr.span,
 				T![eof] => break curr.span,
 				_ => {},
 			}
@@ -97,22 +104,46 @@ impl Parser<'_, '_, '_> {
 
 		ret
 	}
+
+	pub fn recover_at_kw(&mut self) {
+		let b = self.api.start_node(SyntaxKind::Err);
+
+		while !self.api.peek().kind.is_delim_kw() {
+			self.api.bump();
+		}
+
+		self.silent = false;
+
+		self.api.finish_node(b);
+	}
+
+	pub fn recover_until(&mut self, end: TokenKind) {
+		let b = self.api.start_node(SyntaxKind::Err);
+
+		while self.api.peek().kind != end {
+			self.api.bump();
+		}
+
+		self.silent = false;
+
+		self.api.finish_node(b);
+	}
 }
 
-macro_rules! one_of {
-	($self:ident { $($name:literal : $m:pat $(if $cond:expr)? => $value:expr,)* }) => {
+macro_rules! select {
+	($self:ident { $(T!$kind:tt => $value:expr,)* }) => {
 		let tok = $self.api.peek();
 		match tok.kind {
-			$($m $(if $cond)? => $value,)*
+			$(T!$kind => $value,)*
 			_ => {
 				$self.diags.push(
 					tok.span
-						.error(format!("expected one of: {}", stringify! { $($name, )* }))
+						.error(format!("expected one of: {}", stringify! { $($kind, )* }))
 						.label(tok.span.label(format!("found `{}`", tok.kind))),
 				);
-				$self.recover_with_tokentree();
+				$self.try_recover(&[$(T!$kind,)*]);
 			},
 		}
 	};
 }
-pub(crate) use one_of;
+pub(crate) use select;

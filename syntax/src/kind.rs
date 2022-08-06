@@ -69,9 +69,18 @@ pub enum SyntaxKind {
 	Visibility,
 	TokenTree,
 	Struct,
+	Fn,
 	Generics,
 	Generic,
 	GenericBound,
+	Where,
+	WhereClause,
+	StructField,
+	Type,
+	Arg,
+	Path,
+	Pat,
+	Tuple,
 	File, // Always keep last
 }
 
