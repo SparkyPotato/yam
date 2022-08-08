@@ -1,15 +1,15 @@
 [workspace]
 members = [
-    "ast",
+    "compiler/ast",
 #    "codegen",
-    "diag",
+    "compiler/diag",
 #    "hir",
 #    "id",
-    "intern",
-    "lex",
-    "parse",
+    "compiler/intern",
+    "compiler/lex",
+    "compiler/parse",
 #    "ssir",
-    "syntax",
+    "compiler/syntax",
 #    "tyck",
 ]
 
