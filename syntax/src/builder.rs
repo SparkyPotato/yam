@@ -88,6 +88,7 @@ impl Drop for Branch {
 }
 
 #[repr(transparent)]
+#[derive(Clone, Copy, Debug)]
 pub struct Checkpoint(cstree::Checkpoint);
 
 pub type SyntaxNode = cstree::SyntaxNode<Lang>;

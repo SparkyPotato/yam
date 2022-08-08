@@ -104,30 +104,6 @@ impl Parser<'_, '_, '_> {
 
 		ret
 	}
-
-	pub fn recover_at_kw(&mut self) {
-		let b = self.api.start_node(SyntaxKind::Err);
-
-		while !self.api.peek().kind.is_delim_kw() {
-			self.api.bump();
-		}
-
-		self.silent = false;
-
-		self.api.finish_node(b);
-	}
-
-	pub fn recover_until(&mut self, end: TokenKind) {
-		let b = self.api.start_node(SyntaxKind::Err);
-
-		while self.api.peek().kind != end {
-			self.api.bump();
-		}
-
-		self.silent = false;
-
-		self.api.finish_node(b);
-	}
 }
 
 macro_rules! select {

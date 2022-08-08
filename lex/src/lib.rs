@@ -38,12 +38,16 @@ impl Lexer<'_> {
 			},
 			None => Token {
 				kind: T![eof],
-				span: Span {
-					start: self.inner.source().len() as _,
-					end: self.inner.source().len() as u32 + 1,
-					file: self.file_name,
-				},
+				span: self.eof_span(),
 			},
+		}
+	}
+
+	pub fn eof_span(&self) -> Span {
+		Span {
+			start: self.inner.source().len() as _,
+			end: self.inner.source().len() as u32 + 1,
+			file: self.file_name,
 		}
 	}
 }

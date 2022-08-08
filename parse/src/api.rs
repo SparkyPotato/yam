@@ -1,6 +1,6 @@
 use std::{collections::VecDeque, ops::Range};
-use diag::Span;
 
+use diag::Span;
 use intern::Id;
 use lex::{
 	token::{Delim, Lit, Token, TokenKind},
@@ -18,6 +18,7 @@ pub struct Api<'i, 'c, 's> {
 	lookahead: [Token; Api::MAX_LOOKAHEAD],
 	trivia_ranges: [Range<usize>; Api::MAX_LOOKAHEAD],
 	trivia_buf: VecDeque<Token>,
+	ender: Branch,
 }
 
 impl<'i, 'c, 's> Api<'i, 'c, 's>
@@ -27,12 +28,16 @@ where
 	pub fn new(file_name: Id<str>, source: &'s str, ctx: &'c mut TreeBuilderContext<'i>) -> Self {
 		const EMPTY_RANGE: Range<usize> = 0..0;
 
+		let mut builder = TreeBuilder::new(ctx);
+		let ender = builder.start_node(SyntaxKind::File);
+
 		let mut this = Api {
-			builder: TreeBuilder::new(ctx),
+			builder,
 			lexer: Lexer::new(file_name, source),
 			lookahead: [Token::default(); Self::MAX_LOOKAHEAD],
 			trivia_ranges: [EMPTY_RANGE; Self::MAX_LOOKAHEAD],
 			trivia_buf: VecDeque::new(),
+			ender,
 		};
 
 		this.fill_lookahead();
@@ -40,7 +45,17 @@ where
 		this
 	}
 
-	pub fn finish(self) -> TreeBuilder<'c, 'i> { self.builder }
+	pub fn finish(mut self) -> TreeBuilder<'c, 'i> {
+		for _ in 0..Self::MAX_LOOKAHEAD {
+			self.output_trivia();
+
+			let (next, range) = self.next();
+			self.push_lookahead(next, range);
+		}
+
+		self.builder.finish_node(self.ender);
+		self.builder
+	}
 }
 
 impl Api<'_, '_, '_> {
@@ -63,20 +78,16 @@ impl Api<'_, '_, '_> {
 
 	pub fn peek(&self) -> Token { self.peek_n(0) }
 
-	pub fn start_node(&mut self, kind: SyntaxKind) -> Branch {
-		self.output_trivia();
-		self.builder.start_node(kind)
-	}
+	pub fn start_node(&mut self, kind: SyntaxKind) -> Branch { self.builder.start_node(kind) }
 
 	pub fn finish_node(&mut self, branch: Branch) { self.builder.finish_node(branch) }
 
 	pub fn checkpoint(&self) -> Checkpoint { self.builder.checkpoint() }
 
 	pub fn start_node_at(&mut self, checkpoint: Checkpoint, kind: SyntaxKind) -> Branch {
-		self.output_trivia();
 		self.builder.start_node_at(checkpoint, kind)
 	}
-	
+
 	pub fn is_span_eof(&self, span: Span) -> bool {
 		let len = self.lexer.source().len();
 		span.start >= len as u32
@@ -201,6 +212,8 @@ pub fn tok_to_syntax(tok: TokenKind) -> SyntaxKind {
 		TokenKind::Err => SyntaxKind::Err,
 		TokenKind::Whitespace => SyntaxKind::Whitespace,
 		TokenKind::Comment => SyntaxKind::Comment,
+		TokenKind::Match => SyntaxKind::MatchKw,
+		TokenKind::Trait => SyntaxKind::TraitKw,
 		TokenKind::Eof => unreachable!("eof not allowed in syntax"),
 	}
 }

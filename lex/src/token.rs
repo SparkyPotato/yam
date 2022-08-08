@@ -113,6 +113,10 @@ pub enum TokenKind {
 	Let,
 	#[token("loop")]
 	Loop,
+	#[token("match")]
+	Match,
+	#[token("trait")]
+	Trait,
 	#[token("mod")]
 	Mod,
 	#[token("mut")]
@@ -192,6 +196,8 @@ impl Display for TokenKind {
 				T![if] => "if",
 				T![import] => "import",
 				T![let] => "let",
+				T![match] => "match",
+				T![trait] => "trait",
 				T![mod] => "mod",
 				T![mut] => "mut",
 				T![pub] => "pub",
@@ -228,10 +234,11 @@ impl TokenKind {
 				| T![for] | T![if]
 				| T![import] | T![let]
 				| T![loop] | T![mod]
-				| T![pub] | T![return]
-				| T![static] | T![type]
-				| T![union] | T![var]
-				| T![where] | T![while]
+				| T![match] | T![pub]
+				| T![return] | T![static]
+				| T![type] | T![union]
+				| T![var] | T![where]
+				| T![while]
 		)
 	}
 }
@@ -408,6 +415,12 @@ macro_rules! T {
 	};
 	(for) => {
 		$crate::token::TokenKind::For
+	};
+	(match) => {
+		$crate::token::TokenKind::Match
+	};
+	(trait) => {
+		$crate::token::TokenKind::Trait
 	};
 	(loop) => {
 		$crate::token::TokenKind::Loop
