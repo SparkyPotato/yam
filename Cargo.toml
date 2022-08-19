@@ -2,6 +2,7 @@
 members = [
     "compiler/yamc",
 
+    "compiler/common/database",
     "compiler/common/diag",
     "compiler/common/intern",
 

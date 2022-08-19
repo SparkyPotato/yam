@@ -1,11 +1,12 @@
 use std::path::PathBuf;
 
+use database::Database;
 use diag::{quick_diagnostic, DiagKind, FileCacheBuilder};
 use intern::{Id, Resolver};
 use parse::{syntax::intern::TextIntern, TreeContext};
 use tracing::{event, Level};
 
-use crate::{database::Database, Options};
+use crate::Options;
 
 pub fn run_pipeline(opts: Options) {
 	let root_file = std::fs::read_to_string(&opts.root);

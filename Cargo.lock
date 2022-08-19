@@ -231,6 +231,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "database"
+version = "0.1.0"
+dependencies = [
+ "ast",
+ "salsa-2022",
+]
+
+[[package]]
 name = "diag"
 version = "0.1.0"
 dependencies = [
@@ -929,10 +937,10 @@ name = "yamc"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "database",
  "diag",
  "intern",
  "parse",
- "salsa-2022",
  "tracing",
  "tracing-forest",
  "tracing-subscriber",

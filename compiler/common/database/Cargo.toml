@@ -1,0 +1,9 @@
+[package]
+name = "database"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+ast = { path = "../../syntax/ast" }
+
+salsa = { package = "salsa-2022", git = "https://github.com/salsa-rs/salsa" }
