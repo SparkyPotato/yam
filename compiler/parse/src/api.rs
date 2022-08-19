@@ -214,6 +214,7 @@ pub fn tok_to_syntax(tok: TokenKind) -> SyntaxKind {
 		TokenKind::Comment => SyntaxKind::Comment,
 		TokenKind::Match => SyntaxKind::MatchKw,
 		TokenKind::Trait => SyntaxKind::TraitKw,
+		TokenKind::Impl => SyntaxKind::ImplKw,
 		TokenKind::Eof => unreachable!("eof not allowed in syntax"),
 	}
 }

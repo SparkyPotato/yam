@@ -5,12 +5,195 @@ use expect_test::{expect, Expect};
 use intern::Id;
 use lex::{token::Delim, T};
 use pretty_assertions::assert_eq;
-use syntax::{
-	builder::{ResolvedNode, TreeBuilderContext},
-	kind::SyntaxKind,
-};
+use syntax::{builder::TreeBuilderContext, kind::SyntaxKind, ResolvedNode};
 
 use crate::{Api, Parser};
+
+#[test]
+fn module() {
+	let source = r#"
+		struct S<T: Copy> where T: Clone {
+			field: T,
+			tuples: (T, T)
+		}
+
+		extern "C" fn main() {
+			let s = S { field: 0, tuples: (0, 0) };
+			std.io.print("{}", s.field);
+		}
+	"#;
+
+	let ast = expect![[r#"
+    File@0..179
+      Item@0..72
+        Struct@0..72
+          Whitespace@0..3 "\n\t\t"
+          StructKw@3..9 "struct"
+          Whitespace@9..10 " "
+          Ident@10..11 "S"
+          Generics@11..20
+            Lt@11..12 "<"
+            Generic@12..19
+              Ident@12..13 "T"
+              Colon@13..14 ":"
+              Type@14..19
+                Path@14..19
+                  Whitespace@14..15 " "
+                  Ident@15..19 "Copy"
+                  Generics@19..19
+            Gt@19..20 ">"
+          Where@20..35
+            Whitespace@20..21 " "
+            WhereKw@21..26 "where"
+            WhereClause@26..35
+              Type@26..28
+                Path@26..28
+                  Whitespace@26..27 " "
+                  Ident@27..28 "T"
+                  Generics@28..28
+              Colon@28..29 ":"
+              Type@29..35
+                Path@29..35
+                  Whitespace@29..30 " "
+                  Ident@30..35 "Clone"
+                  Generics@35..35
+          EnumVariant@35..72
+            Fields@35..72
+              Whitespace@35..36 " "
+              LBrace@36..37 "{"
+              Field@37..49
+                Whitespace@37..41 "\n\t\t\t"
+                Ident@41..46 "field"
+                Colon@46..47 ":"
+                Type@47..49
+                  Path@47..49
+                    Whitespace@47..48 " "
+                    Ident@48..49 "T"
+                    Generics@49..49
+              Comma@49..50 ","
+              Field@50..68
+                Whitespace@50..54 "\n\t\t\t"
+                Ident@54..60 "tuples"
+                Colon@60..61 ":"
+                Type@61..68
+                  Tuple@61..68
+                    Whitespace@61..62 " "
+                    LParen@62..63 "("
+                    Type@63..64
+                      Path@63..64
+                        Ident@63..64 "T"
+                        Generics@64..64
+                    Comma@64..65 ","
+                    Type@65..67
+                      Path@65..67
+                        Whitespace@65..66 " "
+                        Ident@66..67 "T"
+                        Generics@67..67
+                    RParen@67..68 ")"
+              Whitespace@68..71 "\n\t\t"
+              RBrace@71..72 "}"
+      Item@72..177
+        Fn@72..177
+          Whitespace@72..76 "\n\n\t\t"
+          ExternKw@76..82 "extern"
+          Whitespace@82..83 " "
+          StringLit@83..86 "\"C\""
+          Whitespace@86..87 " "
+          FnKw@87..89 "fn"
+          Whitespace@89..90 " "
+          Ident@90..94 "main"
+          Generics@94..94
+          Args@94..96
+            LParen@94..95 "("
+            RParen@95..96 ")"
+          Block@96..177
+            Whitespace@96..97 " "
+            LBrace@97..98 "{"
+            SemiExpr@98..141
+              Expr@98..140
+                Expr@98..140
+                  Whitespace@98..102 "\n\t\t\t"
+                  LetKw@102..105 "let"
+                  Pat@105..107
+                    EnumVariant@105..107
+                      Path@105..107
+                        Whitespace@105..106 " "
+                        Ident@106..107 "s"
+                        Generics@107..107
+                  Whitespace@107..108 " "
+                  Eq@108..109 "="
+                  Expr@109..140
+                    StructLit@109..140
+                      Expr@109..111
+                        Whitespace@109..110 " "
+                        Ident@110..111 "S"
+                      Whitespace@111..112 " "
+                      LBrace@112..113 "{"
+                      Field@113..122
+                        Whitespace@113..114 " "
+                        Ident@114..119 "field"
+                        Colon@119..120 ":"
+                        Expr@120..122
+                          Expr@120..122
+                            Whitespace@120..121 " "
+                            IntLit@121..122 "0"
+                      Comma@122..123 ","
+                      Field@123..138
+                        Whitespace@123..124 " "
+                        Ident@124..130 "tuples"
+                        Colon@130..131 ":"
+                        Expr@131..138
+                          Expr@131..138
+                            Tuple@131..138
+                              Whitespace@131..132 " "
+                              LParen@132..133 "("
+                              Expr@133..134
+                                Expr@133..134
+                                  IntLit@133..134 "0"
+                              Comma@134..135 ","
+                              Expr@135..137
+                                Expr@135..137
+                                  Whitespace@135..136 " "
+                                  IntLit@136..137 "0"
+                              RParen@137..138 ")"
+                      Whitespace@138..139 " "
+                      RBrace@139..140 "}"
+              Semi@140..141 ";"
+            SemiExpr@141..173
+              Expr@141..172
+                Call@141..172
+                  Access@141..157
+                    Access@141..151
+                      Expr@141..148
+                        Whitespace@141..145 "\n\t\t\t"
+                        Ident@145..148 "std"
+                      Dot@148..149 "."
+                      Ident@149..151 "io"
+                    Dot@151..152 "."
+                    Ident@152..157 "print"
+                  Args@157..172
+                    LParen@157..158 "("
+                    Expr@158..162
+                      Expr@158..162
+                        StringLit@158..162 "\"{}\""
+                    Comma@162..163 ","
+                    Expr@163..171
+                      Access@163..171
+                        Expr@163..165
+                          Whitespace@163..164 " "
+                          Ident@164..165 "s"
+                        Dot@165..166 "."
+                        Ident@166..171 "field"
+                    RParen@171..172 ")"
+              Semi@172..173 ";"
+            Whitespace@173..176 "\n\t\t"
+            RBrace@176..177 "}"
+      Whitespace@177..179 "\n\t""#]];
+
+	let diags = expect![""];
+
+	harness(source, |p| p.parse_inner(), ast, diags);
+}
 
 #[test]
 fn peeking() {
@@ -262,29 +445,28 @@ fn attributes() {
 
 	let ast = expect![[r#"
     File@0..36
-      Attributes@0..30
-        Attribute@0..9
-          At@0..1 "@"
-          Ident@1..5 "lang"
-          TokenTree@5..9
-            LParen@5..6 "("
-            Ident@6..8 "u8"
-            RParen@8..9 ")"
-        Attribute@9..19
-          At@9..10 "@"
-          Ident@10..14 "lang"
-          TokenTree@14..19
-            LParen@14..15 "("
-            Ident@15..18 "u16"
-            RParen@18..19 ")"
-        Attribute@19..30
-          Whitespace@19..20 "\n"
-          At@20..21 "@"
-          Ident@21..25 "lang"
-          TokenTree@25..30
-            LParen@25..26 "("
-            Ident@26..29 "u32"
-            RParen@29..30 ")"
+      Attribute@0..9
+        At@0..1 "@"
+        Ident@1..5 "lang"
+        TokenTree@5..9
+          LParen@5..6 "("
+          Ident@6..8 "u8"
+          RParen@8..9 ")"
+      Attribute@9..19
+        At@9..10 "@"
+        Ident@10..14 "lang"
+        TokenTree@14..19
+          LParen@14..15 "("
+          Ident@15..18 "u16"
+          RParen@18..19 ")"
+      Attribute@19..30
+        Whitespace@19..20 "\n"
+        At@20..21 "@"
+        Ident@21..25 "lang"
+        TokenTree@25..30
+          LParen@25..26 "("
+          Ident@26..29 "u32"
+          RParen@29..30 ")"
       StructKw@30..36 "struct""#]];
 
 	let diags = expect![[r#""#]];
@@ -315,12 +497,11 @@ fn generics() {
           Whitespace@3..4 " "
           Ident@4..5 "U"
           Colon@5..6 ":"
-          GenericBound@6..8
-            Type@6..8
-              Path@6..8
-                Whitespace@6..7 " "
-                Ident@7..8 "T"
-                Generics@8..8
+          Type@6..8
+            Path@6..8
+              Whitespace@6..7 " "
+              Ident@7..8 "T"
+              Generics@8..8
         Comma@8..9 ","
         Gt@9..10 ">""#]];
 
@@ -488,62 +669,100 @@ fn pat() {
 
 #[test]
 fn ty() {
-	let source = "std.vec.Vec<T>\n(ty, ty<_>)\ntype(2)";
+	let source = r#"
+	std.vec.Vec<T>;
+	(ty, ty<_>, x + y);
+	type(2);
+	*const T;
+	"#;
 
 	let ast = expect![[r#"
-    File@0..34
-      Type@0..14
-        Path@0..14
-          Ident@0..3 "std"
-          Generics@3..3
-          Dot@3..4 "."
-          Ident@4..7 "vec"
-          Generics@7..7
-          Dot@7..8 "."
-          Ident@8..11 "Vec"
-          Generics@11..14
-            Lt@11..12 "<"
-            Type@12..13
-              Path@12..13
-                Ident@12..13 "T"
-                Generics@13..13
-            Gt@13..14 ">"
-      Type@14..26
-        Tuple@14..26
-          Whitespace@14..15 "\n"
-          LParen@15..16 "("
-          Type@16..18
-            Path@16..18
-              Ident@16..18 "ty"
-              Generics@18..18
-          Comma@18..19 ","
-          Type@19..25
-            Path@19..25
-              Whitespace@19..20 " "
+    File@0..61
+      Type@0..16
+        Path@0..16
+          Whitespace@0..2 "\n\t"
+          Ident@2..5 "std"
+          Generics@5..5
+          Dot@5..6 "."
+          Ident@6..9 "vec"
+          Generics@9..9
+          Dot@9..10 "."
+          Ident@10..13 "Vec"
+          Generics@13..16
+            Lt@13..14 "<"
+            Type@14..15
+              Path@14..15
+                Ident@14..15 "T"
+                Generics@15..15
+            Gt@15..16 ">"
+      Semi@16..17 ";"
+      Type@17..37
+        Tuple@17..37
+          Whitespace@17..19 "\n\t"
+          LParen@19..20 "("
+          Type@20..22
+            Path@20..22
               Ident@20..22 "ty"
-              Generics@22..25
-                Lt@22..23 "<"
-                Type@23..24
-                  Underscore@23..24 "_"
-                Gt@24..25 ">"
-          RParen@25..26 ")"
-      Type@26..34
-        Whitespace@26..27 "\n"
-        TypeKw@27..31 "type"
-        LParen@31..32 "("
-        Expr@32..33
-          Expr@32..33
-            IntLit@32..33 "2"
-        RParen@33..34 ")""#]];
+              Generics@22..22
+          Comma@22..23 ","
+          Type@23..29
+            Path@23..29
+              Whitespace@23..24 " "
+              Ident@24..26 "ty"
+              Generics@26..29
+                Lt@26..27 "<"
+                Type@27..28
+                  Underscore@27..28 "_"
+                Gt@28..29 ">"
+          Comma@29..30 ","
+          Type@30..36
+            SumType@30..36
+              Type@30..32
+                Path@30..32
+                  Whitespace@30..31 " "
+                  Ident@31..32 "x"
+                  Generics@32..32
+              Whitespace@32..33 " "
+              Plus@33..34 "+"
+              Type@34..36
+                Path@34..36
+                  Whitespace@34..35 " "
+                  Ident@35..36 "y"
+                  Generics@36..36
+          RParen@36..37 ")"
+      Semi@37..38 ";"
+      Type@38..47
+        TypeOf@38..47
+          Whitespace@38..40 "\n\t"
+          TypeKw@40..44 "type"
+          LParen@44..45 "("
+          Expr@45..46
+            Expr@45..46
+              IntLit@45..46 "2"
+          RParen@46..47 ")"
+      Semi@47..48 ";"
+      Type@48..58
+        Ptr@48..58
+          Whitespace@48..50 "\n\t"
+          Star@50..51 "*"
+          ConstKw@51..56 "const"
+          Type@56..58
+            Path@56..58
+              Whitespace@56..57 " "
+              Ident@57..58 "T"
+              Generics@58..58
+      Semi@58..59 ";"
+      Whitespace@59..61 "\n\t""#]];
 
 	let diags = expect![""];
 
 	harness(
 		source,
 		|p| {
-			p.ty();
-			p.ty();
-			p.ty();
+			while !matches!(p.api.peek().kind, T![eof]) {
+				p.ty();
+				p.expect(T![;], &[T![;]]);
+			}
 		},
 		ast,
 		diags,
@@ -575,12 +794,11 @@ fn struct_() {
                 Ident@20..21 "T"
                 Generics@21..21
             Colon@21..22 ":"
-            GenericBound@22..24
-              Type@22..24
-                Path@22..24
-                  Whitespace@22..23 " "
-                  Ident@23..24 "T"
-                  Generics@24..24
+            Type@22..24
+              Path@22..24
+                Whitespace@22..23 " "
+                Ident@23..24 "T"
+                Generics@24..24
         EnumVariant@24..38
           Fields@24..38
             Whitespace@24..25 " "
@@ -609,22 +827,21 @@ fn fn_() {
 
 	let ast = expect![[r#"
     File@0..64
-      Fn@0..64
-        FnKw@0..2 "fn"
-        Whitespace@2..3 " "
-        Ident@3..12 "something"
-        Generics@12..22
-          Lt@12..13 "<"
-          Generic@13..21
-            Ident@13..14 "T"
-            Colon@14..15 ":"
-            GenericBound@15..21
-              Type@15..21
-                Path@15..21
-                  Whitespace@15..16 " "
-                  Ident@16..21 "bussy"
-                  Generics@21..21
-          Gt@21..22 ">"
+      FnKw@0..2 "fn"
+      Whitespace@2..3 " "
+      Ident@3..12 "something"
+      Generics@12..22
+        Lt@12..13 "<"
+        Generic@13..21
+          Ident@13..14 "T"
+          Colon@14..15 ":"
+          Type@15..21
+            Path@15..21
+              Whitespace@15..16 " "
+              Ident@16..21 "bussy"
+              Generics@21..21
+        Gt@21..22 ">"
+      Args@22..44
         LParen@22..23 "("
         Arg@23..27
           Pat@23..24
@@ -674,33 +891,32 @@ fn fn_() {
                   Generics@42..42
               RParen@42..43 ")"
         RParen@43..44 ")"
-        Where@44..57
-          Whitespace@44..45 " "
-          WhereKw@45..50 "where"
-          WhereClause@50..57
-            Type@50..52
-              Path@50..52
-                Whitespace@50..51 " "
-                Ident@51..52 "T"
-                Generics@52..52
-            Colon@52..53 ":"
-            GenericBound@53..57
-              Type@53..57
-                Path@53..57
-                  Whitespace@53..54 " "
-                  Ident@54..57 "sus"
-                  Generics@57..57
-        Block@57..64
-          Whitespace@57..58 " "
-          LBrace@58..59 "{"
+      Where@44..57
+        Whitespace@44..45 " "
+        WhereKw@45..50 "where"
+        WhereClause@50..57
+          Type@50..52
+            Path@50..52
+              Whitespace@50..51 " "
+              Ident@51..52 "T"
+              Generics@52..52
+          Colon@52..53 ":"
+          Type@53..57
+            Path@53..57
+              Whitespace@53..54 " "
+              Ident@54..57 "sus"
+              Generics@57..57
+      Block@57..64
+        Whitespace@57..58 " "
+        LBrace@58..59 "{"
+        Expr@59..62
           Expr@59..62
-            Expr@59..62
-              Tuple@59..62
-                Whitespace@59..60 " "
-                LParen@60..61 "("
-                RParen@61..62 ")"
-          Whitespace@62..63 " "
-          RBrace@63..64 "}""#]];
+            Tuple@59..62
+              Whitespace@59..60 " "
+              LParen@60..61 "("
+              RParen@61..62 ")"
+        Whitespace@62..63 " "
+        RBrace@63..64 "}""#]];
 
 	let diags = expect![""];
 
@@ -791,11 +1007,12 @@ fn atom() {
         Block@102..113
           Whitespace@102..103 " "
           LBrace@103..104 "{"
-          Expr@104..110
+          SemiExpr@104..111
             Expr@104..110
-              Whitespace@104..105 " "
-              Ident@105..110 "hello"
-          Semi@110..111 ";"
+              Expr@104..110
+                Whitespace@104..105 " "
+                Ident@105..110 "hello"
+            Semi@110..111 ";"
           Whitespace@111..112 " "
           RBrace@112..113 "}"
         Whitespace@113..114 " "
@@ -815,11 +1032,12 @@ fn atom() {
         Block@139..150
           Whitespace@139..140 " "
           LBrace@140..141 "{"
-          Expr@141..147
+          SemiExpr@141..148
             Expr@141..147
-              Whitespace@141..142 " "
-              Ident@142..147 "hello"
-          Semi@147..148 ";"
+              Expr@141..147
+                Whitespace@141..142 " "
+                Ident@142..147 "hello"
+            Semi@147..148 ";"
           Whitespace@148..149 " "
           RBrace@149..150 "}"
       Semi@150..151 ";"
@@ -841,11 +1059,12 @@ fn atom() {
         Block@164..175
           Whitespace@164..165 " "
           LBrace@165..166 "{"
-          Expr@166..172
+          SemiExpr@166..173
             Expr@166..172
-              Whitespace@166..167 " "
-              Ident@167..172 "hello"
-          Semi@172..173 ";"
+              Expr@166..172
+                Whitespace@166..167 " "
+                Ident@167..172 "hello"
+            Semi@172..173 ";"
           Whitespace@173..174 " "
           RBrace@174..175 "}"
       Semi@175..176 ";"
@@ -859,11 +1078,12 @@ fn atom() {
         Block@186..197
           Whitespace@186..187 " "
           LBrace@187..188 "{"
-          Expr@188..194
+          SemiExpr@188..195
             Expr@188..194
-              Whitespace@188..189 " "
-              Ident@189..194 "hello"
-          Semi@194..195 ";"
+              Expr@188..194
+                Whitespace@188..189 " "
+                Ident@189..194 "hello"
+            Semi@194..195 ";"
           Whitespace@195..196 " "
           RBrace@196..197 "}"
         Else@197..238
@@ -881,11 +1101,12 @@ fn atom() {
                 Block@211..222
                   Whitespace@211..212 " "
                   LBrace@212..213 "{"
-                  Expr@213..219
+                  SemiExpr@213..220
                     Expr@213..219
-                      Whitespace@213..214 " "
-                      Ident@214..219 "hello"
-                  Semi@219..220 ";"
+                      Expr@213..219
+                        Whitespace@213..214 " "
+                        Ident@214..219 "hello"
+                    Semi@219..220 ";"
                   Whitespace@220..221 " "
                   RBrace@221..222 "}"
                 Else@222..238
@@ -896,11 +1117,12 @@ fn atom() {
                       Block@227..238
                         Whitespace@227..228 " "
                         LBrace@228..229 "{"
-                        Expr@229..235
+                        SemiExpr@229..236
                           Expr@229..235
-                            Whitespace@229..230 " "
-                            Ident@230..235 "hello"
-                        Semi@235..236 ";"
+                            Expr@229..235
+                              Whitespace@229..230 " "
+                              Ident@230..235 "hello"
+                          Semi@235..236 ";"
                         Whitespace@236..237 " "
                         RBrace@237..238 "}"
       Semi@238..239 ";"

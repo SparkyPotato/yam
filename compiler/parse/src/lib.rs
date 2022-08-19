@@ -1,3 +1,4 @@
+use ast::Module;
 use diag::Diagnostics;
 use intern::Id;
 use lex::{
@@ -7,8 +8,7 @@ use lex::{
 use syntax::{
 	builder::{TreeBuilder, TreeBuilderContext},
 	kind::SyntaxKind,
-	FileId,
-	Files,
+	SyntaxNode,
 };
 
 use crate::{api::Api, helpers::select};
@@ -18,12 +18,17 @@ mod helpers;
 #[cfg(test)]
 mod tests;
 
-pub trait FileLoader {}
+#[derive(Clone)]
+pub struct Cst {
+	node: SyntaxNode,
+	file: Id<str>,
+}
 
-pub fn parse_file(
-	ctx: &mut TreeBuilderContext, files: &mut Files, diags: &mut Diagnostics, parent: Option<FileId>,
-	file_name: Id<str>, source: &str, recursive: bool,
-) -> FileId {
+impl Cst {
+	pub fn to_ast(&self) -> Module { Module::new(self.node.clone(), self.file) }
+}
+
+pub fn parse_file(ctx: &mut TreeBuilderContext, diags: &mut Diagnostics, file_name: Id<str>, source: &str) -> Cst {
 	let parser = Parser {
 		api: Api::new(file_name, source, ctx),
 		diags,
@@ -32,7 +37,10 @@ pub fn parse_file(
 
 	let builder = parser.parse();
 
-	files.add(file_name, builder, parent)
+	Cst {
+		node: SyntaxNode::new_root(builder.finish()),
+		file: file_name,
+	}
 }
 
 struct Parser<'i, 'c, 's> {
@@ -43,12 +51,16 @@ struct Parser<'i, 'c, 's> {
 
 impl<'i, 'c> Parser<'i, 'c, '_> {
 	fn parse(mut self) -> TreeBuilder<'c, 'i> {
+		self.parse_inner();
+
+		self.api.finish()
+	}
+
+	fn parse_inner(&mut self) {
 		while !self.is_empty() {
 			self.item();
 			self.silent = false;
 		}
-
-		self.api.finish()
 	}
 }
 
@@ -58,27 +70,37 @@ impl Parser<'_, '_, '_> {
 
 		self.attributes();
 
-		let vis = self.api.peek();
-		if matches!(vis.kind, T![pub]) {
-			let b = self.api.start_node(SyntaxKind::Visibility);
+		if matches!(self.api.peek().kind, T![pub]) {
+			let v = self.api.start_node(SyntaxKind::Visibility);
 			self.api.bump();
-			self.api.finish_node(b);
+			self.api.finish_node(v);
 		}
 
 		select! {
 			self {
 				T![struct] => self.struct_(),
 				T![enum] => self.enum_(),
-				T![fn] => self.fn_(),
+				T![fn] => {
+					let b = self.api.start_node(SyntaxKind::Fn);
+
+					self.fn_();
+
+					self.api.finish_node(b);
+				},
 				T![extern] => {
+					let b = self.api.start_node(SyntaxKind::Fn);
+
 					self.api.bump();
 					if matches!(self.api.peek().kind, T![lit(str)]) {
 						self.api.bump();
 					}
 					self.fn_();
+
+					self.api.finish_node(b);
 				},
 				T![trait] => self.trait_(),
 				T![type] => self.type_alias(),
+				T![impl] => self.impl_(),
 			}
 		}
 
@@ -107,14 +129,13 @@ impl Parser<'_, '_, '_> {
 	}
 
 	fn fn_(&mut self) {
-		let b = self.api.start_node(SyntaxKind::Fn);
-
 		let toks = [T![ident], T![<], T!['('], T![where], T!['{']];
 
 		self.expect(T![fn], &toks);
 		self.expect(T![ident], &toks[1..]);
 		self.generics_decl();
 
+		let a = self.api.start_node(SyntaxKind::Args);
 		self.expect(T!['('], &toks[3..]);
 		self.comma_sep_list(T![')'], |this| {
 			let b = this.api.start_node(SyntaxKind::Arg);
@@ -126,16 +147,21 @@ impl Parser<'_, '_, '_> {
 			this.api.finish_node(b);
 		});
 		self.expect(T![')'], &toks[4..]);
+		self.api.finish_node(a);
 
 		self.where_();
+
+		if matches!(self.api.peek().kind, T![-]) {
+			self.api.bump();
+			self.expect(T![>], &[]);
+			self.ty();
+		}
 
 		if matches!(self.api.peek().kind, T!['{']) {
 			self.block();
 		} else {
 			self.expect(T![;], &[]);
 		}
-
-		self.api.finish_node(b);
 	}
 
 	fn enum_(&mut self) {
@@ -169,6 +195,37 @@ impl Parser<'_, '_, '_> {
 		self.expect(T![trait], &toks);
 		self.expect(T![ident], &toks[1..]);
 		self.generics_decl();
+		self.where_();
+
+		let v = self.api.start_node(SyntaxKind::Mod);
+
+		self.expect(T!['{'], &[]);
+
+		while !matches!(self.api.peek().kind, T!['}'] | T![eof]) {
+			self.item();
+		}
+
+		self.expect(T!['}'], &[]);
+
+		self.api.finish_node(v);
+
+		self.api.finish_node(b);
+	}
+
+	fn impl_(&mut self) {
+		let b = self.api.start_node(SyntaxKind::Impl);
+
+		let toks = [T![ident], T![<], T![where], T!['{']];
+
+		self.expect(T![impl], &toks);
+		self.generics_decl();
+		self.ty();
+
+		if matches!(self.api.peek().kind, T![for]) {
+			self.api.bump();
+			self.ty();
+		}
+
 		self.where_();
 
 		let v = self.api.start_node(SyntaxKind::Mod);
@@ -260,27 +317,29 @@ impl Parser<'_, '_, '_> {
 	}
 
 	fn generic_bound(&mut self) {
-		let b = self.api.start_node(SyntaxKind::GenericBound);
+		let b = self.api.start_node(SyntaxKind::Bound);
+		
+		if matches!(self.api.peek().kind, T![,] | T!['{'] | T![>]) {
+			return;
+		}
 
 		self.ty();
-
+		
 		self.api.finish_node(b);
 	}
 
 	fn attributes(&mut self) {
-		let b = self.api.start_node(SyntaxKind::Attributes);
-
 		while matches!(self.api.peek().kind, T![@]) {
 			let b = self.api.start_node(SyntaxKind::Attribute);
 
 			self.api.bump();
 			self.expect(T![ident], &[T!['(']]);
-			self.token_tree(Delim::Paren);
+			if matches!(self.api.peek().kind, T!['(']) {
+				self.token_tree(Delim::Paren);
+			}
 
 			self.api.finish_node(b);
 		}
-
-		self.api.finish_node(b);
 	}
 
 	fn field(&mut self) {
@@ -294,9 +353,9 @@ impl Parser<'_, '_, '_> {
 	}
 
 	fn where_(&mut self) {
-		let b = self.api.start_node(SyntaxKind::Where);
-
 		if matches!(self.api.peek().kind, T![where]) {
+			let b = self.api.start_node(SyntaxKind::Where);
+
 			self.api.bump();
 			self.comma_sep_list(T!['{'], |this| {
 				let b = this.api.start_node(SyntaxKind::WhereClause);
@@ -307,12 +366,35 @@ impl Parser<'_, '_, '_> {
 
 				this.api.finish_node(b);
 			});
-		}
 
-		self.api.finish_node(b);
+			self.api.finish_node(b);
+		}
 	}
 
 	fn ty(&mut self) {
+		let c = self.api.checkpoint();
+
+		self.ty_inner();
+		if matches!(self.api.peek().kind, T![+]) {
+			let t = self.api.start_node_at(c, SyntaxKind::Type);
+			let b = self.api.start_node_at(c, SyntaxKind::SumType);
+			self.api.bump();
+
+			loop {
+				self.ty_inner();
+				if matches!(self.api.peek().kind, T![+]) {
+					self.api.bump();
+				} else {
+					break;
+				}
+			}
+
+			self.api.finish_node(b);
+			self.api.finish_node(t);
+		}
+	}
+
+	fn ty_inner(&mut self) {
 		let t = self.api.start_node(SyntaxKind::Type);
 
 		select! {
@@ -321,10 +403,29 @@ impl Parser<'_, '_, '_> {
 				T![ident] => self.ty_path(),
 				T![.] => self.ty_path(),
 				T![type] => {
+					let b = self.api.start_node(SyntaxKind::TypeOf);
+
 					self.api.bump();
 					self.expect(T!['('], &[]);
 					self.expr(true);
 					self.expect(T![')'], &[]);
+
+					self.api.finish_node(b);
+				},
+				T![*] => {
+					let b = self.api.start_node(SyntaxKind::Ptr);
+
+					self.api.bump();
+					select! {
+						self {
+							T![const] => self.api.bump(),
+							T![mut] => self.api.bump(),
+						}
+					}
+
+					self.ty();
+
+					self.api.finish_node(b);
 				},
 				T!['('] => self.tuple(),
 			}
@@ -384,7 +485,7 @@ impl Parser<'_, '_, '_> {
 				},
 				T![mut] => {
 					self.api.bump();
-					self.expect(T![ident], &[]);
+					self.variant_pat(next);
 				},
 				T!['('] => self.tuple_pat(next),
 			}
@@ -399,7 +500,6 @@ impl Parser<'_, '_, '_> {
 		self.ty_path();
 		match self.api.peek().kind {
 			T!['('] => self.tuple_pat(next),
-			T!['{'] => self.field_pat(next),
 			_ => {},
 		}
 
@@ -416,31 +516,6 @@ impl Parser<'_, '_, '_> {
 		self.api.finish_node(b);
 	}
 
-	fn field_pat(&mut self, next: &[TokenKind]) {
-		let b = self.api.start_node(SyntaxKind::Fields);
-
-		self.api.bump();
-		self.comma_sep_list(T!['}'], |this| {
-			let b = this.api.start_node(SyntaxKind::Field);
-
-			match this.api.peek().kind {
-				T![ident] => {
-					this.api.bump();
-					if matches!(this.api.peek().kind, T![:]) {
-						this.api.bump();
-						this.pat(next)
-					}
-				},
-				_ => this.pat(next),
-			}
-
-			this.api.finish_node(b);
-		});
-		self.expect(T!['}'], next);
-
-		self.api.finish_node(b);
-	}
-
 	fn block(&mut self) {
 		let b = self.api.start_node(SyntaxKind::Block);
 
@@ -451,9 +526,12 @@ impl Parser<'_, '_, '_> {
 				T!['}'] => break,
 				T![pub] | T![struct] | T![enum] | T![fn] => self.item(),
 				_ => {
+					let c = self.api.checkpoint();
 					self.expr(true);
 					if matches!(self.api.peek().kind, T![;]) {
+						let b = self.api.start_node_at(c, SyntaxKind::SemiExpr);
 						self.api.bump();
+						self.api.finish_node(b);
 					}
 				},
 			}
@@ -737,6 +815,7 @@ impl Parser<'_, '_, '_> {
 		let a = self.api.peek();
 
 		match a.kind {
+			T![as] => Some((24, (), Self::ascript, SyntaxKind::Cast)),
 			T!['('] => Some((24, (), Self::call, SyntaxKind::Call)),
 			T!['['] => Some((24, (), Self::index, SyntaxKind::Index)),
 			T![.] => Some((24, (), Self::access, SyntaxKind::Access)),
@@ -851,6 +930,15 @@ impl Parser<'_, '_, '_> {
 
 			let toks = [T![=], T![>], T![,], T!['}'], T![;]];
 			this.pat(&toks);
+
+			if matches!(this.api.peek().kind, T![if]) {
+				let b = this.api.start_node(SyntaxKind::MatchGuard);
+				this.api.bump();
+				this.expr(true);
+
+				this.api.finish_node(b);
+			}
+
 			this.expect(T![=], &toks[1..]);
 			this.expect(T![>], &toks[2..]);
 			this.expr(true);

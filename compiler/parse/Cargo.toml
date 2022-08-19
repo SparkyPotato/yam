@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+ast = { path = "../ast" }
 diag = { path = "../diag" }
 intern = { path = "../intern" }
 lex = { path = "../lex" }

@@ -3,10 +3,7 @@ use std::marker::PhantomData;
 pub use cstree::{GreenNode, GreenToken};
 use cstree::{GreenNodeBuilder, NodeCache};
 
-use crate::{
-	intern::TextIntern,
-	kind::{Lang, SyntaxKind},
-};
+use crate::{intern::TextIntern, kind::SyntaxKind};
 
 #[repr(transparent)]
 pub struct TreeBuilderContext<'i> {
@@ -90,11 +87,3 @@ impl Drop for Branch {
 #[repr(transparent)]
 #[derive(Clone, Copy, Debug)]
 pub struct Checkpoint(cstree::Checkpoint);
-
-pub type SyntaxNode = cstree::SyntaxNode<Lang>;
-pub type SyntaxToken = cstree::SyntaxToken<Lang>;
-pub type SyntaxElement = cstree::SyntaxElement<Lang>;
-
-pub type ResolvedNode = cstree::ResolvedNode<Lang>;
-pub type ResolvedToken = cstree::ResolvedToken<Lang>;
-pub type ResolvedElement = cstree::ResolvedElement<Lang>;

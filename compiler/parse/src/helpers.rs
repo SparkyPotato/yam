@@ -104,20 +104,34 @@ impl Parser<'_, '_, '_> {
 
 		ret
 	}
+
+	pub fn fmt_kinds(kinds: &[TokenKind]) -> String {
+		let mut s = String::new();
+		for (i, kind) in kinds.iter().enumerate() {
+			if i != 0 {
+				s.push_str(", ");
+			}
+			s.push('`');
+			s.push_str(&kind.to_string());
+			s.push('`');
+		}
+		s
+	}
 }
 
 macro_rules! select {
 	($self:ident { $(T!$kind:tt => $value:expr,)* }) => {
 		let tok = $self.api.peek();
+		let expected = [$(T!$kind,)*];
 		match tok.kind {
 			$(T!$kind => $value,)*
 			_ => {
 				$self.diags.push(
 					tok.span
-						.error(format!("expected one of: {}", stringify! { $($kind, )* }))
+						.error(format!("expected one of: {}", Self::fmt_kinds(&expected)))
 						.label(tok.span.label(format!("found `{}`", tok.kind))),
 				);
-				$self.try_recover(&[$(T!$kind,)*]);
+				$self.try_recover(&expected);
 			},
 		}
 	};

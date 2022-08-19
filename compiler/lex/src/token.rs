@@ -109,6 +109,8 @@ pub enum TokenKind {
 	In,
 	#[token("import")]
 	Import,
+	#[token("impl")]
+	Impl,
 	#[token("let")]
 	Let,
 	#[token("loop")]
@@ -195,6 +197,7 @@ impl Display for TokenKind {
 				T![fn] => "fn",
 				T![if] => "if",
 				T![import] => "import",
+				T![impl] => "impl",
 				T![let] => "let",
 				T![match] => "match",
 				T![trait] => "trait",
@@ -232,13 +235,14 @@ impl TokenKind {
 				| T![else] | T![enum]
 				| T![extern] | T![fn]
 				| T![for] | T![if]
-				| T![import] | T![let]
-				| T![loop] | T![mod]
-				| T![match] | T![pub]
-				| T![return] | T![static]
-				| T![type] | T![union]
-				| T![var] | T![where]
-				| T![while]
+				| T![import] | T![impl]
+				| T![let] | T![loop]
+				| T![mod] | T![match]
+				| T![pub] | T![return]
+				| T![static] | T![type]
+				| T![union] | T![var]
+				| T![where] | T![while]
+				| T![trait]
 		)
 	}
 }
@@ -373,6 +377,9 @@ macro_rules! T {
 	};
 	(import) => {
 		$crate::token::TokenKind::Import
+	};
+	(impl) => {
+		$crate::token::TokenKind::Impl
 	};
 	(let) => {
 		$crate::token::TokenKind::Let
