@@ -1,0 +1,11 @@
+[package]
+name = "ast"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+diag = { path = "../../common/diag" }
+intern = { path = "../../common/intern" }
+syntax = { path = "../syntax" }
+
+salsa = { package = "salsa-2022", git = "https://github.com/salsa-rs/salsa" }

@@ -4,6 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-diag = { path = "../diag" }
+diag = { path = "../../common/diag" }
 id = { path = "../id" }
-parse = { path = "../parse" }
+parse = { path = "../../syntax/parse" }

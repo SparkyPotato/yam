@@ -1,16 +1,14 @@
 [workspace]
 members = [
-    "compiler/ast",
-#    "codegen",
-    "compiler/diag",
-#    "hir",
-#    "id",
-    "compiler/intern",
-    "compiler/lex",
-    "compiler/parse",
-#    "ssir",
-    "compiler/syntax",
-#    "tyck",
+    "compiler/yamc",
+
+    "compiler/common/diag",
+    "compiler/common/intern",
+
+    "compiler/syntax/ast",
+    "compiler/syntax/lex",
+    "compiler/syntax/parse",
+    "compiler/syntax/syntax",
 ]
 
 [profile.release]

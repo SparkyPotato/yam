@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-diag = { path = "../diag" }
-intern = { path = "../intern" }
+diag = { path = "../../common/diag" }
+intern = { path = "../../common/intern" }
 
 logos = "0.12.1"

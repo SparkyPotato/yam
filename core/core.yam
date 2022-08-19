@@ -1,0 +1,2 @@
+@lang(intrinsics)
+pub mod intrinsics;

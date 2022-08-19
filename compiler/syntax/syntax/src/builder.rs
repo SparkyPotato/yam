@@ -2,6 +2,7 @@ use std::marker::PhantomData;
 
 pub use cstree::{GreenNode, GreenToken};
 use cstree::{GreenNodeBuilder, NodeCache};
+use intern::{Id, Resolver};
 
 use crate::{intern::TextIntern, kind::SyntaxKind};
 
@@ -22,6 +23,10 @@ impl TreeBuilderContext<'static> {
 			cache: NodeCache::from_interner(interner),
 		}
 	}
+
+	pub fn resolve(&self, id: Id<str>) -> &str { self.cache.interner().resolve(id) }
+
+	pub fn interner(&mut self) -> &mut TextIntern { self.cache.interner_mut() }
 
 	pub fn finalize(self) -> TextIntern { self.cache.into_interner().unwrap() }
 }

@@ -2,6 +2,20 @@ use diag::Span;
 use intern::{Id, Resolver};
 use syntax::{intern::spur_to_id, kind::SyntaxKind, SyntaxElementRef, SyntaxNode, SyntaxToken, TextRange};
 
+#[salsa::jar(db = Db)]
+pub struct Jar(Ast);
+
+pub trait Db: salsa::DbWithJar<Jar> {}
+
+impl<DB> Db for DB where DB: ?Sized + salsa::DbWithJar<Jar> {}
+
+#[salsa::input]
+pub struct Ast {
+	file: Id<str>,
+	module: Module,
+}
+
+#[derive(Clone, Eq, PartialEq, Debug)]
 pub struct Module(SyntaxNode, Id<str>);
 
 impl Module {
@@ -21,6 +35,7 @@ impl Module {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
+#[derive(Clone, Eq, PartialEq)]
 pub struct Item(SyntaxNode, Id<str>);
 
 impl Item {
@@ -42,29 +57,23 @@ impl Item {
 	pub fn kind(&self) -> Option<ItemKind> {
 		self.0
 			.children()
-			.find(|x| {
-				matches!(
-					x.kind(),
-					SyntaxKind::Fn
-						| SyntaxKind::Struct | SyntaxKind::Trait
-						| SyntaxKind::Enum | SyntaxKind::TypeAlias
-						| SyntaxKind::Impl
-				)
-			})
-			.and_then(|x| match x.kind() {
+			.filter_map(|x| match x.kind() {
 				SyntaxKind::Fn => Some(ItemKind::Fn(Fn(x.clone(), self.1))),
 				SyntaxKind::Struct => Some(ItemKind::Struct(Struct(x.clone(), self.1))),
 				SyntaxKind::Trait => Some(ItemKind::Trait(Trait(x.clone(), self.1))),
 				SyntaxKind::Enum => Some(ItemKind::Enum(Enum(x.clone(), self.1))),
 				SyntaxKind::TypeAlias => Some(ItemKind::TypeAlias(TypeAlias(x.clone(), self.1))),
 				SyntaxKind::Impl => Some(ItemKind::Impl(Impl(x.clone(), self.1))),
+				SyntaxKind::Mod => Some(ItemKind::Mod(Mod(x.clone(), self.1))),
 				_ => None,
 			})
+			.next()
 	}
 
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
+#[derive(Clone, Eq, PartialEq)]
 pub enum ItemKind {
 	Struct(Struct),
 	Enum(Enum),
@@ -72,6 +81,7 @@ pub enum ItemKind {
 	TypeAlias(TypeAlias),
 	Fn(Fn),
 	Impl(Impl),
+	Mod(Mod),
 }
 
 impl ItemKind {
@@ -83,10 +93,12 @@ impl ItemKind {
 			ItemKind::TypeAlias(x) => x.span(),
 			ItemKind::Fn(x) => x.span(),
 			ItemKind::Impl(x) => x.span(),
+			ItemKind::Mod(x) => x.span(),
 		}
 	}
 }
 
+#[derive(Clone, Eq, PartialEq)]
 pub struct Struct(SyntaxNode, Id<str>);
 
 impl Struct {
@@ -121,6 +133,7 @@ impl Struct {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
+#[derive(Clone, Eq, PartialEq)]
 pub struct Enum(SyntaxNode, Id<str>);
 
 impl Enum {
@@ -155,6 +168,7 @@ impl Enum {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
+#[derive(Clone, Eq, PartialEq)]
 pub struct Trait(SyntaxNode, Id<str>);
 
 impl Trait {
@@ -189,6 +203,7 @@ impl Trait {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
+#[derive(Clone, Eq, PartialEq)]
 pub struct TypeAlias(SyntaxNode, Id<str>);
 
 impl TypeAlias {
@@ -223,6 +238,7 @@ impl TypeAlias {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
+#[derive(Clone, Eq, PartialEq)]
 pub struct Fn(SyntaxNode, Id<str>);
 
 impl Fn {
@@ -283,6 +299,7 @@ impl Fn {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
+#[derive(Clone, Eq, PartialEq)]
 pub struct Impl(SyntaxNode, Id<str>);
 
 impl Impl {
@@ -330,6 +347,28 @@ impl Impl {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
+#[derive(Clone, Eq, PartialEq)]
+pub struct Mod(SyntaxNode, Id<str>);
+
+impl Mod {
+	pub fn ident(&self) -> Option<Ident> {
+		self.0
+			.children_with_tokens()
+			.filter_map(|x| Ident::new(x.into_token()?, self.1))
+			.next()
+	}
+
+	pub fn module(&self) -> Option<Module> {
+		self.0
+			.children()
+			.find(|x| matches!(x.kind(), SyntaxKind::Mod))
+			.map(|x| Module::new(x.clone(), self.1))
+	}
+
+	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
+}
+
+#[derive(Clone, Eq, PartialEq)]
 pub struct GenericsDecl(SyntaxNode, Id<str>);
 
 impl GenericsDecl {
@@ -344,6 +383,7 @@ impl GenericsDecl {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
+#[derive(Clone, Eq, PartialEq)]
 pub struct GenericDecl(SyntaxNode, Id<str>);
 
 impl GenericDecl {
@@ -364,6 +404,7 @@ impl GenericDecl {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
+#[derive(Clone, Eq, PartialEq)]
 pub struct Type(SyntaxNode, Id<str>);
 
 impl Type {
@@ -377,7 +418,7 @@ impl Type {
 				)
 			})
 			.and_then(|x| match x.kind() {
-				SyntaxKind::Underscore => Some(TypeKind::Infer(Infer(x.into_token()?.clone(), self.1))),
+				SyntaxKind::Underscore => Some(TypeKind::Infer),
 				SyntaxKind::Path => Some(TypeKind::Path(TypePath(x.into_node()?.clone(), self.1))),
 				SyntaxKind::TypeOf => Some(TypeKind::TypeOf(TypeOf(x.into_node()?.clone(), self.1))),
 				SyntaxKind::Ptr => Some(TypeKind::Ptr(Ptr(x.into_node()?.clone(), self.1))),
@@ -390,15 +431,17 @@ impl Type {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
+#[derive(Clone, Eq, PartialEq)]
 pub enum TypeKind {
 	Path(TypePath),
-	Infer(Infer),
+	Infer,
 	TypeOf(TypeOf),
 	Ptr(Ptr),
 	Tuple(TupleType),
 	Sum(SumType),
 }
 
+#[derive(Clone, Eq, PartialEq)]
 pub struct TypePath(SyntaxNode, Id<str>);
 
 impl TypePath {
@@ -416,11 +459,13 @@ impl TypePath {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
+#[derive(Clone, Eq, PartialEq)]
 pub enum PathSegment {
 	Ident(Ident),
 	Generics(Generics),
 }
 
+#[derive(Clone, Eq, PartialEq)]
 pub struct Generics(SyntaxNode, Id<str>);
 
 impl Generics {
@@ -435,12 +480,7 @@ impl Generics {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
-pub struct Infer(SyntaxToken, Id<str>);
-
-impl Infer {
-	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
-}
-
+#[derive(Clone, Eq, PartialEq)]
 pub struct TypeOf(SyntaxNode, Id<str>);
 
 impl TypeOf {
@@ -454,6 +494,7 @@ impl TypeOf {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
+#[derive(Clone, Eq, PartialEq)]
 pub struct Ptr(SyntaxNode, Id<str>);
 
 impl Ptr {
@@ -474,6 +515,7 @@ impl Ptr {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
+#[derive(Clone, Eq, PartialEq)]
 pub struct TupleType(SyntaxNode, Id<str>);
 
 impl TupleType {
@@ -488,6 +530,7 @@ impl TupleType {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
+#[derive(Clone, Eq, PartialEq)]
 pub struct SumType(SyntaxNode, Id<str>);
 
 impl SumType {
@@ -502,6 +545,7 @@ impl SumType {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
+#[derive(Clone, Eq, PartialEq)]
 pub struct Where(SyntaxNode, Id<str>);
 
 impl Where {
@@ -515,6 +559,7 @@ impl Where {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
+#[derive(Clone, Eq, PartialEq)]
 pub struct WhereClause(SyntaxNode, Id<str>);
 
 impl WhereClause {
@@ -535,6 +580,7 @@ impl WhereClause {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
+#[derive(Clone, Eq, PartialEq)]
 pub struct Bound(SyntaxNode, Id<str>);
 
 impl Bound {
@@ -548,6 +594,7 @@ impl Bound {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
+#[derive(Clone, Eq, PartialEq)]
 pub struct Variant(SyntaxNode, Id<str>);
 
 impl Variant {
@@ -574,12 +621,14 @@ impl Variant {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
+#[derive(Clone, Eq, PartialEq)]
 pub enum VariantKind {
 	Empty,
 	Fields(Fields),
 	Tuple(TupleType),
 }
 
+#[derive(Clone, Eq, PartialEq)]
 pub struct Fields(SyntaxNode, Id<str>);
 
 impl Fields {
@@ -593,6 +642,7 @@ impl Fields {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
+#[derive(Clone, Eq, PartialEq)]
 pub struct Field(SyntaxNode, Id<str>);
 
 impl Field {
@@ -614,6 +664,7 @@ impl Field {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
+#[derive(Clone, Eq, PartialEq)]
 pub struct Args(SyntaxNode, Id<str>);
 
 impl Args {
@@ -628,6 +679,7 @@ impl Args {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
+#[derive(Clone, Eq, PartialEq)]
 pub struct Arg(SyntaxNode, Id<str>);
 
 impl Arg {
@@ -648,6 +700,7 @@ impl Arg {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
+#[derive(Clone, Eq, PartialEq)]
 pub struct Block(SyntaxNode, Id<str>);
 
 impl Block {
@@ -666,11 +719,13 @@ impl Block {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
+#[derive(Clone, Eq, PartialEq)]
 pub enum StmtKind {
 	Expr(Expr),
 	Semi(SemiExpr),
 }
 
+#[derive(Clone, Eq, PartialEq)]
 pub struct Expr(SyntaxNode, Id<str>);
 
 impl Expr {
@@ -712,6 +767,7 @@ impl Expr {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
+#[derive(Clone, Eq, PartialEq)]
 pub enum ExprKind {
 	Tuple(TupleExpr),
 	Block(Block),
@@ -740,6 +796,7 @@ pub enum ExprKind {
 	Ascript(Ascript),
 }
 
+#[derive(Clone, Eq, PartialEq)]
 pub struct TupleExpr(SyntaxNode, Id<str>);
 
 impl TupleExpr {
@@ -753,6 +810,7 @@ impl TupleExpr {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
+#[derive(Clone, Eq, PartialEq)]
 pub struct BoolLit(SyntaxToken, Id<str>);
 
 impl BoolLit {
@@ -763,6 +821,7 @@ impl BoolLit {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
+#[derive(Clone, Eq, PartialEq)]
 pub struct CharLit(SyntaxToken, Id<str>);
 
 impl CharLit {
@@ -779,6 +838,7 @@ impl CharLit {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
+#[derive(Clone, Eq, PartialEq)]
 pub struct FloatLit(SyntaxToken, Id<str>);
 
 impl FloatLit {
@@ -794,6 +854,7 @@ impl FloatLit {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
+#[derive(Clone, Eq, PartialEq)]
 pub struct IntLit(SyntaxToken, Id<str>);
 
 impl IntLit {
@@ -809,6 +870,7 @@ impl IntLit {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
+#[derive(Clone, Eq, PartialEq)]
 pub struct StringLit(SyntaxToken, Id<str>);
 
 impl StringLit {
@@ -822,6 +884,7 @@ impl StringLit {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
+#[derive(Clone, Eq, PartialEq)]
 pub struct Break(SyntaxNode, Id<str>);
 
 impl Break {
@@ -838,12 +901,14 @@ impl Break {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
+#[derive(Clone, Eq, PartialEq)]
 pub struct Continue(SyntaxNode, Id<str>);
 
 impl Continue {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
+#[derive(Clone, Eq, PartialEq)]
 pub struct Return(SyntaxNode, Id<str>);
 
 impl Return {
@@ -860,6 +925,7 @@ impl Return {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
+#[derive(Clone, Eq, PartialEq)]
 pub struct Loop(SyntaxNode, Id<str>);
 
 impl Loop {
@@ -886,6 +952,7 @@ impl Loop {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
+#[derive(Clone, Eq, PartialEq)]
 pub struct While(SyntaxNode, Id<str>);
 
 impl While {
@@ -912,6 +979,7 @@ impl While {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
+#[derive(Clone, Eq, PartialEq)]
 pub struct For(SyntaxNode, Id<str>);
 
 impl For {
@@ -948,6 +1016,7 @@ impl For {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
+#[derive(Clone, Eq, PartialEq)]
 pub struct If(SyntaxNode, Id<str>);
 
 impl If {
@@ -984,6 +1053,7 @@ impl If {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
+#[derive(Clone, Eq, PartialEq)]
 pub struct Let(SyntaxNode, Id<str>);
 
 impl Let {
@@ -1020,6 +1090,7 @@ impl Let {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
+#[derive(Clone, Eq, PartialEq)]
 pub struct Match(SyntaxNode, Id<str>);
 
 impl Match {
@@ -1046,6 +1117,7 @@ impl Match {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
+#[derive(Clone, Eq, PartialEq)]
 pub struct MatchArms(SyntaxNode, Id<str>);
 
 impl MatchArms {
@@ -1059,6 +1131,7 @@ impl MatchArms {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
+#[derive(Clone, Eq, PartialEq)]
 pub struct MatchArm(SyntaxNode, Id<str>);
 
 impl MatchArm {
@@ -1095,6 +1168,7 @@ impl MatchArm {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
+#[derive(Clone, Eq, PartialEq)]
 pub struct MatchGuard(SyntaxNode, Id<str>);
 
 impl MatchGuard {
@@ -1111,6 +1185,7 @@ impl MatchGuard {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
+#[derive(Clone, Eq, PartialEq)]
 pub struct Prefix(SyntaxNode, Id<str>);
 
 impl Prefix {
@@ -1137,6 +1212,7 @@ impl Prefix {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
+#[derive(Clone, Eq, PartialEq)]
 pub struct PrefixOp(SyntaxNode, Id<str>);
 
 impl PrefixOp {
@@ -1160,6 +1236,7 @@ impl PrefixOp {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
+#[derive(Copy, Clone, Eq, PartialEq)]
 pub enum PrefixOpKind {
 	Minus,
 	Not,
@@ -1168,6 +1245,7 @@ pub enum PrefixOpKind {
 	RefMut,
 }
 
+#[derive(Clone, Eq, PartialEq)]
 pub struct Infix(SyntaxNode, Id<str>);
 
 impl Infix {
@@ -1204,6 +1282,7 @@ impl Infix {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
+#[derive(Clone, Eq, PartialEq)]
 pub struct InfixOp(SyntaxNode, Id<str>);
 
 impl InfixOp {
@@ -1249,6 +1328,7 @@ impl InfixOp {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
+#[derive(Copy, Clone, Eq, PartialEq)]
 pub enum InfixOpKind {
 	Add,
 	Sub,
@@ -1279,6 +1359,7 @@ pub enum InfixOpKind {
 	RemAssign,
 }
 
+#[derive(Clone, Eq, PartialEq)]
 pub struct Cast(SyntaxNode, Id<str>);
 
 impl Cast {
@@ -1305,6 +1386,7 @@ impl Cast {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
+#[derive(Clone, Eq, PartialEq)]
 pub struct Call(SyntaxNode, Id<str>);
 
 impl Call {
@@ -1331,6 +1413,7 @@ impl Call {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
+#[derive(Clone, Eq, PartialEq)]
 pub struct CallArgs(SyntaxNode, Id<str>);
 
 impl CallArgs {
@@ -1344,6 +1427,7 @@ impl CallArgs {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
+#[derive(Clone, Eq, PartialEq)]
 pub struct Index(SyntaxNode, Id<str>);
 
 impl Index {
@@ -1370,6 +1454,7 @@ impl Index {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
+#[derive(Clone, Eq, PartialEq)]
 pub struct Access(SyntaxNode, Id<str>);
 
 impl Access {
@@ -1397,6 +1482,7 @@ impl Access {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
+#[derive(Clone, Eq, PartialEq)]
 pub struct StructLit(SyntaxNode, Id<str>);
 
 impl StructLit {
@@ -1420,6 +1506,7 @@ impl StructLit {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
+#[derive(Clone, Eq, PartialEq)]
 pub struct FieldInit(SyntaxNode, Id<str>);
 
 impl FieldInit {
@@ -1446,6 +1533,7 @@ impl FieldInit {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
+#[derive(Clone, Eq, PartialEq)]
 pub struct Ascript(SyntaxNode, Id<str>);
 
 impl Ascript {
@@ -1472,6 +1560,7 @@ impl Ascript {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
+#[derive(Clone, Eq, PartialEq)]
 pub struct SemiExpr(SyntaxNode, Id<str>);
 
 impl SemiExpr {
@@ -1485,6 +1574,7 @@ impl SemiExpr {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
+#[derive(Clone, Eq, PartialEq)]
 pub struct Pat(SyntaxNode, Id<str>);
 
 impl Pat {
@@ -1511,6 +1601,7 @@ impl Pat {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
+#[derive(Clone, Eq, PartialEq)]
 pub enum PatKind {
 	IgnoreOne,
 	IgnoreMany,
@@ -1522,6 +1613,7 @@ pub enum PatKind {
 	Variant { pat: VariantPat, mutable: bool },
 }
 
+#[derive(Clone, Eq, PartialEq)]
 pub struct VariantPat(SyntaxNode, Id<str>);
 
 impl VariantPat {
@@ -1548,6 +1640,7 @@ impl VariantPat {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
+#[derive(Clone, Eq, PartialEq)]
 pub struct TuplePat(SyntaxNode, Id<str>);
 
 impl TuplePat {
@@ -1561,6 +1654,7 @@ impl TuplePat {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
+#[derive(Clone, Eq, PartialEq)]
 pub struct Abi(SyntaxToken, Id<str>);
 
 impl Abi {
@@ -1569,16 +1663,26 @@ impl Abi {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
+#[derive(Clone, Eq, PartialEq)]
 pub struct Attr(SyntaxNode, Id<str>);
 
 impl Attr {
 	pub fn ident(&self) -> Option<Ident> { self.0.first_token().and_then(|x| Ident::new(x, self.1)) }
 
-	pub fn tt(&self) -> Option<TokenTree> { self.0.first_child().and_then(|x| TokenTree::new(x, self.1)) }
+	pub fn tt(&self) -> Option<TokenTree> {
+		self.0
+			.children()
+			.filter_map(|x| match x.kind() {
+				SyntaxKind::TokenTree => Some(TokenTree(x.clone(), self.1)),
+				_ => None,
+			})
+			.next()
+	}
 
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
+#[derive(Copy, Clone, Eq, PartialEq)]
 pub struct Ident {
 	name: Id<str>,
 	span: Span,
@@ -1597,13 +1701,10 @@ impl Ident {
 	pub fn span(&self) -> Span { self.span }
 }
 
+#[derive(Clone, Eq, PartialEq)]
 pub struct TokenTree(SyntaxNode, Id<str>);
 
 impl TokenTree {
-	pub fn new(x: &SyntaxNode, file: Id<str>) -> Option<Self> {
-		(x.kind() == SyntaxKind::Ident).then_some(Self(x.clone(), file))
-	}
-
 	pub fn toks(&self) -> impl Iterator<Item = Token> + '_ {
 		self.0.children_with_tokens().filter_map(|x| match x {
 			SyntaxElementRef::Token(t) => Some(Token::new(t, self.1)),
@@ -1614,6 +1715,7 @@ impl TokenTree {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
+#[derive(Copy, Clone, Eq, PartialEq)]
 pub struct Token {
 	value: Id<str>,
 	kind: SyntaxKind,
@@ -1636,6 +1738,7 @@ impl Token {
 	pub fn span(&self) -> Span { self.span }
 }
 
+#[derive(Clone, Eq, PartialEq)]
 pub struct Visibility(SyntaxNode, Id<str>);
 
 impl Visibility {

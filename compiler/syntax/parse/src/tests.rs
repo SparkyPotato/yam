@@ -19,7 +19,7 @@ fn module() {
 
 		extern "C" fn main() {
 			let s = S { field: 0, tuples: (0, 0) };
-			std.io.print("{}", s.field);
+			core.io.print("{}", s.field);
 		}
 	"#;
 
@@ -166,7 +166,7 @@ fn module() {
                     Access@141..151
                       Expr@141..148
                         Whitespace@141..145 "\n\t\t\t"
-                        Ident@145..148 "std"
+                        Ident@145..148 "core"
                       Dot@148..149 "."
                       Ident@149..151 "io"
                     Dot@151..152 "."
@@ -262,7 +262,7 @@ fn expect() {
        ,-[<unknown>:1:1]
        |
      1 | hello()) fn
-       * ^^|^^  
+       * ^^|^^
        *   `---- found `<ident>`
     ---'
 "#]];
@@ -380,7 +380,7 @@ fn comma_sep_list() {
        ,-[<unknown>:1:14]
        |
      1 | hello, world bye,
-       *              ^|^  
+       *              ^|^
        *               `--- found `<ident>`
     ---'
 "#]];
@@ -670,7 +670,7 @@ fn pat() {
 #[test]
 fn ty() {
 	let source = r#"
-	std.vec.Vec<T>;
+	core.vec.Vec<T>;
 	(ty, ty<_>, x + y);
 	type(2);
 	*const T;
@@ -681,7 +681,7 @@ fn ty() {
       Type@0..16
         Path@0..16
           Whitespace@0..2 "\n\t"
-          Ident@2..5 "std"
+          Ident@2..5 "core"
           Generics@5..5
           Dot@5..6 "."
           Ident@6..9 "vec"

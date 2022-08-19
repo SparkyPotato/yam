@@ -1,56 +1,20 @@
-use ast::Module;
 use diag::Diagnostics;
-use intern::Id;
 use lex::{
 	token::{Delim, TokenKind},
 	T,
 };
-use syntax::{
-	builder::{TreeBuilder, TreeBuilderContext},
-	kind::SyntaxKind,
-	SyntaxNode,
-};
+use syntax::{builder::TreeBuilder, kind::SyntaxKind};
 
 use crate::{api::Api, helpers::select};
 
-mod api;
-mod helpers;
-#[cfg(test)]
-mod tests;
-
-#[derive(Clone)]
-pub struct Cst {
-	node: SyntaxNode,
-	file: Id<str>,
-}
-
-impl Cst {
-	pub fn to_ast(&self) -> Module { Module::new(self.node.clone(), self.file) }
-}
-
-pub fn parse_file(ctx: &mut TreeBuilderContext, diags: &mut Diagnostics, file_name: Id<str>, source: &str) -> Cst {
-	let parser = Parser {
-		api: Api::new(file_name, source, ctx),
-		diags,
-		silent: false,
-	};
-
-	let builder = parser.parse();
-
-	Cst {
-		node: SyntaxNode::new_root(builder.finish()),
-		file: file_name,
-	}
-}
-
-struct Parser<'i, 'c, 's> {
-	api: Api<'i, 'c, 's>,
-	diags: &'c mut Diagnostics,
-	silent: bool,
+pub struct Parser<'i, 'c, 's> {
+	pub api: Api<'i, 'c, 's>,
+	pub diags: &'c mut Diagnostics,
+	pub silent: bool,
 }
 
 impl<'i, 'c> Parser<'i, 'c, '_> {
-	fn parse(mut self) -> TreeBuilder<'c, 'i> {
+	pub fn parse(mut self) -> TreeBuilder<'c, 'i> {
 		self.parse_inner();
 
 		self.api.finish()
@@ -101,6 +65,7 @@ impl Parser<'_, '_, '_> {
 				T![trait] => self.trait_(),
 				T![type] => self.type_alias(),
 				T![impl] => self.impl_(),
+				T![mod] => self.mod_(),
 			}
 		}
 
@@ -243,6 +208,33 @@ impl Parser<'_, '_, '_> {
 		self.api.finish_node(b);
 	}
 
+	fn mod_(&mut self) {
+		let b = self.api.start_node(SyntaxKind::Mod);
+
+		let toks = [T![ident], T!['{']];
+
+		self.expect(T![mod], &toks);
+		self.expect(T![ident], &toks[1..]);
+
+		if matches!(self.api.peek().kind, T!['{']) {
+			let b = self.api.start_node(SyntaxKind::Mod);
+
+			self.api.bump();
+
+			while !matches!(self.api.peek().kind, T!['}'] | T![eof]) {
+				self.item();
+			}
+
+			self.expect(T!['}'], &[]);
+
+			self.api.finish_node(b);
+		} else {
+			self.expect(T![;], &[]);
+		}
+
+		self.api.finish_node(b);
+	}
+
 	fn type_alias(&mut self) {
 		let b = self.api.start_node(SyntaxKind::TypeAlias);
 
@@ -318,13 +310,13 @@ impl Parser<'_, '_, '_> {
 
 	fn generic_bound(&mut self) {
 		let b = self.api.start_node(SyntaxKind::Bound);
-		
+
 		if matches!(self.api.peek().kind, T![,] | T!['{'] | T![>]) {
 			return;
 		}
 
 		self.ty();
-		
+
 		self.api.finish_node(b);
 	}
 
