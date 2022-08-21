@@ -39,7 +39,7 @@ impl<T: ?Sized> Id<T> {
 	pub fn value(self) -> u32 { self.0.get() }
 }
 
-pub trait Interner<V: ?Sized>: Resolver<V> {
+pub trait UnsizedInterner<V: ?Sized>: Resolver<V> {
 	type Resolver: Resolver<V>;
 
 	fn intern(&mut self, value: &V) -> Id<V>;

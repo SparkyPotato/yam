@@ -10,10 +10,6 @@ intern = { path = "../../common/intern" }
 lex = { path = "../lex" }
 syntax = { path = "../syntax" }
 
-salsa = { package = "salsa-2022", git = "https://github.com/salsa-rs/salsa" }
-
-tracing = "0.1.36"
-
 [dev-dependencies]
 expect-test = "1.4.0"
 pretty_assertions = "1.2.1"

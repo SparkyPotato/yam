@@ -1,5 +1,5 @@
 [package]
-name = "yamc"
+name = "watch"
 version = "0.1.0"
 edition = "2021"
 
@@ -8,9 +8,10 @@ database = { path = "../common/database" }
 diag = { path = "../common/diag" }
 index = { path = "../hir/index" }
 intern = { path = "../common/intern" }
-module = { path = "../syntax/package" }
+package = { path = "../syntax/package" }
 
 clap = { version = "3.2.17", features = ["derive"] }
+notify = "4.0.17"
 tracing = "0.1.36"
 tracing-forest = "0.1.4"
 tracing-subscriber = { version = "0.3.15", features = ["env-filter"] }

@@ -2,20 +2,7 @@ use diag::Span;
 use intern::{Id, Resolver};
 use syntax::{intern::spur_to_id, kind::SyntaxKind, SyntaxElementRef, SyntaxNode, SyntaxToken, TextRange};
 
-#[salsa::jar(db = Db)]
-pub struct Jar(Ast);
-
-pub trait Db: salsa::DbWithJar<Jar> {}
-
-impl<DB> Db for DB where DB: ?Sized + salsa::DbWithJar<Jar> {}
-
-#[salsa::input]
-pub struct Ast {
-	file: Id<str>,
-	module: Module,
-}
-
-#[derive(Clone, Eq, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Eq, Debug, Hash)]
 pub struct Module(SyntaxNode, Id<str>);
 
 impl Module {
@@ -35,7 +22,11 @@ impl Module {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
-#[derive(Clone, Eq, PartialEq)]
+// impl PartialEq for Module {
+// 	fn eq(&self, other: &Self) -> bool { self.items().eq(other.items()) }
+// }
+
+#[derive(Clone, Eq)]
 pub struct Item(SyntaxNode, Id<str>);
 
 impl Item {
@@ -73,6 +64,12 @@ impl Item {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
+impl PartialEq for Item {
+	fn eq(&self, other: &Self) -> bool {
+		self.attrs().eq(other.attrs()) && self.visibility() == other.visibility() && self.kind() == other.kind()
+	}
+}
+
 #[derive(Clone, Eq, PartialEq)]
 pub enum ItemKind {
 	Struct(Struct),
@@ -98,7 +95,7 @@ impl ItemKind {
 	}
 }
 
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Clone, Eq)]
 pub struct Struct(SyntaxNode, Id<str>);
 
 impl Struct {
@@ -133,7 +130,16 @@ impl Struct {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
-#[derive(Clone, Eq, PartialEq)]
+impl PartialEq for Struct {
+	fn eq(&self, other: &Self) -> bool {
+		self.ident() == other.ident()
+			&& self.generics() == other.generics()
+			&& self.where_bound() == other.where_bound()
+			&& self.data() == other.data()
+	}
+}
+
+#[derive(Clone, Eq)]
 pub struct Enum(SyntaxNode, Id<str>);
 
 impl Enum {
@@ -168,7 +174,16 @@ impl Enum {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
-#[derive(Clone, Eq, PartialEq)]
+impl PartialEq for Enum {
+	fn eq(&self, other: &Self) -> bool {
+		self.ident() == other.ident()
+			&& self.generics() == other.generics()
+			&& self.where_bound() == other.where_bound()
+			&& self.variants().eq(other.variants())
+	}
+}
+
+#[derive(Clone, Eq)]
 pub struct Trait(SyntaxNode, Id<str>);
 
 impl Trait {
@@ -203,7 +218,16 @@ impl Trait {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
-#[derive(Clone, Eq, PartialEq)]
+impl PartialEq for Trait {
+	fn eq(&self, other: &Self) -> bool {
+		self.ident() == other.ident()
+			&& self.generics() == other.generics()
+			&& self.where_bound() == other.where_bound()
+			&& self.items() == other.items()
+	}
+}
+
+#[derive(Clone, Eq)]
 pub struct TypeAlias(SyntaxNode, Id<str>);
 
 impl TypeAlias {
@@ -238,7 +262,16 @@ impl TypeAlias {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
-#[derive(Clone, Eq, PartialEq)]
+impl PartialEq for TypeAlias {
+	fn eq(&self, other: &Self) -> bool {
+		self.ident() == other.ident()
+			&& self.generics() == other.generics()
+			&& self.where_bound() == other.where_bound()
+			&& self.ty() == other.ty()
+	}
+}
+
+#[derive(Clone, Eq)]
 pub struct Fn(SyntaxNode, Id<str>);
 
 impl Fn {
@@ -299,7 +332,20 @@ impl Fn {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
-#[derive(Clone, Eq, PartialEq)]
+impl PartialEq for Fn {
+	fn eq(&self, other: &Self) -> bool {
+		self.is_extern() == other.is_extern()
+			&& self.abi() == other.abi()
+			&& self.ident() == other.ident()
+			&& self.generics() == other.generics()
+			&& self.where_bound() == other.where_bound()
+			&& self.args() == other.args()
+			&& self.ret() == other.ret()
+			&& self.block() == other.block()
+	}
+}
+
+#[derive(Clone, Debug, Eq)]
 pub struct Impl(SyntaxNode, Id<str>);
 
 impl Impl {
@@ -347,7 +393,17 @@ impl Impl {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
-#[derive(Clone, Eq, PartialEq)]
+impl PartialEq for Impl {
+	fn eq(&self, other: &Self) -> bool {
+		self.generics() == other.generics()
+			&& self.what() == other.what()
+			&& self.on() == other.on()
+			&& self.where_bound() == other.where_bound()
+			&& self.items() == other.items()
+	}
+}
+
+#[derive(Clone, Eq)]
 pub struct Mod(SyntaxNode, Id<str>);
 
 impl Mod {
@@ -358,17 +414,14 @@ impl Mod {
 			.next()
 	}
 
-	pub fn module(&self) -> Option<Module> {
-		self.0
-			.children()
-			.find(|x| matches!(x.kind(), SyntaxKind::Mod))
-			.map(|x| Module::new(x.clone(), self.1))
-	}
-
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
-#[derive(Clone, Eq, PartialEq)]
+impl PartialEq for Mod {
+	fn eq(&self, other: &Self) -> bool { self.ident() == other.ident() }
+}
+
+#[derive(Clone, Eq)]
 pub struct GenericsDecl(SyntaxNode, Id<str>);
 
 impl GenericsDecl {
@@ -383,7 +436,11 @@ impl GenericsDecl {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
-#[derive(Clone, Eq, PartialEq)]
+impl PartialEq for GenericsDecl {
+	fn eq(&self, other: &Self) -> bool { self.generics().eq(other.generics()) }
+}
+
+#[derive(Clone, Eq)]
 pub struct GenericDecl(SyntaxNode, Id<str>);
 
 impl GenericDecl {
@@ -394,17 +451,30 @@ impl GenericDecl {
 			.next()
 	}
 
-	pub fn bounds(&self) -> Option<Type> {
+	pub fn bounds(&self) -> Option<Bound> {
 		self.0
 			.children()
-			.find(|n| matches!(n.kind(), SyntaxKind::Type | SyntaxKind::SumType))
+			.find(|n| matches!(n.kind(), SyntaxKind::Bound))
+			.map(|x| Bound(x.clone(), self.1))
+	}
+
+	pub fn default(&self) -> Option<Type> {
+		self.0
+			.children()
+			.find(|n| matches!(n.kind(), SyntaxKind::Type))
 			.map(|x| Type(x.clone(), self.1))
 	}
 
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
-#[derive(Clone, Eq, PartialEq)]
+impl PartialEq for GenericDecl {
+	fn eq(&self, other: &Self) -> bool {
+		self.ident() == other.ident() && self.bounds() == other.bounds() && self.default() == other.default()
+	}
+}
+
+#[derive(Clone, Debug, Eq)]
 pub struct Type(SyntaxNode, Id<str>);
 
 impl Type {
@@ -431,6 +501,10 @@ impl Type {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
+impl PartialEq for Type {
+	fn eq(&self, other: &Self) -> bool { self.kind() == other.kind() }
+}
+
 #[derive(Clone, Eq, PartialEq)]
 pub enum TypeKind {
 	Path(TypePath),
@@ -441,31 +515,44 @@ pub enum TypeKind {
 	Sum(SumType),
 }
 
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Clone, Eq)]
 pub struct TypePath(SyntaxNode, Id<str>);
 
 impl TypePath {
 	pub fn segments(&self) -> impl Iterator<Item = PathSegment> + '_ {
 		self.0
 			.children_with_tokens()
-			.filter(|n| matches!(n.kind(), SyntaxKind::Ident | SyntaxKind::Generics))
 			.filter_map(|x| match x.kind() {
-				SyntaxKind::Ident => Ident::new(x.into_token()?, self.1).map(PathSegment::Ident),
-				SyntaxKind::Generics => Some(PathSegment::Generics(Generics(x.into_node()?.clone(), self.1))),
+				SyntaxKind::Dot => Some(PathSegment::Scoped),
 				_ => None,
 			})
+			.chain(
+				self.0
+					.children_with_tokens()
+					.filter(|n| matches!(n.kind(), SyntaxKind::Ident | SyntaxKind::Generics))
+					.filter_map(|x| match x.kind() {
+						SyntaxKind::Ident => Ident::new(x.into_token()?, self.1).map(PathSegment::Ident),
+						SyntaxKind::Generics => Some(PathSegment::Generics(Generics(x.into_node()?.clone(), self.1))),
+						_ => None,
+					}),
+			)
 	}
 
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
+impl PartialEq for TypePath {
+	fn eq(&self, other: &Self) -> bool { self.segments().eq(other.segments()) }
+}
+
 #[derive(Clone, Eq, PartialEq)]
 pub enum PathSegment {
+	Scoped,
 	Ident(Ident),
 	Generics(Generics),
 }
 
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Clone, Eq)]
 pub struct Generics(SyntaxNode, Id<str>);
 
 impl Generics {
@@ -480,7 +567,11 @@ impl Generics {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
-#[derive(Clone, Eq, PartialEq)]
+impl PartialEq for Generics {
+	fn eq(&self, other: &Self) -> bool { self.tys().eq(other.tys()) }
+}
+
+#[derive(Clone, Eq)]
 pub struct TypeOf(SyntaxNode, Id<str>);
 
 impl TypeOf {
@@ -494,7 +585,11 @@ impl TypeOf {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
-#[derive(Clone, Eq, PartialEq)]
+impl PartialEq for TypeOf {
+	fn eq(&self, other: &Self) -> bool { self.expr() == other.expr() }
+}
+
+#[derive(Clone, Eq)]
 pub struct Ptr(SyntaxNode, Id<str>);
 
 impl Ptr {
@@ -515,7 +610,11 @@ impl Ptr {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
-#[derive(Clone, Eq, PartialEq)]
+impl PartialEq for Ptr {
+	fn eq(&self, other: &Self) -> bool { self.mutable() == other.mutable() && self.to() == other.to() }
+}
+
+#[derive(Clone, Eq)]
 pub struct TupleType(SyntaxNode, Id<str>);
 
 impl TupleType {
@@ -530,7 +629,11 @@ impl TupleType {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
-#[derive(Clone, Eq, PartialEq)]
+impl PartialEq for TupleType {
+	fn eq(&self, other: &Self) -> bool { self.elems().eq(other.elems()) }
+}
+
+#[derive(Clone, Eq)]
 pub struct SumType(SyntaxNode, Id<str>);
 
 impl SumType {
@@ -545,7 +648,11 @@ impl SumType {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
-#[derive(Clone, Eq, PartialEq)]
+impl PartialEq for SumType {
+	fn eq(&self, other: &Self) -> bool { self.elems().eq(other.elems()) }
+}
+
+#[derive(Clone, Eq)]
 pub struct Where(SyntaxNode, Id<str>);
 
 impl Where {
@@ -559,7 +666,11 @@ impl Where {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
-#[derive(Clone, Eq, PartialEq)]
+impl PartialEq for Where {
+	fn eq(&self, other: &Self) -> bool { self.clauses().eq(other.clauses()) }
+}
+
+#[derive(Clone, Eq)]
 pub struct WhereClause(SyntaxNode, Id<str>);
 
 impl WhereClause {
@@ -580,7 +691,11 @@ impl WhereClause {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
-#[derive(Clone, Eq, PartialEq)]
+impl PartialEq for WhereClause {
+	fn eq(&self, other: &Self) -> bool { self.ty() == other.ty() && self.bound() == other.bound() }
+}
+
+#[derive(Clone, Eq)]
 pub struct Bound(SyntaxNode, Id<str>);
 
 impl Bound {
@@ -594,7 +709,11 @@ impl Bound {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
-#[derive(Clone, Eq, PartialEq)]
+impl PartialEq for Bound {
+	fn eq(&self, other: &Self) -> bool { self.ty() == other.ty() }
+}
+
+#[derive(Clone, Eq)]
 pub struct Variant(SyntaxNode, Id<str>);
 
 impl Variant {
@@ -621,6 +740,10 @@ impl Variant {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
+impl PartialEq for Variant {
+	fn eq(&self, other: &Self) -> bool { self.ident() == other.ident() && self.kind() == other.kind() }
+}
+
 #[derive(Clone, Eq, PartialEq)]
 pub enum VariantKind {
 	Empty,
@@ -628,7 +751,7 @@ pub enum VariantKind {
 	Tuple(TupleType),
 }
 
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Clone, Eq)]
 pub struct Fields(SyntaxNode, Id<str>);
 
 impl Fields {
@@ -642,7 +765,11 @@ impl Fields {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
-#[derive(Clone, Eq, PartialEq)]
+impl PartialEq for Fields {
+	fn eq(&self, other: &Self) -> bool { self.fields().eq(other.fields()) }
+}
+
+#[derive(Clone, Eq)]
 pub struct Field(SyntaxNode, Id<str>);
 
 impl Field {
@@ -664,7 +791,11 @@ impl Field {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
-#[derive(Clone, Eq, PartialEq)]
+impl PartialEq for Field {
+	fn eq(&self, other: &Self) -> bool { self.ident() == other.ident() && self.ty() == other.ty() }
+}
+
+#[derive(Clone, Eq)]
 pub struct Args(SyntaxNode, Id<str>);
 
 impl Args {
@@ -679,7 +810,11 @@ impl Args {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
-#[derive(Clone, Eq, PartialEq)]
+impl PartialEq for Args {
+	fn eq(&self, other: &Self) -> bool { self.args().eq(other.args()) }
+}
+
+#[derive(Clone, Eq)]
 pub struct Arg(SyntaxNode, Id<str>);
 
 impl Arg {
@@ -700,7 +835,11 @@ impl Arg {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
-#[derive(Clone, Eq, PartialEq)]
+impl PartialEq for Arg {
+	fn eq(&self, other: &Self) -> bool { self.pat() == other.pat() && self.ty() == other.ty() }
+}
+
+#[derive(Clone, Eq)]
 pub struct Block(SyntaxNode, Id<str>);
 
 impl Block {
@@ -719,13 +858,17 @@ impl Block {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
+impl PartialEq for Block {
+	fn eq(&self, other: &Self) -> bool { self.stmts().eq(other.stmts()) }
+}
+
 #[derive(Clone, Eq, PartialEq)]
 pub enum StmtKind {
 	Expr(Expr),
 	Semi(SemiExpr),
 }
 
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Clone, Eq)]
 pub struct Expr(SyntaxNode, Id<str>);
 
 impl Expr {
@@ -767,6 +910,10 @@ impl Expr {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
+impl PartialEq for Expr {
+	fn eq(&self, other: &Self) -> bool { self.kind() == other.kind() }
+}
+
 #[derive(Clone, Eq, PartialEq)]
 pub enum ExprKind {
 	Tuple(TupleExpr),
@@ -796,7 +943,7 @@ pub enum ExprKind {
 	Ascript(Ascript),
 }
 
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Clone, Eq)]
 pub struct TupleExpr(SyntaxNode, Id<str>);
 
 impl TupleExpr {
@@ -810,7 +957,11 @@ impl TupleExpr {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
-#[derive(Clone, Eq, PartialEq)]
+impl PartialEq for TupleExpr {
+	fn eq(&self, other: &Self) -> bool { self.elems().eq(other.elems()) }
+}
+
+#[derive(Clone, Eq)]
 pub struct BoolLit(SyntaxToken, Id<str>);
 
 impl BoolLit {
@@ -821,7 +972,11 @@ impl BoolLit {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
-#[derive(Clone, Eq, PartialEq)]
+impl PartialEq for BoolLit {
+	fn eq(&self, other: &Self) -> bool { self.value() == other.value() }
+}
+
+#[derive(Clone, Eq)]
 pub struct CharLit(SyntaxToken, Id<str>);
 
 impl CharLit {
@@ -838,7 +993,11 @@ impl CharLit {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
-#[derive(Clone, Eq, PartialEq)]
+impl PartialEq for CharLit {
+	fn eq(&self, other: &Self) -> bool { self.value() == other.value() }
+}
+
+#[derive(Clone, Eq)]
 pub struct FloatLit(SyntaxToken, Id<str>);
 
 impl FloatLit {
@@ -854,7 +1013,11 @@ impl FloatLit {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
-#[derive(Clone, Eq, PartialEq)]
+impl PartialEq for FloatLit {
+	fn eq(&self, other: &Self) -> bool { self.value() == other.value() }
+}
+
+#[derive(Clone, Eq)]
 pub struct IntLit(SyntaxToken, Id<str>);
 
 impl IntLit {
@@ -870,7 +1033,11 @@ impl IntLit {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
-#[derive(Clone, Eq, PartialEq)]
+impl PartialEq for IntLit {
+	fn eq(&self, other: &Self) -> bool { self.value() == other.value() }
+}
+
+#[derive(Clone, Eq)]
 pub struct StringLit(SyntaxToken, Id<str>);
 
 impl StringLit {
@@ -884,7 +1051,11 @@ impl StringLit {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
-#[derive(Clone, Eq, PartialEq)]
+impl PartialEq for StringLit {
+	fn eq(&self, other: &Self) -> bool { self.value() == other.value() }
+}
+
+#[derive(Clone, Eq)]
 pub struct Break(SyntaxNode, Id<str>);
 
 impl Break {
@@ -901,14 +1072,22 @@ impl Break {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
-#[derive(Clone, Eq, PartialEq)]
+impl PartialEq for Break {
+	fn eq(&self, other: &Self) -> bool { self.expr() == other.expr() }
+}
+
+#[derive(Clone, Eq)]
 pub struct Continue(SyntaxNode, Id<str>);
 
 impl Continue {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
-#[derive(Clone, Eq, PartialEq)]
+impl PartialEq for Continue {
+	fn eq(&self, _: &Self) -> bool { true }
+}
+
+#[derive(Clone, Eq)]
 pub struct Return(SyntaxNode, Id<str>);
 
 impl Return {
@@ -925,7 +1104,11 @@ impl Return {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
-#[derive(Clone, Eq, PartialEq)]
+impl PartialEq for Return {
+	fn eq(&self, other: &Self) -> bool { self.expr() == other.expr() }
+}
+
+#[derive(Clone, Eq)]
 pub struct Loop(SyntaxNode, Id<str>);
 
 impl Loop {
@@ -952,7 +1135,11 @@ impl Loop {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
-#[derive(Clone, Eq, PartialEq)]
+impl PartialEq for Loop {
+	fn eq(&self, other: &Self) -> bool { self.block() == other.block() && self.while_() == other.while_() }
+}
+
+#[derive(Clone, Eq)]
 pub struct While(SyntaxNode, Id<str>);
 
 impl While {
@@ -979,7 +1166,11 @@ impl While {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
-#[derive(Clone, Eq, PartialEq)]
+impl PartialEq for While {
+	fn eq(&self, other: &Self) -> bool { self.expr() == other.expr() && self.block() == other.block() }
+}
+
+#[derive(Clone, Eq)]
 pub struct For(SyntaxNode, Id<str>);
 
 impl For {
@@ -1016,7 +1207,13 @@ impl For {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
-#[derive(Clone, Eq, PartialEq)]
+impl PartialEq for For {
+	fn eq(&self, other: &Self) -> bool {
+		self.pat() == other.pat() && self.expr() == other.expr() && self.block() == other.block()
+	}
+}
+
+#[derive(Clone, Eq)]
 pub struct If(SyntaxNode, Id<str>);
 
 impl If {
@@ -1053,7 +1250,13 @@ impl If {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
-#[derive(Clone, Eq, PartialEq)]
+impl PartialEq for If {
+	fn eq(&self, other: &Self) -> bool {
+		self.expr() == other.expr() && self.block() == other.block() && self.else_() == other.else_()
+	}
+}
+
+#[derive(Clone, Eq)]
 pub struct Let(SyntaxNode, Id<str>);
 
 impl Let {
@@ -1090,7 +1293,13 @@ impl Let {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
-#[derive(Clone, Eq, PartialEq)]
+impl PartialEq for Let {
+	fn eq(&self, other: &Self) -> bool {
+		self.pat() == other.pat() && self.expr() == other.expr() && self.ty() == other.ty()
+	}
+}
+
+#[derive(Clone, Eq)]
 pub struct Match(SyntaxNode, Id<str>);
 
 impl Match {
@@ -1117,7 +1326,11 @@ impl Match {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
-#[derive(Clone, Eq, PartialEq)]
+impl PartialEq for Match {
+	fn eq(&self, other: &Self) -> bool { self.expr() == other.expr() && self.arms() == other.arms() }
+}
+
+#[derive(Clone, Eq)]
 pub struct MatchArms(SyntaxNode, Id<str>);
 
 impl MatchArms {
@@ -1131,7 +1344,11 @@ impl MatchArms {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
-#[derive(Clone, Eq, PartialEq)]
+impl PartialEq for MatchArms {
+	fn eq(&self, other: &Self) -> bool { self.arms().eq(other.arms()) }
+}
+
+#[derive(Clone, Eq)]
 pub struct MatchArm(SyntaxNode, Id<str>);
 
 impl MatchArm {
@@ -1168,7 +1385,13 @@ impl MatchArm {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
-#[derive(Clone, Eq, PartialEq)]
+impl PartialEq for MatchArm {
+	fn eq(&self, other: &Self) -> bool {
+		self.pat() == other.pat() && self.guard() == other.guard() && self.expr() == other.expr()
+	}
+}
+
+#[derive(Clone, Eq)]
 pub struct MatchGuard(SyntaxNode, Id<str>);
 
 impl MatchGuard {
@@ -1185,7 +1408,11 @@ impl MatchGuard {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
-#[derive(Clone, Eq, PartialEq)]
+impl PartialEq for MatchGuard {
+	fn eq(&self, other: &Self) -> bool { self.expr() == other.expr() }
+}
+
+#[derive(Clone, Eq)]
 pub struct Prefix(SyntaxNode, Id<str>);
 
 impl Prefix {
@@ -1212,7 +1439,11 @@ impl Prefix {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
-#[derive(Clone, Eq, PartialEq)]
+impl PartialEq for Prefix {
+	fn eq(&self, other: &Self) -> bool { self.op() == other.op() && self.expr() == other.expr() }
+}
+
+#[derive(Clone, Eq)]
 pub struct PrefixOp(SyntaxNode, Id<str>);
 
 impl PrefixOp {
@@ -1236,6 +1467,10 @@ impl PrefixOp {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
+impl PartialEq for PrefixOp {
+	fn eq(&self, other: &Self) -> bool { self.op() == other.op() }
+}
+
 #[derive(Copy, Clone, Eq, PartialEq)]
 pub enum PrefixOpKind {
 	Minus,
@@ -1245,7 +1480,7 @@ pub enum PrefixOpKind {
 	RefMut,
 }
 
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Clone, Eq)]
 pub struct Infix(SyntaxNode, Id<str>);
 
 impl Infix {
@@ -1282,7 +1517,13 @@ impl Infix {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
-#[derive(Clone, Eq, PartialEq)]
+impl PartialEq for Infix {
+	fn eq(&self, other: &Self) -> bool {
+		self.lhs() == other.lhs() && self.rhs() == other.rhs() && self.op() == other.op()
+	}
+}
+
+#[derive(Clone, Eq)]
 pub struct InfixOp(SyntaxNode, Id<str>);
 
 impl InfixOp {
@@ -1328,6 +1569,10 @@ impl InfixOp {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
+impl PartialEq for InfixOp {
+	fn eq(&self, other: &Self) -> bool { self.op() == other.op() }
+}
+
 #[derive(Copy, Clone, Eq, PartialEq)]
 pub enum InfixOpKind {
 	Add,
@@ -1359,7 +1604,7 @@ pub enum InfixOpKind {
 	RemAssign,
 }
 
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Clone, Eq)]
 pub struct Cast(SyntaxNode, Id<str>);
 
 impl Cast {
@@ -1386,7 +1631,11 @@ impl Cast {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
-#[derive(Clone, Eq, PartialEq)]
+impl PartialEq for Cast {
+	fn eq(&self, other: &Self) -> bool { self.expr() == other.expr() && self.ty() == other.ty() }
+}
+
+#[derive(Clone, Eq)]
 pub struct Call(SyntaxNode, Id<str>);
 
 impl Call {
@@ -1413,7 +1662,11 @@ impl Call {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
-#[derive(Clone, Eq, PartialEq)]
+impl PartialEq for Call {
+	fn eq(&self, other: &Self) -> bool { self.expr() == other.expr() && self.args() == other.args() }
+}
+
+#[derive(Clone, Eq)]
 pub struct CallArgs(SyntaxNode, Id<str>);
 
 impl CallArgs {
@@ -1427,7 +1680,11 @@ impl CallArgs {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
-#[derive(Clone, Eq, PartialEq)]
+impl PartialEq for CallArgs {
+	fn eq(&self, other: &Self) -> bool { self.args().eq(other.args()) }
+}
+
+#[derive(Clone, Eq)]
 pub struct Index(SyntaxNode, Id<str>);
 
 impl Index {
@@ -1454,7 +1711,11 @@ impl Index {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
-#[derive(Clone, Eq, PartialEq)]
+impl PartialEq for Index {
+	fn eq(&self, other: &Self) -> bool { self.expr() == other.expr() && self.index() == other.index() }
+}
+
+#[derive(Clone, Eq)]
 pub struct Access(SyntaxNode, Id<str>);
 
 impl Access {
@@ -1482,7 +1743,11 @@ impl Access {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
-#[derive(Clone, Eq, PartialEq)]
+impl PartialEq for Access {
+	fn eq(&self, other: &Self) -> bool { self.expr() == other.expr() && self.segment() == other.segment() }
+}
+
+#[derive(Clone, Eq)]
 pub struct StructLit(SyntaxNode, Id<str>);
 
 impl StructLit {
@@ -1506,7 +1771,11 @@ impl StructLit {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
-#[derive(Clone, Eq, PartialEq)]
+impl PartialEq for StructLit {
+	fn eq(&self, other: &Self) -> bool { self.expr() == other.expr() && self.fields().eq(other.fields()) }
+}
+
+#[derive(Clone, Eq)]
 pub struct FieldInit(SyntaxNode, Id<str>);
 
 impl FieldInit {
@@ -1533,7 +1802,11 @@ impl FieldInit {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
-#[derive(Clone, Eq, PartialEq)]
+impl PartialEq for FieldInit {
+	fn eq(&self, other: &Self) -> bool { self.field() == other.field() && self.expr() == other.expr() }
+}
+
+#[derive(Clone, Eq)]
 pub struct Ascript(SyntaxNode, Id<str>);
 
 impl Ascript {
@@ -1560,7 +1833,11 @@ impl Ascript {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
-#[derive(Clone, Eq, PartialEq)]
+impl PartialEq for Ascript {
+	fn eq(&self, other: &Self) -> bool { self.expr() == other.expr() && self.ty() == other.ty() }
+}
+
+#[derive(Clone, Eq)]
 pub struct SemiExpr(SyntaxNode, Id<str>);
 
 impl SemiExpr {
@@ -1574,7 +1851,11 @@ impl SemiExpr {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
-#[derive(Clone, Eq, PartialEq)]
+impl PartialEq for SemiExpr {
+	fn eq(&self, other: &Self) -> bool { self.expr() == other.expr() }
+}
+
+#[derive(Clone, Eq)]
 pub struct Pat(SyntaxNode, Id<str>);
 
 impl Pat {
@@ -1601,6 +1882,10 @@ impl Pat {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
+impl PartialEq for Pat {
+	fn eq(&self, other: &Self) -> bool { self.kind() == other.kind() }
+}
+
 #[derive(Clone, Eq, PartialEq)]
 pub enum PatKind {
 	IgnoreOne,
@@ -1613,7 +1898,7 @@ pub enum PatKind {
 	Variant { pat: VariantPat, mutable: bool },
 }
 
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Clone, Eq)]
 pub struct VariantPat(SyntaxNode, Id<str>);
 
 impl VariantPat {
@@ -1640,7 +1925,11 @@ impl VariantPat {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
-#[derive(Clone, Eq, PartialEq)]
+impl PartialEq for VariantPat {
+	fn eq(&self, other: &Self) -> bool { self.path() == other.path() && self.tuple() == other.tuple() }
+}
+
+#[derive(Clone, Eq)]
 pub struct TuplePat(SyntaxNode, Id<str>);
 
 impl TuplePat {
@@ -1654,7 +1943,11 @@ impl TuplePat {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
-#[derive(Clone, Eq, PartialEq)]
+impl PartialEq for TuplePat {
+	fn eq(&self, other: &Self) -> bool { self.pats().eq(other.pats()) }
+}
+
+#[derive(Clone, Eq)]
 pub struct Abi(SyntaxToken, Id<str>);
 
 impl Abi {
@@ -1663,7 +1956,11 @@ impl Abi {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
-#[derive(Clone, Eq, PartialEq)]
+impl PartialEq for Abi {
+	fn eq(&self, other: &Self) -> bool { self.value() == other.value() }
+}
+
+#[derive(Clone, Eq)]
 pub struct Attr(SyntaxNode, Id<str>);
 
 impl Attr {
@@ -1682,7 +1979,11 @@ impl Attr {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
-#[derive(Copy, Clone, Eq, PartialEq)]
+impl PartialEq for Attr {
+	fn eq(&self, other: &Self) -> bool { self.ident() == other.ident() && self.tt() == other.tt() }
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, Debug, Hash)]
 pub struct Ident {
 	name: Id<str>,
 	span: Span,
@@ -1701,7 +2002,7 @@ impl Ident {
 	pub fn span(&self) -> Span { self.span }
 }
 
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Clone, Eq)]
 pub struct TokenTree(SyntaxNode, Id<str>);
 
 impl TokenTree {
@@ -1715,7 +2016,11 @@ impl TokenTree {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
 }
 
-#[derive(Copy, Clone, Eq, PartialEq)]
+impl PartialEq for TokenTree {
+	fn eq(&self, other: &Self) -> bool { self.toks().eq(other.toks()) }
+}
+
+#[derive(Copy, Clone, Eq)]
 pub struct Token {
 	value: Id<str>,
 	kind: SyntaxKind,
@@ -1738,11 +2043,19 @@ impl Token {
 	pub fn span(&self) -> Span { self.span }
 }
 
-#[derive(Clone, Eq, PartialEq)]
+impl PartialEq for Token {
+	fn eq(&self, other: &Self) -> bool { self.value == other.value && self.kind == other.kind }
+}
+
+#[derive(Clone, Eq)]
 pub struct Visibility(SyntaxNode, Id<str>);
 
 impl Visibility {
 	pub fn span(&self) -> Span { make_span(self.0.text_range(), self.1) }
+}
+
+impl PartialEq for Visibility {
+	fn eq(&self, _: &Self) -> bool { true }
 }
 
 fn make_span(range: TextRange, file: Id<str>) -> Span {

@@ -26,7 +26,9 @@ impl TreeBuilderContext<'static> {
 
 	pub fn resolve(&self, id: Id<str>) -> &str { self.cache.interner().resolve(id) }
 
-	pub fn interner(&mut self) -> &mut TextIntern { self.cache.interner_mut() }
+	pub fn interner(&self) -> &TextIntern { self.cache.interner() }
+
+	pub fn interner_mut(&mut self) -> &mut TextIntern { self.cache.interner_mut() }
 
 	pub fn finalize(self) -> TextIntern { self.cache.into_interner().unwrap() }
 }

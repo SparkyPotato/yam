@@ -1,4 +1,4 @@
-use intern::{Id, Interner, Resolver};
+use intern::{Id, Resolver, UnsizedInterner};
 use lasso::{LassoResult, Rodeo, RodeoResolver, Spur};
 
 pub fn spur_to_id(spur: Spur) -> Id<str> {
@@ -23,7 +23,7 @@ pub struct TextResolver {
 	inner: RodeoResolver,
 }
 
-impl Interner<str> for TextIntern {
+impl UnsizedInterner<str> for TextIntern {
 	type Resolver = TextResolver;
 
 	fn intern(&mut self, value: &str) -> Id<str> { spur_to_id(self.inner.get_or_intern(value)) }

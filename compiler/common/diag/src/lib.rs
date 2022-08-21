@@ -2,11 +2,10 @@ use std::{
 	collections::HashMap,
 	fmt::{Debug, Display},
 	ops::Range,
-	path::Path,
 };
 
 use ariadne::{Cache, Report, Source};
-use intern::{Id, Interner, Resolver};
+use intern::{Id, Resolver};
 
 mod span;
 pub use span::Span;
@@ -21,22 +20,18 @@ pub struct FileCacheBuilder {
 impl FileCacheBuilder {
 	pub fn new() -> Self { Self::default() }
 
-	pub fn add_file<T: Interner<str>>(&mut self, interner: &mut T, path: &Path) -> Id<str> {
-		interner.intern(path.as_os_str().to_str().unwrap())
-	}
-
 	pub fn set_file(&mut self, file: Id<str>, data: String) { self.files.insert(file, Source::from(data)); }
 
-	pub fn finish<T: Resolver<str>>(self, intern: &T) -> FileCache<T> {
+	pub fn cache<'a, T: Resolver<str>>(&'a self, intern: &'a T) -> FileCache<'a, T> {
 		FileCache {
-			files: self.files,
+			files: &self.files,
 			intern,
 		}
 	}
 }
 
 pub struct FileCache<'a, T> {
-	files: HashMap<Id<str>, Source>,
+	files: &'a HashMap<Id<str>, Source>,
 	intern: &'a T,
 }
 

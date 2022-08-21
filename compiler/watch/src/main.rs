@@ -2,11 +2,10 @@ use clap::Parser;
 use tracing_forest::ForestLayer;
 use tracing_subscriber::{prelude::*, EnvFilter, Registry};
 
-use crate::{options::Options, pipeline::run_pipeline};
+use crate::{options::Options, watch::watch};
 
-mod database;
 mod options;
-mod pipeline;
+mod watch;
 
 fn main() {
 	let res = std::panic::catch_unwind(|| {
@@ -19,7 +18,7 @@ fn main() {
 				.init();
 		}
 
-		run_pipeline(opts);
+		watch(opts);
 	});
 
 	if let Err(err) = res {

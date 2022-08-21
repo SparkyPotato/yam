@@ -1,0 +1,74 @@
+pub fn add_u8(a: u8, b: u8) -> u8 { add_u8(a, b) }
+pub fn add_u16(a: u16, b: u16) -> u16 { add_u16(a, b) }
+pub fn add_u32(a: u32, b: u32) -> u32 { add_u32(a, b) }
+pub fn add_u64(a: u64, b: u64) -> u64 { add_u64(a, b) }
+pub fn add_usize(a: usize, b: usize) -> usize { add_usize(a, b) }
+
+pub fn add_i8(a: i8, b: i8) -> i8 { add_i8(a, b) }
+pub fn add_i16(a: i16, b: i16) -> i16 { add_i16(a, b) }
+pub fn add_i32(a: i32, b: i32) -> i32 { add_i32(a, b) }
+pub fn add_i64(a: i64, b: i64) -> i64 { add_i64(a, b) }
+pub fn add_isize(a: isize, b: isize) -> isize { add_isize(a, b) }
+
+pub fn add_f32(a: f32, b: f32) -> f32 { add_f32(a, b) }
+pub fn add_f64(a: f64, b: f64) -> f64 { add_f64(a, b) }
+
+pub fn sub_u8(a: u8, b: u8) -> u8 { sub_u8(a, b) }
+pub fn sub_u16(a: u16, b: u16) -> u16 { sub_u16(a, b) }
+pub fn sub_u32(a: u32, b: u32) -> u32 { sub_u32(a, b) }
+pub fn sub_u64(a: u64, b: u64) -> u64 { sub_u64(a, b) }
+pub fn sub_usize(a: usize, b: usize) -> usize { sub_usize(a, b) }
+
+pub fn sub_i8(a: i8, b: i8) -> i8 { sub_i8(a, b) }
+pub fn sub_i16(a: i16, b: i16) -> i16 { sub_i16(a, b) }
+pub fn sub_i32(a: i32, b: i32) -> i32 { sub_i32(a, b) }
+pub fn sub_i64(a: i64, b: i64) -> i64 { sub_i64(a, b) }
+pub fn sub_isize(a: isize, b: isize) -> isize { sub_isize(a, b) }
+
+pub fn sub_f32(a: f32, b: f32) -> f32 { sub_f32(a, b) }
+pub fn sub_f64(a: f64, b: f64) -> f64 { sub_f64(a, b) }
+
+pub fn mul_u8(a: u8, b: u8) -> u8 { mul_u8(a, b) }
+pub fn mul_u16(a: u16, b: u16) -> u16 { mul_u16(a, b) }
+pub fn mul_u32(a: u32, b: u32) -> u32 { mul_u32(a, b) }
+pub fn mul_u64(a: u64, b: u64) -> u64 { mul_u64(a, b) }
+pub fn mul_usize(a: usize, b: usize) -> usize { mul_usize(a, b) }
+
+pub fn mul_i8(a: i8, b: i8) -> i8 { mul_i8(a, b) }
+pub fn mul_i16(a: i16, b: i16) -> i16 { mul_i16(a, b) }
+pub fn mul_i32(a: i32, b: i32) -> i32 { mul_i32(a, b) }
+pub fn mul_i64(a: i64, b: i64) -> i64 { mul_i64(a, b) }
+pub fn mul_isize(a: isize, b: isize) -> isize { mul_isize(a, b) }
+
+pub fn mul_f32(a: f32, b: f32) -> f32 { mul_f32(a, b) }
+pub fn mul_f64(a: f64, b: f64) -> f64 { mul_f64(a, b) }
+
+pub fn div_u8(a: u8, b: u8) -> u8 { div_u8(a, b) }
+pub fn div_u16(a: u16, b: u16) -> u16 { div_u16(a, b) }
+pub fn div_u32(a: u32, b: u32) -> u32 { div_u32(a, b) }
+pub fn div_u64(a: u64, b: u64) -> u64 { div_u64(a, b) }
+pub fn div_usize(a: usize, b: usize) -> usize { div_usize(a, b) }
+
+pub fn div_i8(a: i8, b: i8) -> i8 { div_i8(a, b) }
+pub fn div_i16(a: i16, b: i16) -> i16 { div_i16(a, b) }
+pub fn div_i32(a: i32, b: i32) -> i32 { div_i32(a, b) }
+pub fn div_i64(a: i64, b: i64) -> i64 { div_i64(a, b) }
+pub fn div_isize(a: isize, b: isize) -> isize { div_isize(a, b) }
+
+pub fn div_f32(a: f32, b: f32) -> f32 { div_f32(a, b) }
+pub fn div_f64(a: f64, b: f64) -> f64 { div_f64(a, b) }
+
+pub fn rem_u8(a: u8, b: u8) -> u8 { rem_u8(a, b) }
+pub fn rem_u16(a: u16, b: u16) -> u16 { rem_u16(a, b) }
+pub fn rem_u32(a: u32, b: u32) -> u32 { rem_u32(a, b) }
+pub fn rem_u64(a: u64, b: u64) -> u64 { rem_u64(a, b) }
+pub fn rem_usize(a: usize, b: usize) -> usize { rem_usize(a, b) }
+
+pub fn rem_i8(a: i8, b: i8) -> i8 { rem_i8(a, b) }
+pub fn rem_i16(a: i16, b: i16) -> i16 { rem_i16(a, b) }
+pub fn rem_i32(a: i32, b: i32) -> i32 { rem_i32(a, b) }
+pub fn rem_i64(a: i64, b: i64) -> i64 { rem_i64(a, b) }
+pub fn rem_isize(a: isize, b: isize) -> isize { rem_isize(a, b) }
+
+pub fn rem_f32(a: f32, b: f32) -> f32 { rem_f32(a, b) }
+pub fn rem_f64(a: f64, b: f64) -> f64 { rem_f64(a, b) }

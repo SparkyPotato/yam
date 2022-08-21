@@ -1,19 +1,20 @@
 [workspace]
 members = [
-    "compiler/yamc",
+    "compiler/watch",
+#    "compiler/yamc",
 
     "compiler/common/database",
     "compiler/common/diag",
     "compiler/common/intern",
 
+    "compiler/hir/index",
+
     "compiler/syntax/ast",
     "compiler/syntax/lex",
+    "compiler/syntax/package",
     "compiler/syntax/parse",
     "compiler/syntax/syntax",
 ]
 
 [profile.release]
 debug = true
-
-[profile.dev.package.parse]
-opt-level = 3

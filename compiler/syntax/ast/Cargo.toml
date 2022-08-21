@@ -7,5 +7,3 @@ edition = "2021"
 diag = { path = "../../common/diag" }
 intern = { path = "../../common/intern" }
 syntax = { path = "../syntax" }
-
-salsa = { package = "salsa-2022", git = "https://github.com/salsa-rs/salsa" }

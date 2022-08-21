@@ -1,0 +1,13 @@
+[package]
+name = "package"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+diag = { path = "../../common/diag" }
+intern = { path = "../../common/intern" }
+parse = { path = "../parse" }
+
+tracing = "0.1.36"
+
+salsa = { package = "salsa-2022", git = "https://github.com/salsa-rs/salsa" }

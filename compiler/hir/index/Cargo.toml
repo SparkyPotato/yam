@@ -1,10 +1,14 @@
 [package]
-name = "database"
+name = "index"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+ast = { path = "../../syntax/ast" }
+diag = { path = "../../common/diag" }
+intern = { path = "../../common/intern" }
 package = { path = "../../syntax/package" }
-index = { path = "../../hir/index" }
+
+tracing = "0.1.36"
 
 salsa = { package = "salsa-2022", git = "https://github.com/salsa-rs/salsa" }

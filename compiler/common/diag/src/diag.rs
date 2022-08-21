@@ -3,6 +3,7 @@ use intern::{Id, Resolver};
 
 use crate::{FileCache, Span};
 
+#[derive(Copy, Clone)]
 pub enum DiagKind {
 	Error,
 	Warning,
@@ -68,6 +69,20 @@ impl Diagnostic {
 		self.labels.push(label);
 		self
 	}
+
+	pub fn emit<T: Resolver<str>>(&self, cache: &FileCache<T>) {
+		let mut builder = Report::build(self.kind.into_report_kind(), self.span.file, self.span.start as _);
+		builder.set_message(&self.message);
+		for label in self.labels.iter() {
+			builder.add_label(if let Some(message) = &label.message {
+				ariadne::Label::new(label.span).with_message(message)
+			} else {
+				ariadne::Label::new(label.span)
+			});
+		}
+
+		builder.finish().eprint(cache).expect("Failed to emit diagnostic");
+	}
 }
 
 #[derive(Default)]
@@ -89,23 +104,16 @@ impl Diagnostics {
 
 	pub fn was_error(&self) -> bool { self.was_error }
 
-	pub fn emit<T: Resolver<str>>(self, cache: &FileCache<T>) {
-		for diagnostic in self.inner {
-			let mut builder = Report::build(
-				diagnostic.kind.into_report_kind(),
-				diagnostic.span.file,
-				diagnostic.span.start as _,
-			);
-			builder.set_message(diagnostic.message);
-			for label in diagnostic.labels {
-				builder.add_label(if let Some(message) = label.message {
-					ariadne::Label::new(label.span).with_message(message)
-				} else {
-					ariadne::Label::new(label.span)
-				});
-			}
+	pub fn clear(&mut self) {
+		self.inner.clear();
+		self.was_error = false;
+	}
 
-			builder.finish().eprint(cache).expect("Failed to emit diagnostic");
+	pub fn get_diags(self) -> Vec<Diagnostic> { self.inner }
+
+	pub fn emit<T: Resolver<str>>(&self, cache: &FileCache<T>) {
+		for diagnostic in self.inner.iter() {
+			diagnostic.emit(cache)
 		}
 	}
 }

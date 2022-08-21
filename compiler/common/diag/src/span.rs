@@ -1,14 +1,27 @@
-use std::ops::{Add, Index};
+use std::{
+	hash::{Hash, Hasher},
+	ops::{Add, Index},
+};
 
 use intern::Id;
 
 use crate::{DiagKind, Diagnostic, Label};
 
-#[derive(Debug, Default, Copy, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Default, Copy, Clone)]
 pub struct Span {
 	pub start: u32,
 	pub end: u32,
 	pub file: Id<str>,
+}
+
+impl PartialEq for Span {
+	fn eq(&self, _: &Self) -> bool { true }
+}
+
+impl Eq for Span {}
+
+impl Hash for Span {
+	fn hash<H: Hasher>(&self, _: &mut H) {}
 }
 
 impl Add for Span {

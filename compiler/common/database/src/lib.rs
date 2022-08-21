@@ -1,4 +1,4 @@
-#[salsa::db(ast::Jar)]
+#[salsa::db(package::Jar, index::Jar)]
 #[derive(Default)]
 pub struct Database {
 	storage: salsa::Storage<Self>,

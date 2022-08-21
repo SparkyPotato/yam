@@ -2,7 +2,7 @@ use diag::Span;
 use lex::{token::TokenKind, T};
 use syntax::kind::SyntaxKind;
 
-use crate::Parser;
+use crate::parse::Parser;
 
 impl Parser<'_, '_, '_> {
 	pub fn is_empty(&self) -> bool { matches!(self.api.peek().kind, T![eof]) }
@@ -21,7 +21,7 @@ impl Parser<'_, '_, '_> {
 				});
 			}
 
-			self.try_recover(next)
+			self.try_recover(kind, next)
 		} else {
 			self.api.bump();
 
@@ -72,31 +72,43 @@ impl Parser<'_, '_, '_> {
 		}
 	}
 
-	pub fn try_recover(&mut self, next: &[TokenKind]) -> Span {
+	pub fn try_recover(&mut self, want: TokenKind, next: &[TokenKind]) -> Span {
 		let b = self.api.start_node(SyntaxKind::Err);
 
 		self.silent = true;
 
 		let mut delim_stack = Vec::new();
-		let ret = loop {
+		let ret = 'o: loop {
 			let curr = self.api.peek();
-			self.api.bump();
 			match curr.kind {
-				x if x.is_delim_kw() || (delim_stack.is_empty() && next.contains(&x)) => break curr.span,
-				T![ldelim: delim] => delim_stack.push(delim),
-				T![rdelim: delim] => match delim_stack.last() {
-					Some(_) => {
-						let mut curr = delim_stack.pop();
-						while curr != Some(delim) {
-							curr = delim_stack.pop();
-						}
-					},
-					None => break curr.span,
+				x if x == want => {
+					self.api.bump();
+					break curr.span;
 				},
-				T![;] => break curr.span,
-				T![,] => break curr.span,
+				x if x.is_delim_kw() || (delim_stack.is_empty() && next.contains(&x)) => break curr.span,
+				T![ldelim: delim] => {
+					self.api.bump();
+					delim_stack.push(delim);
+				},
+				T![rdelim: delim] => {
+					let mut c = delim_stack.pop();
+					self.api.bump();
+					loop {
+						match c {
+							Some(x) if x == delim => break 'o curr.span,
+							Some(_) => {
+								c = delim_stack.pop();
+							},
+							None => break 'o curr.span,
+						}
+					}
+				},
+				T![;] | T![,] => {
+					self.api.bump();
+					break curr.span;
+				},
 				T![eof] => break curr.span,
-				_ => {},
+				_ => self.api.bump(),
 			}
 		};
 
@@ -131,7 +143,7 @@ macro_rules! select {
 						.error(format!("expected one of: {}", Self::fmt_kinds(&expected)))
 						.label(tok.span.label(format!("found `{}`", tok.kind))),
 				);
-				$self.try_recover(&expected);
+				$self.try_recover(T![eof], &expected);
 			},
 		}
 	};

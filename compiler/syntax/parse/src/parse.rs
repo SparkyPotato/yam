@@ -20,7 +20,7 @@ impl<'i, 'c> Parser<'i, 'c, '_> {
 		self.api.finish()
 	}
 
-	fn parse_inner(&mut self) {
+	pub(crate) fn parse_inner(&mut self) {
 		while !self.is_empty() {
 			self.item();
 			self.silent = false;
@@ -29,7 +29,7 @@ impl<'i, 'c> Parser<'i, 'c, '_> {
 }
 
 impl Parser<'_, '_, '_> {
-	fn item(&mut self) {
+	pub(crate) fn item(&mut self) {
 		let b = self.api.start_node(SyntaxKind::Item);
 
 		self.attributes();
@@ -72,7 +72,7 @@ impl Parser<'_, '_, '_> {
 		self.api.finish_node(b);
 	}
 
-	fn struct_(&mut self) {
+	pub(crate) fn struct_(&mut self) {
 		let b = self.api.start_node(SyntaxKind::Struct);
 
 		let toks = [T![ident], T![<], T![where], T!['{'], T!['('], T![;]];
@@ -93,7 +93,7 @@ impl Parser<'_, '_, '_> {
 		self.api.finish_node(b);
 	}
 
-	fn fn_(&mut self) {
+	pub(crate) fn fn_(&mut self) {
 		let toks = [T![ident], T![<], T!['('], T![where], T!['{']];
 
 		self.expect(T![fn], &toks);
@@ -129,7 +129,7 @@ impl Parser<'_, '_, '_> {
 		}
 	}
 
-	fn enum_(&mut self) {
+	pub(crate) fn enum_(&mut self) {
 		let b = self.api.start_node(SyntaxKind::Enum);
 
 		let toks = [T![ident], T![<], T!['{']];
@@ -152,7 +152,7 @@ impl Parser<'_, '_, '_> {
 		self.api.finish_node(b);
 	}
 
-	fn trait_(&mut self) {
+	pub(crate) fn trait_(&mut self) {
 		let b = self.api.start_node(SyntaxKind::Trait);
 
 		let toks = [T![ident], T![<], T![where], T!['{']];
@@ -177,7 +177,7 @@ impl Parser<'_, '_, '_> {
 		self.api.finish_node(b);
 	}
 
-	fn impl_(&mut self) {
+	pub(crate) fn impl_(&mut self) {
 		let b = self.api.start_node(SyntaxKind::Impl);
 
 		let toks = [T![ident], T![<], T![where], T!['{']];
@@ -208,34 +208,19 @@ impl Parser<'_, '_, '_> {
 		self.api.finish_node(b);
 	}
 
-	fn mod_(&mut self) {
+	pub(crate) fn mod_(&mut self) {
 		let b = self.api.start_node(SyntaxKind::Mod);
 
 		let toks = [T![ident], T!['{']];
 
 		self.expect(T![mod], &toks);
 		self.expect(T![ident], &toks[1..]);
-
-		if matches!(self.api.peek().kind, T!['{']) {
-			let b = self.api.start_node(SyntaxKind::Mod);
-
-			self.api.bump();
-
-			while !matches!(self.api.peek().kind, T!['}'] | T![eof]) {
-				self.item();
-			}
-
-			self.expect(T!['}'], &[]);
-
-			self.api.finish_node(b);
-		} else {
-			self.expect(T![;], &[]);
-		}
+		self.expect(T![;], &[]);
 
 		self.api.finish_node(b);
 	}
 
-	fn type_alias(&mut self) {
+	pub(crate) fn type_alias(&mut self) {
 		let b = self.api.start_node(SyntaxKind::TypeAlias);
 
 		let toks = [T![ident], T![<], T![where], T!['{']];
@@ -244,13 +229,17 @@ impl Parser<'_, '_, '_> {
 		self.expect(T![ident], &toks[1..]);
 		self.generics_decl();
 		self.where_();
-		self.expect(T![=], &toks[3..]);
-		self.ty();
+
+		if matches!(self.api.peek().kind, T![=]) {
+			self.api.bump();
+			self.ty();
+		}
+		self.expect(T![;], &[]);
 
 		self.api.finish_node(b);
 	}
 
-	fn enum_variant(&mut self) -> bool {
+	pub(crate) fn enum_variant(&mut self) -> bool {
 		let ret = match self.api.peek().kind {
 			T!['{'] => {
 				let b = self.api.start_node(SyntaxKind::Fields);
@@ -272,7 +261,7 @@ impl Parser<'_, '_, '_> {
 		ret
 	}
 
-	fn generics_decl(&mut self) {
+	pub(crate) fn generics_decl(&mut self) {
 		let b = self.api.start_node(SyntaxKind::Generics);
 
 		if matches!(self.api.peek().kind, T![<]) {
@@ -280,10 +269,15 @@ impl Parser<'_, '_, '_> {
 			self.comma_sep_list(T![>], |this| {
 				let b = this.api.start_node(SyntaxKind::Generic);
 
-				this.expect(T![ident], &[T![:]]);
+				this.expect(T![ident], &[T![:], T![>], T![,]]);
 				if matches!(this.api.peek().kind, T![:]) {
 					this.api.bump();
 					this.generic_bound();
+				}
+
+				if matches!(this.api.peek().kind, T![=]) {
+					this.api.bump();
+					this.ty();
 				}
 
 				this.api.finish_node(b);
@@ -294,7 +288,7 @@ impl Parser<'_, '_, '_> {
 		self.api.finish_node(b);
 	}
 
-	fn generics(&mut self) {
+	pub(crate) fn generics(&mut self) {
 		let b = self.api.start_node(SyntaxKind::Generics);
 
 		if matches!(self.api.peek().kind, T![<]) {
@@ -308,7 +302,7 @@ impl Parser<'_, '_, '_> {
 		self.api.finish_node(b);
 	}
 
-	fn generic_bound(&mut self) {
+	pub(crate) fn generic_bound(&mut self) {
 		let b = self.api.start_node(SyntaxKind::Bound);
 
 		if matches!(self.api.peek().kind, T![,] | T!['{'] | T![>]) {
@@ -320,7 +314,7 @@ impl Parser<'_, '_, '_> {
 		self.api.finish_node(b);
 	}
 
-	fn attributes(&mut self) {
+	pub(crate) fn attributes(&mut self) {
 		while matches!(self.api.peek().kind, T![@]) {
 			let b = self.api.start_node(SyntaxKind::Attribute);
 
@@ -334,7 +328,7 @@ impl Parser<'_, '_, '_> {
 		}
 	}
 
-	fn field(&mut self) {
+	pub(crate) fn field(&mut self) {
 		let b = self.api.start_node(SyntaxKind::Field);
 
 		self.expect(T![ident], &[T![:]]);
@@ -344,7 +338,7 @@ impl Parser<'_, '_, '_> {
 		self.api.finish_node(b);
 	}
 
-	fn where_(&mut self) {
+	pub(crate) fn where_(&mut self) {
 		if matches!(self.api.peek().kind, T![where]) {
 			let b = self.api.start_node(SyntaxKind::Where);
 
@@ -363,7 +357,7 @@ impl Parser<'_, '_, '_> {
 		}
 	}
 
-	fn ty(&mut self) {
+	pub(crate) fn ty(&mut self) {
 		let c = self.api.checkpoint();
 
 		self.ty_inner();
@@ -386,7 +380,7 @@ impl Parser<'_, '_, '_> {
 		}
 	}
 
-	fn ty_inner(&mut self) {
+	pub(crate) fn ty_inner(&mut self) {
 		let t = self.api.start_node(SyntaxKind::Type);
 
 		select! {
@@ -426,7 +420,7 @@ impl Parser<'_, '_, '_> {
 		self.api.finish_node(t);
 	}
 
-	fn tuple(&mut self) {
+	pub(crate) fn tuple(&mut self) {
 		let b = self.api.start_node(SyntaxKind::Tuple);
 		self.expect(T!['('], &[]);
 		self.comma_sep_list(T![')'], |this| this.ty());
@@ -434,27 +428,29 @@ impl Parser<'_, '_, '_> {
 		self.api.finish_node(b);
 	}
 
-	fn ty_path(&mut self) {
+	pub(crate) fn ty_path(&mut self) {
 		let b = self.api.start_node(SyntaxKind::Path);
 
 		if matches!(self.api.peek().kind, T![.]) {
 			self.api.bump();
 		}
 
-		loop {
-			self.expect(T![ident], &[T![<], T![ident], T![.]]);
-			self.generics();
-			if matches!(self.api.peek().kind, T![.]) {
-				self.api.bump();
-			} else {
-				break;
+		if matches!(self.api.peek().kind, T![ident]) {
+			loop {
+				self.expect(T![ident], &[T![<], T![ident], T![.]]);
+				self.generics();
+				if matches!(self.api.peek().kind, T![.]) {
+					self.api.bump();
+				} else {
+					break;
+				}
 			}
 		}
 
 		self.api.finish_node(b);
 	}
 
-	fn pat(&mut self, next: &[TokenKind]) {
+	pub(crate) fn pat(&mut self, next: &[TokenKind]) {
 		let b = self.api.start_node(SyntaxKind::Pat);
 
 		select! {
@@ -486,7 +482,7 @@ impl Parser<'_, '_, '_> {
 		self.api.finish_node(b);
 	}
 
-	fn variant_pat(&mut self, next: &[TokenKind]) {
+	pub(crate) fn variant_pat(&mut self, next: &[TokenKind]) {
 		let b = self.api.start_node(SyntaxKind::EnumVariant);
 
 		self.ty_path();
@@ -498,7 +494,7 @@ impl Parser<'_, '_, '_> {
 		self.api.finish_node(b);
 	}
 
-	fn tuple_pat(&mut self, next: &[TokenKind]) {
+	pub(crate) fn tuple_pat(&mut self, next: &[TokenKind]) {
 		let b = self.api.start_node(SyntaxKind::Tuple);
 
 		self.api.bump();
@@ -508,7 +504,7 @@ impl Parser<'_, '_, '_> {
 		self.api.finish_node(b);
 	}
 
-	fn block(&mut self) {
+	pub(crate) fn block(&mut self) {
 		let b = self.api.start_node(SyntaxKind::Block);
 
 		self.expect(T!['{'], &[T![pub], T![struct], T![enum], T![fn]]);
@@ -534,9 +530,9 @@ impl Parser<'_, '_, '_> {
 		self.api.finish_node(b);
 	}
 
-	fn expr(&mut self, struct_allowed: bool) { self.expr_inner(0, struct_allowed); }
+	pub(crate) fn expr(&mut self, struct_allowed: bool) { self.expr_inner(0, struct_allowed); }
 
-	fn expr_inner(&mut self, min_bp: u8, struct_allowed: bool) {
+	pub(crate) fn expr_inner(&mut self, min_bp: u8, struct_allowed: bool) {
 		let b = self.api.start_node(SyntaxKind::Expr);
 
 		let infix = self.api.checkpoint();
@@ -584,7 +580,7 @@ impl Parser<'_, '_, '_> {
 		self.api.finish_node(b);
 	}
 
-	fn atom(&mut self) {
+	pub(crate) fn atom(&mut self) {
 		let tok = self.api.peek();
 		match tok.kind {
 			T!['('] => self.tuple_or_paren_expr(),
@@ -693,13 +689,13 @@ impl Parser<'_, '_, '_> {
 					});
 				}
 
-				self.try_recover(&[]);
+				self.try_recover(T![eof], &[]);
 			},
 		}
 	}
 
 	// Should eat the operator.
-	fn prefix(&mut self) -> Option<((), u8, fn(&mut Self, u8, bool))> {
+	pub(crate) fn prefix(&mut self) -> Option<((), u8, fn(&mut Self, u8, bool))> {
 		let a = self.api.peek();
 
 		match a.kind {
@@ -725,7 +721,7 @@ impl Parser<'_, '_, '_> {
 	}
 
 	// Should not eat the operator: `f` should.
-	fn infix(&mut self) -> Option<(u8, u8, fn(&mut Self, u8, bool))> {
+	pub(crate) fn infix(&mut self) -> Option<(u8, u8, fn(&mut Self, u8, bool))> {
 		let a = self.api.peek();
 
 		match a.kind {
@@ -803,7 +799,7 @@ impl Parser<'_, '_, '_> {
 	}
 
 	// Should not eat the operator: `f` should.
-	fn postfix(&mut self, struct_allowed: bool) -> Option<(u8, (), fn(&mut Self, u8, bool), SyntaxKind)> {
+	pub(crate) fn postfix(&mut self, struct_allowed: bool) -> Option<(u8, (), fn(&mut Self, u8, bool), SyntaxKind)> {
 		let a = self.api.peek();
 
 		match a.kind {
@@ -817,7 +813,7 @@ impl Parser<'_, '_, '_> {
 		}
 	}
 
-	fn binary(&mut self, bp: u8, struct_allowed: bool) {
+	pub(crate) fn binary(&mut self, bp: u8, struct_allowed: bool) {
 		let b = self.api.start_node(SyntaxKind::Op);
 		self.api.bump();
 		self.api.finish_node(b);
@@ -825,7 +821,7 @@ impl Parser<'_, '_, '_> {
 		self.expr_inner(bp, struct_allowed);
 	}
 
-	fn binary_2(&mut self, bp: u8, struct_allowed: bool) {
+	pub(crate) fn binary_2(&mut self, bp: u8, struct_allowed: bool) {
 		let b = self.api.start_node(SyntaxKind::Op);
 		self.api.bump();
 		self.api.bump();
@@ -834,7 +830,7 @@ impl Parser<'_, '_, '_> {
 		self.expr_inner(bp, struct_allowed);
 	}
 
-	fn call(&mut self, _: u8, _: bool) {
+	pub(crate) fn call(&mut self, _: u8, _: bool) {
 		let b = self.api.start_node(SyntaxKind::Args);
 
 		self.api.bump();
@@ -846,13 +842,13 @@ impl Parser<'_, '_, '_> {
 		self.api.finish_node(b);
 	}
 
-	fn index(&mut self, _: u8, _: bool) {
+	pub(crate) fn index(&mut self, _: u8, _: bool) {
 		self.api.bump();
 		self.expr(true);
 		self.expect(T![']'], &[T![;], T!['}']]);
 	}
 
-	fn access(&mut self, _: u8, _: bool) {
+	pub(crate) fn access(&mut self, _: u8, _: bool) {
 		self.api.bump();
 		select! {
 			self {
@@ -862,12 +858,12 @@ impl Parser<'_, '_, '_> {
 		}
 	}
 
-	fn ascript(&mut self, _: u8, _: bool) {
+	pub(crate) fn ascript(&mut self, _: u8, _: bool) {
 		self.api.bump();
 		self.ty();
 	}
 
-	fn struct_lit(&mut self, _: u8, _: bool) {
+	pub(crate) fn struct_lit(&mut self, _: u8, _: bool) {
 		self.api.bump();
 		self.comma_sep_list(T!['}'], |this| {
 			let b = this.api.start_node(SyntaxKind::Field);
@@ -881,7 +877,7 @@ impl Parser<'_, '_, '_> {
 		self.expect(T!['}'], &[]);
 	}
 
-	fn tuple_or_paren_expr(&mut self) {
+	pub(crate) fn tuple_or_paren_expr(&mut self) {
 		if matches!(self.api.peek_n(1).kind, T![')']) {
 			let b = self.api.start_node(SyntaxKind::Tuple);
 			self.api.bump();
@@ -914,7 +910,7 @@ impl Parser<'_, '_, '_> {
 		}
 	}
 
-	fn match_arms(&mut self) {
+	pub(crate) fn match_arms(&mut self) {
 		let b = self.api.start_node(SyntaxKind::MatchArms);
 		self.expect(T!['{'], &[T![;], T!['}']]);
 		self.comma_sep_list(T!['}'], |this| {
@@ -941,7 +937,7 @@ impl Parser<'_, '_, '_> {
 		self.api.finish_node(b);
 	}
 
-	fn token_tree(&mut self, delim: Delim) {
+	pub(crate) fn token_tree(&mut self, delim: Delim) {
 		let b = self.api.start_node(SyntaxKind::TokenTree);
 		let span = self.expect(T![ldelim: delim], &[T![rdelim: delim]]);
 

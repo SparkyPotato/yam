@@ -5,7 +5,7 @@ use logos::Logos;
 
 use crate::T;
 
-#[derive(Clone, Copy, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Default)]
 pub struct Token {
 	pub kind: TokenKind,
 	pub span: Span,
