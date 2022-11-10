@@ -1,9 +1,0 @@
-[package]
-name = "ssir"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies]
-diag = { path = "../../common/diag" }
-hir = { path = "../hir" }
-id = { path = "../id" }

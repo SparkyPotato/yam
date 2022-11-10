@@ -8,7 +8,7 @@ database = { path = "../common/database" }
 diag = { path = "../common/diag" }
 index = { path = "../hir/index" }
 intern = { path = "../common/intern" }
-module = { path = "../syntax/package" }
+package = { path = "../syntax/package" }
 
 clap = { version = "3.2.17", features = ["derive"] }
 tracing = "0.1.36"

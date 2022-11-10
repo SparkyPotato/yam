@@ -4,7 +4,6 @@ use tracing_subscriber::{prelude::*, EnvFilter, Registry};
 
 use crate::{options::Options, pipeline::run_pipeline};
 
-mod database;
 mod options;
 mod pipeline;
 
