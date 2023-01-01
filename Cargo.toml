@@ -1,15 +1,6 @@
 [workspace]
-members = [
-#    "compiler/yamc",
-
-    "compiler/common/diag",
-    "compiler/common/intern",
-
-    "compiler/syntax/ast",
-    "compiler/syntax/lex",
-    "compiler/syntax/parse",
-    "compiler/syntax/syntax",
-]
+members = ["compiler/*"]
+exclude = ["compiler/parse"]
 
 [profile.release]
 debug = true

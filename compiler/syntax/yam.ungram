@@ -1,0 +1,195 @@
+//*******
+// Items
+//*******
+
+Item =
+  Fn
+| Struct
+| Enum
+| TypeAlias
+| Static
+| Import
+
+Fn =
+  Visibility? Abi? 'fn' Name ParamList RetTy? (body:Block | ';')
+
+ParamList =
+  '(' (Param (',' Param)* ','?)? ')'
+
+Param =
+  Name ':' Type
+
+RetTy =
+  '->' Type
+
+Visibility =
+  'pub'
+
+Abi =
+  'extern' 'string'?
+
+Struct =
+  Visibility? 'struct' Name '{' fields:(Param*) '}'
+
+Enum =
+  Visibility? 'enum' Name '{' variants:(Name (',' Name)* ','?)? '}'
+
+TypeAlias =
+  Visibility? 'type' Name '=' Type ';'
+
+Static =
+  Visibility? 'static' Name ':' Type '=' init:Expr ';'
+
+Import =
+  Visibility? 'import' ImportTree ';'
+
+ImportTree =
+  (Path? '.')? ('*' | ImportTreeList)
+| Path Rename?
+
+ImportTreeList =
+  '{' (ImportTree (',' ImportTree)* ','?)? '}'
+
+Rename =
+  'as' Name
+
+//*******
+// Types
+//*******
+
+Type =
+  ArrayType
+  FnType
+  InferType
+  PathType
+  PtrType
+
+ArrayType =
+  '[' Type ';' len:Expr ']'
+
+FnType =
+  Abi? 'fn' TyParamList RetTy?
+
+TyParamList =
+  '(' (Type (',' Type)* ','?)? ')'
+
+InferType =
+  '_'
+
+PathType =
+  Path
+
+PtrType =
+  '*' ('const' | 'mut')? Type
+
+//****************************
+// Statements and Expressions
+//****************************
+
+Stmt =
+  ';'
+| ExprStmt
+| Item
+
+ExprStmt =
+  Expr ';'?
+
+Expr =
+  ArrayExpr
+| BinExpr
+| Block
+| BreakExpr
+| CallExpr
+| CastExpr
+| ContinueExpr
+| FieldExpr
+| ForExpr
+| IfExpr
+| IndexExpr
+| Literal
+| LoopExpr
+| MatchExpr
+| ParenExpr
+| PathExpr
+| PrefixExpr
+| ReturnExpr
+| WhileExpr
+| LetExpr
+
+ArrayExpr = '[' (Expr (',' Expr)* ','?)? | (Expr ';' Expr) ']'
+
+LetExpr =
+  'let' Name (':' Type)? ('=' init:Expr)?
+
+Block =
+  '{' statements:(Stmt*) tail:(Expr?) '}'
+
+BinExpr =
+  lhs:Expr 'op' rhs:Expr
+
+BreakExpr =
+  'break' Expr?
+
+CallExpr =
+  Expr ArgList
+
+CastExpr =
+  Expr 'as' Type
+
+ContinueExpr =
+  'continue'
+
+FieldExpr =
+  Expr '.' Name
+
+ForExpr =
+  'for' Name 'in' iter:Expr body:Block
+
+IfExpr =
+  'if' cond:Expr then:Block ('else' else_:(IfExpr | Block))?
+
+IndexExpr =
+  base:Expr '[' index:Expr ']'
+
+Literal =
+  'bool' | 'char' | 'float' | 'int' | 'string'
+
+LoopExpr =
+    'loop' body:Block
+
+MatchExpr =
+  'match' Expr '{' arms:(MatchArm*) '}'
+
+MatchArm =
+  value:Expr '=>' then:Expr ','?
+
+ParenExpr =
+  '(' Expr ')'
+
+PathExpr =
+  Path
+
+PrefixExpr =
+  'op' Expr
+
+ReturnExpr =
+  'return' Expr?
+
+WhileExpr =
+    'while' Expr body:Block
+
+ArgList =
+  '(' (Expr (',' Expr)* ','?)? ')'
+
+//********
+// Basics
+//********
+
+Path =
+  (qualifier:Path '.')? segment:PathSegment
+
+PathSegment =
+  '.'? Name
+
+Name =
+  'ident'

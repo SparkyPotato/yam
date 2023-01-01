@@ -1,8 +1,0 @@
-// @allow(force_import)
-// @force_import
-// @lang(primitives)
-// pub mod primitives;
-
-// @lang(intrinsics)
-// pub mod intrinsics;
-pub mod ops

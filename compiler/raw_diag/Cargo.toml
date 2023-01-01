@@ -1,0 +1,9 @@
+[package]
+name = "raw_diag"
+version = "0.0.0"
+edition = "2021"
+
+[dependencies]
+text = { path = "../text" }
+
+ariadne = "0.1"
