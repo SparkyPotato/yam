@@ -1,14 +1,14 @@
 pub use cstree::{GreenNode, GreenToken, NodeOrToken, TextRange, TextSize};
 
-pub use crate::kind::SyntaxKind;
-
+pub use crate::generated::{ast, kind::SyntaxKind, token};
 pub mod builder;
-mod kind;
+mod generated;
 
 pub type SyntaxNode = cstree::SyntaxNode<Lang>;
 pub type SyntaxToken = cstree::SyntaxToken<Lang>;
 pub type SyntaxElement = cstree::SyntaxElement<Lang>;
 pub type SyntaxElementRef<'a> = cstree::SyntaxElementRef<'a, Lang>;
+pub type SyntaxNodeChildren<'a> = cstree::SyntaxNodeChildren<'a, Lang>;
 
 pub type ResolvedNode = cstree::ResolvedNode<Lang>;
 pub type ResolvedToken = cstree::ResolvedToken<Lang>;

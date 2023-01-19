@@ -11,7 +11,11 @@ Item =
 | Import
 
 Fn =
-  Visibility? Abi? 'fn' Name ParamList RetTy? (body:Block | ';')
+  Visibility? Abi? 'fn' Name ParamList RetTy? FnBody
+
+FnBody =
+  Block
+| ';'
 
 ParamList =
   '(' (Param (',' Param)* ','?)? ')'
@@ -32,7 +36,10 @@ Struct =
   Visibility? 'struct' Name '{' fields:(Param*) '}'
 
 Enum =
-  Visibility? 'enum' Name '{' variants:(Name (',' Name)* ','?)? '}'
+  Visibility? 'enum' Name '{' VariantList '}'
+
+VariantList =
+  (Name (',' Name)* ','?)?
 
 TypeAlias =
   Visibility? 'type' Name '=' Type ';'
@@ -44,8 +51,16 @@ Import =
   Visibility? 'import' ImportTree ';'
 
 ImportTree =
-  (Path? '.')? ('*' | ImportTreeList)
-| Path Rename?
+  ListImport
+| RenameImport
+
+RenameImport = (Path Rename?)
+
+ListImport = (prefix:Path? '.')? Wildcard
+
+Wildcard =
+  ImportTreeList
+| '*'
 
 ImportTreeList =
   '{' (ImportTree (',' ImportTree)* ','?)? '}'
@@ -80,7 +95,11 @@ PathType =
   Path
 
 PtrType =
-  '*' ('const' | 'mut')? Type
+  '*' PtrMutability? Type
+
+PtrMutability =
+  'const'
+| 'mut'
 
 //****************************
 // Statements and Expressions
@@ -116,7 +135,17 @@ Expr =
 | WhileExpr
 | LetExpr
 
-ArrayExpr = '[' (Expr (',' Expr)* ','?)? | (Expr ';' Expr) ']'
+ArrayExpr = '[' ArrayInit ']'
+
+ArrayInit =
+  ArrayList
+| ArrayRepeat
+
+ArrayList =
+  (Expr (',' Expr)* ','?)?
+
+ArrayRepeat =
+  Expr ';' len:Expr
 
 LetExpr =
   'let' Name (':' Type)? ('=' init:Expr)?
@@ -146,7 +175,11 @@ ForExpr =
   'for' Name 'in' iter:Expr body:Block
 
 IfExpr =
-  'if' cond:Expr then:Block ('else' else_:(IfExpr | Block))?
+  'if' cond:Expr then:Block ('else' ElseExpr)?
+
+ElseExpr =
+  IfExpr
+| Block
 
 IndexExpr =
   base:Expr '[' index:Expr ']'

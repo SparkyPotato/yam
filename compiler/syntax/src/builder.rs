@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use cstree::{GreenNode, GreenNodeBuilder, NodeCache};
 
-use crate::kind::SyntaxKind;
+use crate::SyntaxKind;
 
 #[repr(transparent)]
 pub struct TreeBuilderContext {
