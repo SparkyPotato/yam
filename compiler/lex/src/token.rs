@@ -1,10 +1,5 @@
+use diagnostics::FileSpan;
 use logos::Logos;
-
-#[derive(Clone, Copy, Default, PartialEq, Eq, Hash)]
-pub struct FileSpan {
-	pub start: u32,
-	pub end: u32,
-}
 
 #[derive(Clone, Copy, Default)]
 pub struct Token {
@@ -12,7 +7,7 @@ pub struct Token {
 	pub span: FileSpan,
 }
 
-#[derive(Copy, Clone, Default, PartialEq, Eq, Hash, Logos, Debug)]
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash, Logos)]
 pub enum TokenKind {
 	#[regex("true|false")]
 	BoolLit,
@@ -56,16 +51,62 @@ pub enum TokenKind {
 	FatArrow,
 	#[token("_")]
 	Underscore,
+	#[token("*")]
+	Star,
 	#[regex(r#"[\p{Sm}\p{So}\p{Sk}\p{Pc}\p{Pd}\p{Po}]+"#)]
 	Operator,
 	#[regex("[ \t\n\r]+")]
 	Whitespace,
 	#[regex("//[^\n]*")]
 	Comment,
+	#[token("fn")]
+	FnKw,
+	#[token("let")]
+	LetKw,
+	#[token("if")]
+	IfKw,
+	#[token("else")]
+	ElseKw,
+	#[token("while")]
+	WhileKw,
+	#[token("for")]
+	ForKw,
+	#[token("loop")]
+	LoopKw,
+	#[token("in")]
+	InKw,
+	#[token("return")]
+	ReturnKw,
+	#[token("break")]
+	BreakKw,
+	#[token("continue")]
+	ContinueKw,
+	#[token("match")]
+	MatchKw,
+	#[token("struct")]
+	StructKw,
+	#[token("enum")]
+	EnumKw,
+	#[token("type")]
+	TypeKw,
+	#[token("pub")]
+	PubKw,
+	#[token("extern")]
+	ExternKw,
+	#[token("static")]
+	StaticKw,
+	#[token("import")]
+	ImportKw,
+	#[token("as")]
+	AsKw,
+	#[token("const")]
+	ConstKw,
+	#[token("mut")]
+	MutKw,
 	Eof,
 	#[error]
 	#[default]
-	Err,
+	Error,
 }
 
 #[macro_export]
@@ -124,17 +165,92 @@ macro_rules! T {
 	(->) => {
 		$crate::token::TokenKind::Arrow
 	};
+	(=) => {
+		$crate::token::TokenKind::Eq
+	};
+	(*) => {
+		$crate::token::TokenKind::Star
+	};
+	(.) => {
+		$crate::token::TokenKind::Dot
+	};
 	(_) => {
 		$crate::token::TokenKind::Underscore
 	};
 	(err) => {
-		$crate::token::TokenKind::Err
+		$crate::token::TokenKind::Error
 	};
 	(ws) => {
 		$crate::token::TokenKind::Whitespace
 	};
 	(comment) => {
 		$crate::token::TokenKind::Comment
+	};
+	(fn) => {
+		$crate::token::TokenKind::FnKw
+	};
+	(let) => {
+		$crate::token::TokenKind::LetKw
+	};
+	(if) => {
+		$crate::token::TokenKind::IfKw
+	};
+	(else) => {
+		$crate::token::TokenKind::ElseKw
+	};
+	(while) => {
+		$crate::token::TokenKind::WhileKw
+	};
+	(for) => {
+		$crate::token::TokenKind::ForKw
+	};
+	(loop) => {
+		$crate::token::TokenKind::LoopKw
+	};
+	(in) => {
+		$crate::token::TokenKind::InKw
+	};
+	(return) => {
+		$crate::token::TokenKind::ReturnKw
+	};
+	(break) => {
+		$crate::token::TokenKind::BreakKw
+	};
+	(continue) => {
+		$crate::token::TokenKind::ContinueKw
+	};
+	(match) => {
+		$crate::token::TokenKind::MatchKw
+	};
+	(struct) => {
+		$crate::token::TokenKind::StructKw
+	};
+	(enum) => {
+		$crate::token::TokenKind::EnumKw
+	};
+	(type) => {
+		$crate::token::TokenKind::TypeKw
+	};
+	(pub) => {
+		$crate::token::TokenKind::PubKw
+	};
+	(extern) => {
+		$crate::token::TokenKind::ExternKw
+	};
+	(static) => {
+		$crate::token::TokenKind::StaticKw
+	};
+	(import) => {
+		$crate::token::TokenKind::ImportKw
+	};
+	(as) => {
+		$crate::token::TokenKind::AsKw
+	};
+	(const) => {
+		$crate::token::TokenKind::ConstKw
+	};
+	(mut) => {
+		$crate::token::TokenKind::MutKw
 	};
 	(eof) => {
 		$crate::token::TokenKind::Eof

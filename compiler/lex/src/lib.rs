@@ -1,4 +1,6 @@
-use crate::token::{FileSpan, Token, TokenKind};
+use diagnostics::FileSpan;
+
+use crate::token::{Token, TokenKind};
 
 #[cfg(test)]
 mod tests;
@@ -28,6 +30,7 @@ impl Lexer<'_> {
 				span: FileSpan {
 					start: span.start as _,
 					end: span.end as _,
+					relative: (),
 				},
 			},
 			None => Token {
@@ -41,6 +44,7 @@ impl Lexer<'_> {
 		FileSpan {
 			start: self.inner.source().len() as _,
 			end: self.inner.source().len() as u32 + 1,
+			relative: (),
 		}
 	}
 }

@@ -1,6 +1,5 @@
 [workspace]
 members = ["compiler/*"]
-exclude = ["compiler/parse"]
 
 [profile.release]
 debug = true

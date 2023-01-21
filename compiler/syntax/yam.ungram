@@ -2,7 +2,13 @@
 // Items
 //*******
 
-Item =
+TokenTree = ';' // Ignore, manually implemented
+
+Attribute = '@' Name TokenTree?
+
+Item = (Attribute)* Visibility? ItemKind
+
+ItemKind =
   Fn
 | Struct
 | Enum
@@ -11,7 +17,7 @@ Item =
 | Import
 
 Fn =
-  Visibility? Abi? 'fn' Name ParamList RetTy? FnBody
+  Abi? 'fn' Name ParamList RetTy? FnBody
 
 FnBody =
   Block
@@ -33,22 +39,21 @@ Abi =
   'extern' 'string'?
 
 Struct =
-  Visibility? 'struct' Name '{' fields:(Param*) '}'
+  'struct' Name '{' fields:(Param*) '}'
 
 Enum =
-  Visibility? 'enum' Name '{' VariantList '}'
+  'enum' Name VariantList
 
-VariantList =
-  (Name (',' Name)* ','?)?
+VariantList = '{' variants:((Name (',' Name)* ','?)?) '}'
 
 TypeAlias =
-  Visibility? 'type' Name '=' Type ';'
+  'type' Name ('=' Type)? ';'
 
 Static =
-  Visibility? 'static' Name ':' Type '=' init:Expr ';'
+  'static' Name ':' Type '=' init:Expr ';'
 
 Import =
-  Visibility? 'import' ImportTree ';'
+  'import' ImportTree ';'
 
 ImportTree =
   ListImport
@@ -74,16 +79,16 @@ Rename =
 
 Type =
   ArrayType
-  FnType
-  InferType
-  PathType
-  PtrType
+| FnType
+| InferType
+| Path
+| PtrType
 
 ArrayType =
   '[' Type ';' len:Expr ']'
 
 FnType =
-  Abi? 'fn' TyParamList RetTy?
+  Abi? 'fn' params:TyParamList RetTy?
 
 TyParamList =
   '(' (Type (',' Type)* ','?)? ')'
@@ -91,11 +96,8 @@ TyParamList =
 InferType =
   '_'
 
-PathType =
-  Path
-
 PtrType =
-  '*' PtrMutability? Type
+  '*' PtrMutability Type
 
 PtrMutability =
   'const'
@@ -107,20 +109,21 @@ PtrMutability =
 
 Stmt =
   ';'
-| ExprStmt
+| SemiExpr
+| Expr
 | Item
 
-ExprStmt =
-  Expr ';'?
+SemiExpr =
+  Expr ';'
 
 Expr =
   ArrayExpr
-| BinExpr
+| InfixExpr
 | Block
 | BreakExpr
 | CallExpr
 | CastExpr
-| ContinueExpr
+| 'continue'
 | FieldExpr
 | ForExpr
 | IfExpr
@@ -129,7 +132,7 @@ Expr =
 | LoopExpr
 | MatchExpr
 | ParenExpr
-| PathExpr
+| Path
 | PrefixExpr
 | ReturnExpr
 | WhileExpr
@@ -151,9 +154,9 @@ LetExpr =
   'let' Name (':' Type)? ('=' init:Expr)?
 
 Block =
-  '{' statements:(Stmt*) tail:(Expr?) '}'
+  '{' statements:(Stmt*) '}'
 
-BinExpr =
+InfixExpr =
   lhs:Expr 'op' rhs:Expr
 
 BreakExpr =
@@ -165,9 +168,6 @@ CallExpr =
 CastExpr =
   Expr 'as' Type
 
-ContinueExpr =
-  'continue'
-
 FieldExpr =
   Expr '.' Name
 
@@ -175,11 +175,7 @@ ForExpr =
   'for' Name 'in' iter:Expr body:Block
 
 IfExpr =
-  'if' cond:Expr then:Block ('else' ElseExpr)?
-
-ElseExpr =
-  IfExpr
-| Block
+  'if' cond:Expr then:Block ('else' Expr)?
 
 IndexExpr =
   base:Expr '[' index:Expr ']'
@@ -188,7 +184,7 @@ Literal =
   'bool' | 'char' | 'float' | 'int' | 'string'
 
 LoopExpr =
-    'loop' body:Block
+    'loop' body:Block ('while' Expr)?
 
 MatchExpr =
   'match' Expr '{' arms:(MatchArm*) '}'
@@ -198,9 +194,6 @@ MatchArm =
 
 ParenExpr =
   '(' Expr ')'
-
-PathExpr =
-  Path
 
 PrefixExpr =
   'op' Expr
@@ -214,15 +207,14 @@ WhileExpr =
 ArgList =
   '(' (Expr (',' Expr)* ','?)? ')'
 
-//********
-// Basics
-//********
+//****************
+// Names and Paths
+//****************
 
 Path =
-  (qualifier:Path '.')? segment:PathSegment
+  '.'? qualifier:PathSegment* Name
 
-PathSegment =
-  '.'? Name
+PathSegment = Name '.'
 
 Name =
   'ident'

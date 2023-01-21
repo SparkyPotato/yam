@@ -4,12 +4,12 @@
 use crate::generated::*;
 
 #[derive(Clone, PartialEq, Eq, Hash)]
-pub struct FnKw(SyntaxToken);
-impl std::fmt::Debug for FnKw {
+pub struct Semi(SyntaxToken);
+impl std::fmt::Debug for Semi {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
-impl AstToken for FnKw {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::FnKw }
+impl AstToken for Semi {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Semi }
 
 	fn cast(tok: SyntaxToken) -> Option<Self> {
 		if Self::can_cast(tok.kind()) {
@@ -21,12 +21,29 @@ impl AstToken for FnKw {
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
-pub struct Semi(SyntaxToken);
-impl std::fmt::Debug for Semi {
+pub struct At(SyntaxToken);
+impl std::fmt::Debug for At {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
-impl AstToken for Semi {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Semi }
+impl AstToken for At {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::At }
+
+	fn cast(tok: SyntaxToken) -> Option<Self> {
+		if Self::can_cast(tok.kind()) {
+			Some(Self(tok))
+		} else {
+			None
+		}
+	}
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct FnKw(SyntaxToken);
+impl std::fmt::Debug for FnKw {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for FnKw {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::FnKw }
 
 	fn cast(tok: SyntaxToken) -> Option<Self> {
 		if Self::can_cast(tok.kind()) {
@@ -446,6 +463,23 @@ impl AstToken for MutKw {
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
+pub struct ContinueKw(SyntaxToken);
+impl std::fmt::Debug for ContinueKw {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for ContinueKw {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::ContinueKw }
+
+	fn cast(tok: SyntaxToken) -> Option<Self> {
+		if Self::can_cast(tok.kind()) {
+			Some(Self(tok))
+		} else {
+			None
+		}
+	}
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct LetKw(SyntaxToken);
 impl std::fmt::Debug for LetKw {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
@@ -486,23 +520,6 @@ impl std::fmt::Debug for BreakKw {
 }
 impl AstToken for BreakKw {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::BreakKw }
-
-	fn cast(tok: SyntaxToken) -> Option<Self> {
-		if Self::can_cast(tok.kind()) {
-			Some(Self(tok))
-		} else {
-			None
-		}
-	}
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct ContinueKw(SyntaxToken);
-impl std::fmt::Debug for ContinueKw {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstToken for ContinueKw {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::ContinueKw }
 
 	fn cast(tok: SyntaxToken) -> Option<Self> {
 		if Self::can_cast(tok.kind()) {
@@ -667,6 +684,23 @@ impl AstToken for LoopKw {
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
+pub struct WhileKw(SyntaxToken);
+impl std::fmt::Debug for WhileKw {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for WhileKw {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::WhileKw }
+
+	fn cast(tok: SyntaxToken) -> Option<Self> {
+		if Self::can_cast(tok.kind()) {
+			Some(Self(tok))
+		} else {
+			None
+		}
+	}
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct MatchKw(SyntaxToken);
 impl std::fmt::Debug for MatchKw {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
@@ -707,23 +741,6 @@ impl std::fmt::Debug for ReturnKw {
 }
 impl AstToken for ReturnKw {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::ReturnKw }
-
-	fn cast(tok: SyntaxToken) -> Option<Self> {
-		if Self::can_cast(tok.kind()) {
-			Some(Self(tok))
-		} else {
-			None
-		}
-	}
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct WhileKw(SyntaxToken);
-impl std::fmt::Debug for WhileKw {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstToken for WhileKw {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::WhileKw }
 
 	fn cast(tok: SyntaxToken) -> Option<Self> {
 		if Self::can_cast(tok.kind()) {

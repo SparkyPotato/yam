@@ -8,6 +8,7 @@ ungrammar = "1.16.1"
 quote = "1.0.23"
 
 [dependencies]
+lex = { path = "../lex" }
 text = { path = "../text" }
 
 cstree = "0.11.1"

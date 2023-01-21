@@ -4,7 +4,7 @@ version = "0.0.0"
 edition = "2021"
 
 [dependencies]
-raw_diag = { path = "../raw_diag" }
+diagnostics = { path = "../diagnostics" }
 lex = { path = "../lex" }
 syntax = { path = "../syntax" }
 text = { path = "../text" }

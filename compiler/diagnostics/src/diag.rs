@@ -1,9 +1,8 @@
 use ariadne::{Report, ReportKind};
-use text::Text;
 
-use crate::{FileCache, FullSpan};
+use crate::{File, FileCache, Span};
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Eq, PartialEq)]
 pub enum DiagKind {
 	Error,
 	Warning,
@@ -20,31 +19,38 @@ impl DiagKind {
 	}
 }
 
-pub struct Label {
-	span: FullSpan,
-	message: Option<String>,
+pub struct Label<F> {
+	pub span: Span<F>,
+	pub message: Option<String>,
 }
 
-impl Label {
-	pub fn new(span: FullSpan, message: impl ToString) -> Self {
+impl<F> Label<F> {
+	pub fn new(span: Span<F>, message: impl ToString) -> Self {
 		Self {
 			span,
 			message: Some(message.to_string()),
 		}
 	}
 
-	pub fn no_message(span: FullSpan) -> Self { Self { span, message: None } }
+	pub fn no_message(span: Span<F>) -> Self { Self { span, message: None } }
+
+	pub fn map_span<T>(self, f: impl FnOnce(Span<F>) -> Span<T>) -> Label<T> {
+		Label {
+			span: f(self.span),
+			message: self.message,
+		}
+	}
 }
 
-pub struct RawDiagnostic {
-	kind: DiagKind,
-	message: String,
-	span: FullSpan,
-	labels: Vec<Label>,
+pub struct Diagnostic<F> {
+	pub kind: DiagKind,
+	pub message: String,
+	pub span: Span<F>,
+	pub labels: Vec<Label<F>>,
 }
 
-impl RawDiagnostic {
-	pub fn new(kind: DiagKind, message: impl ToString, span: FullSpan) -> Self {
+impl<F> Diagnostic<F> {
+	pub fn new(kind: DiagKind, message: impl ToString, span: Span<F>) -> Self {
 		Self {
 			kind,
 			message: message.to_string(),
@@ -53,17 +59,24 @@ impl RawDiagnostic {
 		}
 	}
 
-	pub fn source(kind: DiagKind, message: impl ToString, file: Text) -> Self {
-		Self::new(kind, message, FullSpan { start: 0, end: 0, file })
-	}
-
-	pub fn label(mut self, label: Label) -> Self {
+	pub fn label(mut self, label: Label<F>) -> Self {
 		self.labels.push(label);
 		self
 	}
 
+	pub fn map_span<T>(self, mut f: impl FnMut(Span<F>) -> Span<T>) -> Diagnostic<T> {
+		Diagnostic {
+			kind: self.kind,
+			message: self.message,
+			span: f(self.span),
+			labels: self.labels.into_iter().map(|label| label.map_span(&mut f)).collect(),
+		}
+	}
+}
+
+impl Diagnostic<File> {
 	pub fn emit(&self, cache: &FileCache) {
-		let mut builder = Report::build(self.kind.into_report_kind(), self.span.file, self.span.start as _);
+		let mut builder = Report::build(self.kind.into_report_kind(), self.span.relative, self.span.start as _);
 		builder.set_message(&self.message);
 		for label in self.labels.iter() {
 			builder.add_label(if let Some(message) = &label.message {
@@ -77,22 +90,24 @@ impl RawDiagnostic {
 	}
 }
 
+pub type FullDiagnostic = Diagnostic<File>;
+pub type FileDiagnostic = Diagnostic<()>;
+
 pub mod test {
 	use std::fmt::{Debug, Display};
 
 	use ariadne::{CharSet, Config, Source};
-	use text::Text;
 
 	use super::*;
 
-	impl RawDiagnostic {
+	impl<F: Clone + PartialEq> Diagnostic<F> {
 		pub fn emit_test(self, source: &str) -> String {
 			let cache = Cache {
 				source: Source::from(source),
 			};
 			let mut s = Vec::new();
 
-			let mut builder = Report::build(self.kind.into_report_kind(), self.span.file, self.span.start as _)
+			let mut builder = Report::build(self.kind.into_report_kind(), self.span.relative, self.span.start as _)
 				.with_config(Config::default().with_color(false).with_char_set(CharSet::Ascii));
 			builder.set_message(self.message);
 			for label in self.labels {
@@ -116,9 +131,9 @@ pub mod test {
 		source: Source,
 	}
 
-	impl ariadne::Cache<Text> for &Cache {
-		fn fetch(&mut self, _: &Text) -> Result<&Source, Box<dyn Debug + '_>> { Ok(&self.source) }
+	impl<T: ?Sized> ariadne::Cache<T> for &Cache {
+		fn fetch(&mut self, _: &T) -> Result<&Source, Box<dyn Debug + '_>> { Ok(&self.source) }
 
-		fn display<'a>(&self, _: &'a Text) -> Option<Box<dyn Display + 'a>> { None }
+		fn display<'a>(&self, _: &'a T) -> Option<Box<dyn Display + 'a>> { None }
 	}
 }

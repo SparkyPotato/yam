@@ -4,7 +4,94 @@
 use crate::{generated::*, token::*, *};
 
 #[derive(Clone, PartialEq, Eq, Hash)]
-pub enum Item {
+pub struct Attribute(SyntaxNode);
+impl std::fmt::Debug for Attribute {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstNode for Attribute {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Attribute }
+
+	fn cast(node: SyntaxNode) -> Option<Self> {
+		if Self::can_cast(node.kind()) {
+			Some(Self(node))
+		} else {
+			None
+		}
+	}
+}
+impl Attribute {
+	pub fn at(&self) -> Option<At> { token_children(&self.0).nth(0usize) }
+
+	pub fn name(&self) -> Option<Name> { node_children(&self.0).nth(0usize) }
+
+	pub fn token_tree(&self) -> Option<TokenTree> { node_children(&self.0).nth(0usize) }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct Name(SyntaxNode);
+impl std::fmt::Debug for Name {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstNode for Name {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Name }
+
+	fn cast(node: SyntaxNode) -> Option<Self> {
+		if Self::can_cast(node.kind()) {
+			Some(Self(node))
+		} else {
+			None
+		}
+	}
+}
+impl Name {
+	pub fn ident(&self) -> Option<Ident> { token_children(&self.0).nth(0usize) }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct Item(SyntaxNode);
+impl std::fmt::Debug for Item {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstNode for Item {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Item }
+
+	fn cast(node: SyntaxNode) -> Option<Self> {
+		if Self::can_cast(node.kind()) {
+			Some(Self(node))
+		} else {
+			None
+		}
+	}
+}
+impl Item {
+	pub fn attributes(&self) -> impl Iterator<Item = Attribute> + '_ { node_children(&self.0) }
+
+	pub fn visibility(&self) -> Option<Visibility> { node_children(&self.0).nth(0usize) }
+
+	pub fn item_kind(&self) -> Option<ItemKind> { node_children(&self.0).nth(0usize) }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct Visibility(SyntaxNode);
+impl std::fmt::Debug for Visibility {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstNode for Visibility {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Visibility }
+
+	fn cast(node: SyntaxNode) -> Option<Self> {
+		if Self::can_cast(node.kind()) {
+			Some(Self(node))
+		} else {
+			None
+		}
+	}
+}
+impl Visibility {
+	pub fn pub_kw(&self) -> Option<PubKw> { token_children(&self.0).nth(0usize) }
+}
+
+pub enum ItemKind {
 	Fn(Fn),
 	Struct(Struct),
 	Enum(Enum),
@@ -12,7 +99,7 @@ pub enum Item {
 	Static(Static),
 	Import(Import),
 }
-impl std::fmt::Debug for Item {
+impl std::fmt::Debug for ItemKind {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		match self {
 			Self::Fn(x) => std::fmt::Debug::fmt(x, f),
@@ -24,28 +111,30 @@ impl std::fmt::Debug for Item {
 		}
 	}
 }
-impl AstNode for Item {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Item }
+impl AstNode for ItemKind {
+	fn can_cast(kind: SyntaxKind) -> bool {
+		matches!(kind, |SyntaxKind::Fn| SyntaxKind::Struct
+			| SyntaxKind::Enum
+			| SyntaxKind::TypeAlias
+			| SyntaxKind::Static
+			| SyntaxKind::Import)
+	}
 
 	fn cast(node: SyntaxNode) -> Option<Self> {
-		if Self::can_cast(node.kind()) {
-			node.children_with_tokens().find_map(|x| match x {
-				SyntaxElementRef::Node(node) => match node.kind() {
-					SyntaxKind::Fn => Fn::cast(node.clone()).map(Self::Fn),
-					SyntaxKind::Struct => Struct::cast(node.clone()).map(Self::Struct),
-					SyntaxKind::Enum => Enum::cast(node.clone()).map(Self::Enum),
-					SyntaxKind::TypeAlias => TypeAlias::cast(node.clone()).map(Self::TypeAlias),
-					SyntaxKind::Static => Static::cast(node.clone()).map(Self::Static),
-					SyntaxKind::Import => Import::cast(node.clone()).map(Self::Import),
-					_ => None,
-				},
-				SyntaxElementRef::Token(tok) => match tok.kind() {
-					_ => None,
-				},
-			})
-		} else {
-			None
-		}
+		node.children_with_tokens().find_map(|x| match x {
+			SyntaxElementRef::Node(node) => match node.kind() {
+				SyntaxKind::Fn => Fn::cast(node.clone()).map(Self::Fn),
+				SyntaxKind::Struct => Struct::cast(node.clone()).map(Self::Struct),
+				SyntaxKind::Enum => Enum::cast(node.clone()).map(Self::Enum),
+				SyntaxKind::TypeAlias => TypeAlias::cast(node.clone()).map(Self::TypeAlias),
+				SyntaxKind::Static => Static::cast(node.clone()).map(Self::Static),
+				SyntaxKind::Import => Import::cast(node.clone()).map(Self::Import),
+				_ => None,
+			},
+			SyntaxElementRef::Token(tok) => match tok.kind() {
+				_ => None,
+			},
+		})
 	}
 }
 
@@ -66,19 +155,17 @@ impl AstNode for Fn {
 	}
 }
 impl Fn {
-	pub fn visibility(&self) -> Option<Visibility> { node(&self.0) }
+	pub fn abi(&self) -> Option<Abi> { node_children(&self.0).nth(0usize) }
 
-	pub fn abi(&self) -> Option<Abi> { node(&self.0) }
+	pub fn fn_kw(&self) -> Option<FnKw> { token_children(&self.0).nth(0usize) }
 
-	pub fn fn_kw(&self) -> Option<FnKw> { token(&self.0) }
+	pub fn name(&self) -> Option<Name> { node_children(&self.0).nth(0usize) }
 
-	pub fn name(&self) -> Option<Name> { node(&self.0) }
+	pub fn param_list(&self) -> Option<ParamList> { node_children(&self.0).nth(0usize) }
 
-	pub fn param_list(&self) -> Option<ParamList> { node(&self.0) }
+	pub fn ret_ty(&self) -> Option<RetTy> { node_children(&self.0).nth(0usize) }
 
-	pub fn ret_ty(&self) -> Option<RetTy> { node(&self.0) }
-
-	pub fn fn_body(&self) -> Option<FnBody> { node(&self.0) }
+	pub fn fn_body(&self) -> Option<FnBody> { node_children(&self.0).nth(0usize) }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -98,17 +185,15 @@ impl AstNode for Struct {
 	}
 }
 impl Struct {
-	pub fn visibility(&self) -> Option<Visibility> { node(&self.0) }
+	pub fn struct_kw(&self) -> Option<StructKw> { token_children(&self.0).nth(0usize) }
 
-	pub fn struct_kw(&self) -> Option<StructKw> { token(&self.0) }
+	pub fn name(&self) -> Option<Name> { node_children(&self.0).nth(0usize) }
 
-	pub fn name(&self) -> Option<Name> { node(&self.0) }
-
-	pub fn l_brace(&self) -> Option<LBrace> { token(&self.0) }
+	pub fn l_brace(&self) -> Option<LBrace> { token_children(&self.0).nth(0usize) }
 
 	pub fn fields(&self) -> impl Iterator<Item = Param> + '_ { node_children(&self.0) }
 
-	pub fn r_brace(&self) -> Option<RBrace> { token(&self.0) }
+	pub fn r_brace(&self) -> Option<RBrace> { token_children(&self.0).nth(0usize) }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -128,17 +213,11 @@ impl AstNode for Enum {
 	}
 }
 impl Enum {
-	pub fn visibility(&self) -> Option<Visibility> { node(&self.0) }
+	pub fn enum_kw(&self) -> Option<EnumKw> { token_children(&self.0).nth(0usize) }
 
-	pub fn enum_kw(&self) -> Option<EnumKw> { token(&self.0) }
+	pub fn name(&self) -> Option<Name> { node_children(&self.0).nth(0usize) }
 
-	pub fn name(&self) -> Option<Name> { node(&self.0) }
-
-	pub fn l_brace(&self) -> Option<LBrace> { token(&self.0) }
-
-	pub fn variant_list(&self) -> Option<VariantList> { node(&self.0) }
-
-	pub fn r_brace(&self) -> Option<RBrace> { token(&self.0) }
+	pub fn variant_list(&self) -> Option<VariantList> { node_children(&self.0).nth(0usize) }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -158,17 +237,15 @@ impl AstNode for TypeAlias {
 	}
 }
 impl TypeAlias {
-	pub fn visibility(&self) -> Option<Visibility> { node(&self.0) }
+	pub fn type_kw(&self) -> Option<TypeKw> { token_children(&self.0).nth(0usize) }
 
-	pub fn type_kw(&self) -> Option<TypeKw> { token(&self.0) }
+	pub fn name(&self) -> Option<Name> { node_children(&self.0).nth(0usize) }
 
-	pub fn name(&self) -> Option<Name> { node(&self.0) }
+	pub fn eq(&self) -> Option<Eq> { token_children(&self.0).nth(0usize) }
 
-	pub fn eq(&self) -> Option<Eq> { token(&self.0) }
+	pub fn type_(&self) -> Option<Type> { node_children(&self.0).nth(0usize) }
 
-	pub fn type_(&self) -> Option<Type> { node(&self.0) }
-
-	pub fn semi(&self) -> Option<Semi> { token(&self.0) }
+	pub fn semi(&self) -> Option<Semi> { token_children(&self.0).nth(0usize) }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -188,21 +265,19 @@ impl AstNode for Static {
 	}
 }
 impl Static {
-	pub fn visibility(&self) -> Option<Visibility> { node(&self.0) }
+	pub fn static_kw(&self) -> Option<StaticKw> { token_children(&self.0).nth(0usize) }
 
-	pub fn static_kw(&self) -> Option<StaticKw> { token(&self.0) }
+	pub fn name(&self) -> Option<Name> { node_children(&self.0).nth(0usize) }
 
-	pub fn name(&self) -> Option<Name> { node(&self.0) }
+	pub fn colon(&self) -> Option<Colon> { token_children(&self.0).nth(0usize) }
 
-	pub fn colon(&self) -> Option<Colon> { token(&self.0) }
+	pub fn type_(&self) -> Option<Type> { node_children(&self.0).nth(0usize) }
 
-	pub fn type_(&self) -> Option<Type> { node(&self.0) }
+	pub fn eq(&self) -> Option<Eq> { token_children(&self.0).nth(0usize) }
 
-	pub fn eq(&self) -> Option<Eq> { token(&self.0) }
+	pub fn init(&self) -> Option<Expr> { node_children(&self.0).nth(0usize) }
 
-	pub fn init(&self) -> Option<Expr> { node(&self.0) }
-
-	pub fn semi(&self) -> Option<Semi> { token(&self.0) }
+	pub fn semi(&self) -> Option<Semi> { token_children(&self.0).nth(0usize) }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -222,33 +297,11 @@ impl AstNode for Import {
 	}
 }
 impl Import {
-	pub fn visibility(&self) -> Option<Visibility> { node(&self.0) }
+	pub fn import_kw(&self) -> Option<ImportKw> { token_children(&self.0).nth(0usize) }
 
-	pub fn import_kw(&self) -> Option<ImportKw> { token(&self.0) }
+	pub fn import_tree(&self) -> Option<ImportTree> { node_children(&self.0).nth(0usize) }
 
-	pub fn import_tree(&self) -> Option<ImportTree> { node(&self.0) }
-
-	pub fn semi(&self) -> Option<Semi> { token(&self.0) }
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct Visibility(SyntaxNode);
-impl std::fmt::Debug for Visibility {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstNode for Visibility {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Visibility }
-
-	fn cast(node: SyntaxNode) -> Option<Self> {
-		if Self::can_cast(node.kind()) {
-			Some(Self(node))
-		} else {
-			None
-		}
-	}
-}
-impl Visibility {
-	pub fn pub_kw(&self) -> Option<PubKw> { token(&self.0) }
+	pub fn semi(&self) -> Option<Semi> { token_children(&self.0).nth(0usize) }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -268,29 +321,9 @@ impl AstNode for Abi {
 	}
 }
 impl Abi {
-	pub fn extern_kw(&self) -> Option<ExternKw> { token(&self.0) }
+	pub fn extern_kw(&self) -> Option<ExternKw> { token_children(&self.0).nth(0usize) }
 
-	pub fn string_lit(&self) -> Option<StringLit> { token(&self.0) }
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct Name(SyntaxNode);
-impl std::fmt::Debug for Name {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstNode for Name {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Name }
-
-	fn cast(node: SyntaxNode) -> Option<Self> {
-		if Self::can_cast(node.kind()) {
-			Some(Self(node))
-		} else {
-			None
-		}
-	}
-}
-impl Name {
-	pub fn ident(&self) -> Option<Ident> { token(&self.0) }
+	pub fn string_lit(&self) -> Option<StringLit> { token_children(&self.0).nth(0usize) }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -310,11 +343,11 @@ impl AstNode for ParamList {
 	}
 }
 impl ParamList {
-	pub fn l_paren(&self) -> Option<LParen> { token(&self.0) }
+	pub fn l_paren(&self) -> Option<LParen> { token_children(&self.0).nth(0usize) }
 
 	pub fn params(&self) -> impl Iterator<Item = Param> + '_ { node_children(&self.0) }
 
-	pub fn r_paren(&self) -> Option<RParen> { token(&self.0) }
+	pub fn r_paren(&self) -> Option<RParen> { token_children(&self.0).nth(0usize) }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -334,12 +367,11 @@ impl AstNode for RetTy {
 	}
 }
 impl RetTy {
-	pub fn arrow(&self) -> Option<Arrow> { token(&self.0) }
+	pub fn arrow(&self) -> Option<Arrow> { token_children(&self.0).nth(0usize) }
 
-	pub fn type_(&self) -> Option<Type> { node(&self.0) }
+	pub fn type_(&self) -> Option<Type> { node_children(&self.0).nth(0usize) }
 }
 
-#[derive(Clone, PartialEq, Eq, Hash)]
 pub enum FnBody {
 	Semi(Semi),
 	Block(Block),
@@ -353,23 +385,19 @@ impl std::fmt::Debug for FnBody {
 	}
 }
 impl AstNode for FnBody {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::FnBody }
+	fn can_cast(kind: SyntaxKind) -> bool { matches!(kind, |SyntaxKind::Semi| SyntaxKind::Block) }
 
 	fn cast(node: SyntaxNode) -> Option<Self> {
-		if Self::can_cast(node.kind()) {
-			node.children_with_tokens().find_map(|x| match x {
-				SyntaxElementRef::Node(node) => match node.kind() {
-					SyntaxKind::Block => Block::cast(node.clone()).map(Self::Block),
-					_ => None,
-				},
-				SyntaxElementRef::Token(tok) => match tok.kind() {
-					SyntaxKind::Semi => Semi::cast(tok.clone()).map(Self::Semi),
-					_ => None,
-				},
-			})
-		} else {
-			None
-		}
+		node.children_with_tokens().find_map(|x| match x {
+			SyntaxElementRef::Node(node) => match node.kind() {
+				SyntaxKind::Block => Block::cast(node.clone()).map(Self::Block),
+				_ => None,
+			},
+			SyntaxElementRef::Token(tok) => match tok.kind() {
+				SyntaxKind::Semi => Semi::cast(tok.clone()).map(Self::Semi),
+				_ => None,
+			},
+		})
 	}
 }
 
@@ -390,13 +418,11 @@ impl AstNode for Block {
 	}
 }
 impl Block {
-	pub fn l_brace(&self) -> Option<LBrace> { token(&self.0) }
+	pub fn l_brace(&self) -> Option<LBrace> { token_children(&self.0).nth(0usize) }
 
 	pub fn statements(&self) -> impl Iterator<Item = Stmt> + '_ { node_children(&self.0) }
 
-	pub fn tail(&self) -> Option<Expr> { node(&self.0) }
-
-	pub fn r_brace(&self) -> Option<RBrace> { token(&self.0) }
+	pub fn r_brace(&self) -> Option<RBrace> { token_children(&self.0).nth(0usize) }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -416,39 +442,54 @@ impl AstNode for Param {
 	}
 }
 impl Param {
-	pub fn name(&self) -> Option<Name> { node(&self.0) }
+	pub fn name(&self) -> Option<Name> { node_children(&self.0).nth(0usize) }
 
-	pub fn colon(&self) -> Option<Colon> { token(&self.0) }
+	pub fn colon(&self) -> Option<Colon> { token_children(&self.0).nth(0usize) }
 
-	pub fn type_(&self) -> Option<Type> { node(&self.0) }
+	pub fn type_(&self) -> Option<Type> { node_children(&self.0).nth(0usize) }
 }
 
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct Type(SyntaxNode);
+pub enum Type {
+	ArrayType(ArrayType),
+	FnType(FnType),
+	InferType(InferType),
+	Path(Path),
+	PtrType(PtrType),
+}
 impl std::fmt::Debug for Type {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstNode for Type {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Type }
-
-	fn cast(node: SyntaxNode) -> Option<Self> {
-		if Self::can_cast(node.kind()) {
-			Some(Self(node))
-		} else {
-			None
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		match self {
+			Self::ArrayType(x) => std::fmt::Debug::fmt(x, f),
+			Self::FnType(x) => std::fmt::Debug::fmt(x, f),
+			Self::InferType(x) => std::fmt::Debug::fmt(x, f),
+			Self::Path(x) => std::fmt::Debug::fmt(x, f),
+			Self::PtrType(x) => std::fmt::Debug::fmt(x, f),
 		}
 	}
 }
-impl Type {
-	pub fn array_type(&self) -> Option<ArrayType> { node(&self.0) }
+impl AstNode for Type {
+	fn can_cast(kind: SyntaxKind) -> bool {
+		matches!(kind, |SyntaxKind::ArrayType| SyntaxKind::FnType
+			| SyntaxKind::InferType
+			| SyntaxKind::Path
+			| SyntaxKind::PtrType)
+	}
 
-	pub fn fn_type(&self) -> Option<FnType> { node(&self.0) }
-
-	pub fn infer_type(&self) -> Option<InferType> { node(&self.0) }
-
-	pub fn path_type(&self) -> Option<PathType> { node(&self.0) }
-
-	pub fn ptr_type(&self) -> Option<PtrType> { node(&self.0) }
+	fn cast(node: SyntaxNode) -> Option<Self> {
+		node.children_with_tokens().find_map(|x| match x {
+			SyntaxElementRef::Node(node) => match node.kind() {
+				SyntaxKind::ArrayType => ArrayType::cast(node.clone()).map(Self::ArrayType),
+				SyntaxKind::FnType => FnType::cast(node.clone()).map(Self::FnType),
+				SyntaxKind::InferType => InferType::cast(node.clone()).map(Self::InferType),
+				SyntaxKind::Path => Path::cast(node.clone()).map(Self::Path),
+				SyntaxKind::PtrType => PtrType::cast(node.clone()).map(Self::PtrType),
+				_ => None,
+			},
+			SyntaxElementRef::Token(tok) => match tok.kind() {
+				_ => None,
+			},
+		})
+	}
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -468,18 +509,21 @@ impl AstNode for VariantList {
 	}
 }
 impl VariantList {
-	pub fn names(&self) -> impl Iterator<Item = Name> + '_ { node_children(&self.0) }
+	pub fn l_brace(&self) -> Option<LBrace> { token_children(&self.0).nth(0usize) }
+
+	pub fn variants(&self) -> impl Iterator<Item = Name> + '_ { node_children(&self.0) }
+
+	pub fn r_brace(&self) -> Option<RBrace> { token_children(&self.0).nth(0usize) }
 }
 
-#[derive(Clone, PartialEq, Eq, Hash)]
 pub enum Expr {
+	ContinueKw(ContinueKw),
 	ArrayExpr(ArrayExpr),
-	BinExpr(BinExpr),
+	InfixExpr(InfixExpr),
 	Block(Block),
 	BreakExpr(BreakExpr),
 	CallExpr(CallExpr),
 	CastExpr(CastExpr),
-	ContinueExpr(ContinueExpr),
 	FieldExpr(FieldExpr),
 	ForExpr(ForExpr),
 	IfExpr(IfExpr),
@@ -488,7 +532,7 @@ pub enum Expr {
 	LoopExpr(LoopExpr),
 	MatchExpr(MatchExpr),
 	ParenExpr(ParenExpr),
-	PathExpr(PathExpr),
+	Path(Path),
 	PrefixExpr(PrefixExpr),
 	ReturnExpr(ReturnExpr),
 	WhileExpr(WhileExpr),
@@ -497,13 +541,13 @@ pub enum Expr {
 impl std::fmt::Debug for Expr {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		match self {
+			Self::ContinueKw(x) => std::fmt::Debug::fmt(x, f),
 			Self::ArrayExpr(x) => std::fmt::Debug::fmt(x, f),
-			Self::BinExpr(x) => std::fmt::Debug::fmt(x, f),
+			Self::InfixExpr(x) => std::fmt::Debug::fmt(x, f),
 			Self::Block(x) => std::fmt::Debug::fmt(x, f),
 			Self::BreakExpr(x) => std::fmt::Debug::fmt(x, f),
 			Self::CallExpr(x) => std::fmt::Debug::fmt(x, f),
 			Self::CastExpr(x) => std::fmt::Debug::fmt(x, f),
-			Self::ContinueExpr(x) => std::fmt::Debug::fmt(x, f),
 			Self::FieldExpr(x) => std::fmt::Debug::fmt(x, f),
 			Self::ForExpr(x) => std::fmt::Debug::fmt(x, f),
 			Self::IfExpr(x) => std::fmt::Debug::fmt(x, f),
@@ -512,7 +556,7 @@ impl std::fmt::Debug for Expr {
 			Self::LoopExpr(x) => std::fmt::Debug::fmt(x, f),
 			Self::MatchExpr(x) => std::fmt::Debug::fmt(x, f),
 			Self::ParenExpr(x) => std::fmt::Debug::fmt(x, f),
-			Self::PathExpr(x) => std::fmt::Debug::fmt(x, f),
+			Self::Path(x) => std::fmt::Debug::fmt(x, f),
 			Self::PrefixExpr(x) => std::fmt::Debug::fmt(x, f),
 			Self::ReturnExpr(x) => std::fmt::Debug::fmt(x, f),
 			Self::WhileExpr(x) => std::fmt::Debug::fmt(x, f),
@@ -521,45 +565,59 @@ impl std::fmt::Debug for Expr {
 	}
 }
 impl AstNode for Expr {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Expr }
+	fn can_cast(kind: SyntaxKind) -> bool {
+		matches!(kind, |SyntaxKind::ContinueKw| SyntaxKind::ArrayExpr
+			| SyntaxKind::InfixExpr
+			| SyntaxKind::Block
+			| SyntaxKind::BreakExpr
+			| SyntaxKind::CallExpr
+			| SyntaxKind::CastExpr
+			| SyntaxKind::FieldExpr
+			| SyntaxKind::ForExpr
+			| SyntaxKind::IfExpr
+			| SyntaxKind::IndexExpr
+			| SyntaxKind::LoopExpr
+			| SyntaxKind::MatchExpr
+			| SyntaxKind::ParenExpr
+			| SyntaxKind::Path
+			| SyntaxKind::PrefixExpr
+			| SyntaxKind::ReturnExpr
+			| SyntaxKind::WhileExpr
+			| SyntaxKind::LetExpr)
+			|| Literal::can_cast(kind)
+	}
 
 	fn cast(node: SyntaxNode) -> Option<Self> {
-		if Self::can_cast(node.kind()) {
-			node.children_with_tokens().find_map(|x| match x {
-				SyntaxElementRef::Node(node) => match node.kind() {
-					SyntaxKind::ArrayExpr => ArrayExpr::cast(node.clone()).map(Self::ArrayExpr),
-					SyntaxKind::BinExpr => BinExpr::cast(node.clone()).map(Self::BinExpr),
-					SyntaxKind::Block => Block::cast(node.clone()).map(Self::Block),
-					SyntaxKind::BreakExpr => BreakExpr::cast(node.clone()).map(Self::BreakExpr),
-					SyntaxKind::CallExpr => CallExpr::cast(node.clone()).map(Self::CallExpr),
-					SyntaxKind::CastExpr => CastExpr::cast(node.clone()).map(Self::CastExpr),
-					SyntaxKind::ContinueExpr => ContinueExpr::cast(node.clone()).map(Self::ContinueExpr),
-					SyntaxKind::FieldExpr => FieldExpr::cast(node.clone()).map(Self::FieldExpr),
-					SyntaxKind::ForExpr => ForExpr::cast(node.clone()).map(Self::ForExpr),
-					SyntaxKind::IfExpr => IfExpr::cast(node.clone()).map(Self::IfExpr),
-					SyntaxKind::IndexExpr => IndexExpr::cast(node.clone()).map(Self::IndexExpr),
-					SyntaxKind::Literal => Literal::cast(node.clone()).map(Self::Literal),
-					SyntaxKind::LoopExpr => LoopExpr::cast(node.clone()).map(Self::LoopExpr),
-					SyntaxKind::MatchExpr => MatchExpr::cast(node.clone()).map(Self::MatchExpr),
-					SyntaxKind::ParenExpr => ParenExpr::cast(node.clone()).map(Self::ParenExpr),
-					SyntaxKind::PathExpr => PathExpr::cast(node.clone()).map(Self::PathExpr),
-					SyntaxKind::PrefixExpr => PrefixExpr::cast(node.clone()).map(Self::PrefixExpr),
-					SyntaxKind::ReturnExpr => ReturnExpr::cast(node.clone()).map(Self::ReturnExpr),
-					SyntaxKind::WhileExpr => WhileExpr::cast(node.clone()).map(Self::WhileExpr),
-					SyntaxKind::LetExpr => LetExpr::cast(node.clone()).map(Self::LetExpr),
-					_ => None,
-				},
-				SyntaxElementRef::Token(tok) => match tok.kind() {
-					_ => None,
-				},
-			})
-		} else {
-			None
-		}
+		node.children_with_tokens().find_map(|x| match x {
+			SyntaxElementRef::Node(node) => match node.kind() {
+				SyntaxKind::ArrayExpr => ArrayExpr::cast(node.clone()).map(Self::ArrayExpr),
+				SyntaxKind::InfixExpr => InfixExpr::cast(node.clone()).map(Self::InfixExpr),
+				SyntaxKind::Block => Block::cast(node.clone()).map(Self::Block),
+				SyntaxKind::BreakExpr => BreakExpr::cast(node.clone()).map(Self::BreakExpr),
+				SyntaxKind::CallExpr => CallExpr::cast(node.clone()).map(Self::CallExpr),
+				SyntaxKind::CastExpr => CastExpr::cast(node.clone()).map(Self::CastExpr),
+				SyntaxKind::FieldExpr => FieldExpr::cast(node.clone()).map(Self::FieldExpr),
+				SyntaxKind::ForExpr => ForExpr::cast(node.clone()).map(Self::ForExpr),
+				SyntaxKind::IfExpr => IfExpr::cast(node.clone()).map(Self::IfExpr),
+				SyntaxKind::IndexExpr => IndexExpr::cast(node.clone()).map(Self::IndexExpr),
+				SyntaxKind::LoopExpr => LoopExpr::cast(node.clone()).map(Self::LoopExpr),
+				SyntaxKind::MatchExpr => MatchExpr::cast(node.clone()).map(Self::MatchExpr),
+				SyntaxKind::ParenExpr => ParenExpr::cast(node.clone()).map(Self::ParenExpr),
+				SyntaxKind::Path => Path::cast(node.clone()).map(Self::Path),
+				SyntaxKind::PrefixExpr => PrefixExpr::cast(node.clone()).map(Self::PrefixExpr),
+				SyntaxKind::ReturnExpr => ReturnExpr::cast(node.clone()).map(Self::ReturnExpr),
+				SyntaxKind::WhileExpr => WhileExpr::cast(node.clone()).map(Self::WhileExpr),
+				SyntaxKind::LetExpr => LetExpr::cast(node.clone()).map(Self::LetExpr),
+				_ => None.or_else(|| Literal::cast(node.clone()).map(Self::Literal)),
+			},
+			SyntaxElementRef::Token(tok) => match tok.kind() {
+				SyntaxKind::ContinueKw => ContinueKw::cast(tok.clone()).map(Self::ContinueKw),
+				_ => None,
+			},
+		})
 	}
 }
 
-#[derive(Clone, PartialEq, Eq, Hash)]
 pub enum ImportTree {
 	ListImport(ListImport),
 	RenameImport(RenameImport),
@@ -573,23 +631,19 @@ impl std::fmt::Debug for ImportTree {
 	}
 }
 impl AstNode for ImportTree {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::ImportTree }
+	fn can_cast(kind: SyntaxKind) -> bool { matches!(kind, |SyntaxKind::ListImport| SyntaxKind::RenameImport) }
 
 	fn cast(node: SyntaxNode) -> Option<Self> {
-		if Self::can_cast(node.kind()) {
-			node.children_with_tokens().find_map(|x| match x {
-				SyntaxElementRef::Node(node) => match node.kind() {
-					SyntaxKind::ListImport => ListImport::cast(node.clone()).map(Self::ListImport),
-					SyntaxKind::RenameImport => RenameImport::cast(node.clone()).map(Self::RenameImport),
-					_ => None,
-				},
-				SyntaxElementRef::Token(tok) => match tok.kind() {
-					_ => None,
-				},
-			})
-		} else {
-			None
-		}
+		node.children_with_tokens().find_map(|x| match x {
+			SyntaxElementRef::Node(node) => match node.kind() {
+				SyntaxKind::ListImport => ListImport::cast(node.clone()).map(Self::ListImport),
+				SyntaxKind::RenameImport => RenameImport::cast(node.clone()).map(Self::RenameImport),
+				_ => None,
+			},
+			SyntaxElementRef::Token(tok) => match tok.kind() {
+				_ => None,
+			},
+		})
 	}
 }
 
@@ -610,11 +664,11 @@ impl AstNode for ListImport {
 	}
 }
 impl ListImport {
-	pub fn prefix(&self) -> Option<Path> { node(&self.0) }
+	pub fn prefix(&self) -> Option<Path> { node_children(&self.0).nth(0usize) }
 
-	pub fn dot(&self) -> Option<Dot> { token(&self.0) }
+	pub fn dot(&self) -> Option<Dot> { token_children(&self.0).nth(0usize) }
 
-	pub fn wildcard(&self) -> Option<Wildcard> { node(&self.0) }
+	pub fn wildcard(&self) -> Option<Wildcard> { node_children(&self.0).nth(0usize) }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -634,9 +688,9 @@ impl AstNode for RenameImport {
 	}
 }
 impl RenameImport {
-	pub fn path(&self) -> Option<Path> { node(&self.0) }
+	pub fn path(&self) -> Option<Path> { node_children(&self.0).nth(0usize) }
 
-	pub fn rename(&self) -> Option<Rename> { node(&self.0) }
+	pub fn rename(&self) -> Option<Rename> { node_children(&self.0).nth(0usize) }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -656,11 +710,11 @@ impl AstNode for Path {
 	}
 }
 impl Path {
-	pub fn qualifier(&self) -> Option<Path> { node(&self.0) }
+	pub fn dot(&self) -> Option<Dot> { token_children(&self.0).nth(0usize) }
 
-	pub fn dot(&self) -> Option<Dot> { token(&self.0) }
+	pub fn qualifier(&self) -> impl Iterator<Item = PathSegment> + '_ { node_children(&self.0) }
 
-	pub fn segment(&self) -> Option<PathSegment> { node(&self.0) }
+	pub fn name(&self) -> Option<Name> { node_children(&self.0).nth(0usize) }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -680,12 +734,11 @@ impl AstNode for Rename {
 	}
 }
 impl Rename {
-	pub fn as_kw(&self) -> Option<AsKw> { token(&self.0) }
+	pub fn as_kw(&self) -> Option<AsKw> { token_children(&self.0).nth(0usize) }
 
-	pub fn name(&self) -> Option<Name> { node(&self.0) }
+	pub fn name(&self) -> Option<Name> { node_children(&self.0).nth(0usize) }
 }
 
-#[derive(Clone, PartialEq, Eq, Hash)]
 pub enum Wildcard {
 	Star(Star),
 	ImportTreeList(ImportTreeList),
@@ -699,23 +752,19 @@ impl std::fmt::Debug for Wildcard {
 	}
 }
 impl AstNode for Wildcard {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Wildcard }
+	fn can_cast(kind: SyntaxKind) -> bool { matches!(kind, |SyntaxKind::Star| SyntaxKind::ImportTreeList) }
 
 	fn cast(node: SyntaxNode) -> Option<Self> {
-		if Self::can_cast(node.kind()) {
-			node.children_with_tokens().find_map(|x| match x {
-				SyntaxElementRef::Node(node) => match node.kind() {
-					SyntaxKind::ImportTreeList => ImportTreeList::cast(node.clone()).map(Self::ImportTreeList),
-					_ => None,
-				},
-				SyntaxElementRef::Token(tok) => match tok.kind() {
-					SyntaxKind::Star => Star::cast(tok.clone()).map(Self::Star),
-					_ => None,
-				},
-			})
-		} else {
-			None
-		}
+		node.children_with_tokens().find_map(|x| match x {
+			SyntaxElementRef::Node(node) => match node.kind() {
+				SyntaxKind::ImportTreeList => ImportTreeList::cast(node.clone()).map(Self::ImportTreeList),
+				_ => None,
+			},
+			SyntaxElementRef::Token(tok) => match tok.kind() {
+				SyntaxKind::Star => Star::cast(tok.clone()).map(Self::Star),
+				_ => None,
+			},
+		})
 	}
 }
 
@@ -736,11 +785,11 @@ impl AstNode for ImportTreeList {
 	}
 }
 impl ImportTreeList {
-	pub fn l_brace(&self) -> Option<LBrace> { token(&self.0) }
+	pub fn l_brace(&self) -> Option<LBrace> { token_children(&self.0).nth(0usize) }
 
 	pub fn import_trees(&self) -> impl Iterator<Item = ImportTree> + '_ { node_children(&self.0) }
 
-	pub fn r_brace(&self) -> Option<RBrace> { token(&self.0) }
+	pub fn r_brace(&self) -> Option<RBrace> { token_children(&self.0).nth(0usize) }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -760,15 +809,15 @@ impl AstNode for ArrayType {
 	}
 }
 impl ArrayType {
-	pub fn l_bracket(&self) -> Option<LBracket> { token(&self.0) }
+	pub fn l_bracket(&self) -> Option<LBracket> { token_children(&self.0).nth(0usize) }
 
-	pub fn type_(&self) -> Option<Type> { node(&self.0) }
+	pub fn type_(&self) -> Option<Type> { node_children(&self.0).nth(0usize) }
 
-	pub fn semi(&self) -> Option<Semi> { token(&self.0) }
+	pub fn semi(&self) -> Option<Semi> { token_children(&self.0).nth(0usize) }
 
-	pub fn len(&self) -> Option<Expr> { node(&self.0) }
+	pub fn len(&self) -> Option<Expr> { node_children(&self.0).nth(0usize) }
 
-	pub fn r_bracket(&self) -> Option<RBracket> { token(&self.0) }
+	pub fn r_bracket(&self) -> Option<RBracket> { token_children(&self.0).nth(0usize) }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -788,13 +837,13 @@ impl AstNode for FnType {
 	}
 }
 impl FnType {
-	pub fn abi(&self) -> Option<Abi> { node(&self.0) }
+	pub fn abi(&self) -> Option<Abi> { node_children(&self.0).nth(0usize) }
 
-	pub fn fn_kw(&self) -> Option<FnKw> { token(&self.0) }
+	pub fn fn_kw(&self) -> Option<FnKw> { token_children(&self.0).nth(0usize) }
 
-	pub fn ty_param_list(&self) -> Option<TyParamList> { node(&self.0) }
+	pub fn params(&self) -> Option<TyParamList> { node_children(&self.0).nth(0usize) }
 
-	pub fn ret_ty(&self) -> Option<RetTy> { node(&self.0) }
+	pub fn ret_ty(&self) -> Option<RetTy> { node_children(&self.0).nth(0usize) }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -814,27 +863,7 @@ impl AstNode for InferType {
 	}
 }
 impl InferType {
-	pub fn underscore(&self) -> Option<Underscore> { token(&self.0) }
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct PathType(SyntaxNode);
-impl std::fmt::Debug for PathType {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstNode for PathType {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::PathType }
-
-	fn cast(node: SyntaxNode) -> Option<Self> {
-		if Self::can_cast(node.kind()) {
-			Some(Self(node))
-		} else {
-			None
-		}
-	}
-}
-impl PathType {
-	pub fn path(&self) -> Option<Path> { node(&self.0) }
+	pub fn underscore(&self) -> Option<Underscore> { token_children(&self.0).nth(0usize) }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -854,11 +883,11 @@ impl AstNode for PtrType {
 	}
 }
 impl PtrType {
-	pub fn star(&self) -> Option<Star> { token(&self.0) }
+	pub fn star(&self) -> Option<Star> { token_children(&self.0).nth(0usize) }
 
-	pub fn ptr_mutability(&self) -> Option<PtrMutability> { node(&self.0) }
+	pub fn ptr_mutability(&self) -> Option<PtrMutability> { node_children(&self.0).nth(0usize) }
 
-	pub fn type_(&self) -> Option<Type> { node(&self.0) }
+	pub fn type_(&self) -> Option<Type> { node_children(&self.0).nth(0usize) }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -878,14 +907,13 @@ impl AstNode for TyParamList {
 	}
 }
 impl TyParamList {
-	pub fn l_paren(&self) -> Option<LParen> { token(&self.0) }
+	pub fn l_paren(&self) -> Option<LParen> { token_children(&self.0).nth(0usize) }
 
 	pub fn types(&self) -> impl Iterator<Item = Type> + '_ { node_children(&self.0) }
 
-	pub fn r_paren(&self) -> Option<RParen> { token(&self.0) }
+	pub fn r_paren(&self) -> Option<RParen> { token_children(&self.0).nth(0usize) }
 }
 
-#[derive(Clone, PartialEq, Eq, Hash)]
 pub enum PtrMutability {
 	ConstKw(ConstKw),
 	MutKw(MutKw),
@@ -899,70 +927,65 @@ impl std::fmt::Debug for PtrMutability {
 	}
 }
 impl AstNode for PtrMutability {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::PtrMutability }
+	fn can_cast(kind: SyntaxKind) -> bool { matches!(kind, |SyntaxKind::ConstKw| SyntaxKind::MutKw) }
 
 	fn cast(node: SyntaxNode) -> Option<Self> {
-		if Self::can_cast(node.kind()) {
-			node.children_with_tokens().find_map(|x| match x {
-				SyntaxElementRef::Node(node) => match node.kind() {
-					_ => None,
-				},
-				SyntaxElementRef::Token(tok) => match tok.kind() {
-					SyntaxKind::ConstKw => ConstKw::cast(tok.clone()).map(Self::ConstKw),
-					SyntaxKind::MutKw => MutKw::cast(tok.clone()).map(Self::MutKw),
-					_ => None,
-				},
-			})
-		} else {
-			None
-		}
+		node.children_with_tokens().find_map(|x| match x {
+			SyntaxElementRef::Node(node) => match node.kind() {
+				_ => None,
+			},
+			SyntaxElementRef::Token(tok) => match tok.kind() {
+				SyntaxKind::ConstKw => ConstKw::cast(tok.clone()).map(Self::ConstKw),
+				SyntaxKind::MutKw => MutKw::cast(tok.clone()).map(Self::MutKw),
+				_ => None,
+			},
+		})
 	}
 }
 
-#[derive(Clone, PartialEq, Eq, Hash)]
 pub enum Stmt {
 	Semi(Semi),
-	ExprStmt(ExprStmt),
+	SemiExpr(SemiExpr),
+	Expr(Expr),
 	Item(Item),
 }
 impl std::fmt::Debug for Stmt {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		match self {
 			Self::Semi(x) => std::fmt::Debug::fmt(x, f),
-			Self::ExprStmt(x) => std::fmt::Debug::fmt(x, f),
+			Self::SemiExpr(x) => std::fmt::Debug::fmt(x, f),
+			Self::Expr(x) => std::fmt::Debug::fmt(x, f),
 			Self::Item(x) => std::fmt::Debug::fmt(x, f),
 		}
 	}
 }
 impl AstNode for Stmt {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Stmt }
+	fn can_cast(kind: SyntaxKind) -> bool {
+		matches!(kind, |SyntaxKind::Semi| SyntaxKind::SemiExpr | SyntaxKind::Item) || Expr::can_cast(kind)
+	}
 
 	fn cast(node: SyntaxNode) -> Option<Self> {
-		if Self::can_cast(node.kind()) {
-			node.children_with_tokens().find_map(|x| match x {
-				SyntaxElementRef::Node(node) => match node.kind() {
-					SyntaxKind::ExprStmt => ExprStmt::cast(node.clone()).map(Self::ExprStmt),
-					SyntaxKind::Item => Item::cast(node.clone()).map(Self::Item),
-					_ => None,
-				},
-				SyntaxElementRef::Token(tok) => match tok.kind() {
-					SyntaxKind::Semi => Semi::cast(tok.clone()).map(Self::Semi),
-					_ => None,
-				},
-			})
-		} else {
-			None
-		}
+		node.children_with_tokens().find_map(|x| match x {
+			SyntaxElementRef::Node(node) => match node.kind() {
+				SyntaxKind::SemiExpr => SemiExpr::cast(node.clone()).map(Self::SemiExpr),
+				SyntaxKind::Item => Item::cast(node.clone()).map(Self::Item),
+				_ => None.or_else(|| Expr::cast(node.clone()).map(Self::Expr)),
+			},
+			SyntaxElementRef::Token(tok) => match tok.kind() {
+				SyntaxKind::Semi => Semi::cast(tok.clone()).map(Self::Semi),
+				_ => None,
+			},
+		})
 	}
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
-pub struct ExprStmt(SyntaxNode);
-impl std::fmt::Debug for ExprStmt {
+pub struct SemiExpr(SyntaxNode);
+impl std::fmt::Debug for SemiExpr {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
-impl AstNode for ExprStmt {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::ExprStmt }
+impl AstNode for SemiExpr {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::SemiExpr }
 
 	fn cast(node: SyntaxNode) -> Option<Self> {
 		if Self::can_cast(node.kind()) {
@@ -972,10 +995,10 @@ impl AstNode for ExprStmt {
 		}
 	}
 }
-impl ExprStmt {
-	pub fn expr(&self) -> Option<Expr> { node(&self.0) }
+impl SemiExpr {
+	pub fn expr(&self) -> Option<Expr> { node_children(&self.0).nth(0usize) }
 
-	pub fn semi(&self) -> Option<Semi> { token(&self.0) }
+	pub fn semi(&self) -> Option<Semi> { token_children(&self.0).nth(0usize) }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -995,20 +1018,20 @@ impl AstNode for ArrayExpr {
 	}
 }
 impl ArrayExpr {
-	pub fn l_bracket(&self) -> Option<LBracket> { token(&self.0) }
+	pub fn l_bracket(&self) -> Option<LBracket> { token_children(&self.0).nth(0usize) }
 
-	pub fn array_init(&self) -> Option<ArrayInit> { node(&self.0) }
+	pub fn array_init(&self) -> Option<ArrayInit> { node_children(&self.0).nth(0usize) }
 
-	pub fn r_bracket(&self) -> Option<RBracket> { token(&self.0) }
+	pub fn r_bracket(&self) -> Option<RBracket> { token_children(&self.0).nth(0usize) }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
-pub struct BinExpr(SyntaxNode);
-impl std::fmt::Debug for BinExpr {
+pub struct InfixExpr(SyntaxNode);
+impl std::fmt::Debug for InfixExpr {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
-impl AstNode for BinExpr {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::BinExpr }
+impl AstNode for InfixExpr {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::InfixExpr }
 
 	fn cast(node: SyntaxNode) -> Option<Self> {
 		if Self::can_cast(node.kind()) {
@@ -1018,12 +1041,12 @@ impl AstNode for BinExpr {
 		}
 	}
 }
-impl BinExpr {
-	pub fn lhs(&self) -> Option<Expr> { node(&self.0) }
+impl InfixExpr {
+	pub fn lhs(&self) -> Option<Expr> { node_children(&self.0).nth(0usize) }
 
-	pub fn operator(&self) -> Option<Operator> { token(&self.0) }
+	pub fn operator(&self) -> Option<Operator> { token_children(&self.0).nth(0usize) }
 
-	pub fn rhs(&self) -> Option<Expr> { node(&self.0) }
+	pub fn rhs(&self) -> Option<Expr> { node_children(&self.0).nth(1usize) }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -1043,9 +1066,9 @@ impl AstNode for BreakExpr {
 	}
 }
 impl BreakExpr {
-	pub fn break_kw(&self) -> Option<BreakKw> { token(&self.0) }
+	pub fn break_kw(&self) -> Option<BreakKw> { token_children(&self.0).nth(0usize) }
 
-	pub fn expr(&self) -> Option<Expr> { node(&self.0) }
+	pub fn expr(&self) -> Option<Expr> { node_children(&self.0).nth(0usize) }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -1065,9 +1088,9 @@ impl AstNode for CallExpr {
 	}
 }
 impl CallExpr {
-	pub fn expr(&self) -> Option<Expr> { node(&self.0) }
+	pub fn expr(&self) -> Option<Expr> { node_children(&self.0).nth(0usize) }
 
-	pub fn arg_list(&self) -> Option<ArgList> { node(&self.0) }
+	pub fn arg_list(&self) -> Option<ArgList> { node_children(&self.0).nth(0usize) }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -1087,31 +1110,11 @@ impl AstNode for CastExpr {
 	}
 }
 impl CastExpr {
-	pub fn expr(&self) -> Option<Expr> { node(&self.0) }
+	pub fn expr(&self) -> Option<Expr> { node_children(&self.0).nth(0usize) }
 
-	pub fn as_kw(&self) -> Option<AsKw> { token(&self.0) }
+	pub fn as_kw(&self) -> Option<AsKw> { token_children(&self.0).nth(0usize) }
 
-	pub fn type_(&self) -> Option<Type> { node(&self.0) }
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct ContinueExpr(SyntaxNode);
-impl std::fmt::Debug for ContinueExpr {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstNode for ContinueExpr {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::ContinueExpr }
-
-	fn cast(node: SyntaxNode) -> Option<Self> {
-		if Self::can_cast(node.kind()) {
-			Some(Self(node))
-		} else {
-			None
-		}
-	}
-}
-impl ContinueExpr {
-	pub fn continue_kw(&self) -> Option<ContinueKw> { token(&self.0) }
+	pub fn type_(&self) -> Option<Type> { node_children(&self.0).nth(0usize) }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -1131,11 +1134,11 @@ impl AstNode for FieldExpr {
 	}
 }
 impl FieldExpr {
-	pub fn expr(&self) -> Option<Expr> { node(&self.0) }
+	pub fn expr(&self) -> Option<Expr> { node_children(&self.0).nth(0usize) }
 
-	pub fn dot(&self) -> Option<Dot> { token(&self.0) }
+	pub fn dot(&self) -> Option<Dot> { token_children(&self.0).nth(0usize) }
 
-	pub fn name(&self) -> Option<Name> { node(&self.0) }
+	pub fn name(&self) -> Option<Name> { node_children(&self.0).nth(0usize) }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -1155,15 +1158,15 @@ impl AstNode for ForExpr {
 	}
 }
 impl ForExpr {
-	pub fn for_kw(&self) -> Option<ForKw> { token(&self.0) }
+	pub fn for_kw(&self) -> Option<ForKw> { token_children(&self.0).nth(0usize) }
 
-	pub fn name(&self) -> Option<Name> { node(&self.0) }
+	pub fn name(&self) -> Option<Name> { node_children(&self.0).nth(0usize) }
 
-	pub fn in_kw(&self) -> Option<InKw> { token(&self.0) }
+	pub fn in_kw(&self) -> Option<InKw> { token_children(&self.0).nth(0usize) }
 
-	pub fn iter(&self) -> Option<Expr> { node(&self.0) }
+	pub fn iter(&self) -> Option<Expr> { node_children(&self.0).nth(0usize) }
 
-	pub fn body(&self) -> Option<Block> { node(&self.0) }
+	pub fn body(&self) -> Option<Block> { node_children(&self.0).nth(0usize) }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -1183,15 +1186,15 @@ impl AstNode for IfExpr {
 	}
 }
 impl IfExpr {
-	pub fn if_kw(&self) -> Option<IfKw> { token(&self.0) }
+	pub fn if_kw(&self) -> Option<IfKw> { token_children(&self.0).nth(0usize) }
 
-	pub fn cond(&self) -> Option<Expr> { node(&self.0) }
+	pub fn cond(&self) -> Option<Expr> { node_children(&self.0).nth(0usize) }
 
-	pub fn then(&self) -> Option<Block> { node(&self.0) }
+	pub fn then(&self) -> Option<Block> { node_children(&self.0).nth(0usize) }
 
-	pub fn else_kw(&self) -> Option<ElseKw> { token(&self.0) }
+	pub fn else_kw(&self) -> Option<ElseKw> { token_children(&self.0).nth(0usize) }
 
-	pub fn else_expr(&self) -> Option<ElseExpr> { node(&self.0) }
+	pub fn expr(&self) -> Option<Expr> { node_children(&self.0).nth(1usize) }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -1211,16 +1214,15 @@ impl AstNode for IndexExpr {
 	}
 }
 impl IndexExpr {
-	pub fn base(&self) -> Option<Expr> { node(&self.0) }
+	pub fn base(&self) -> Option<Expr> { node_children(&self.0).nth(0usize) }
 
-	pub fn l_bracket(&self) -> Option<LBracket> { token(&self.0) }
+	pub fn l_bracket(&self) -> Option<LBracket> { token_children(&self.0).nth(0usize) }
 
-	pub fn index(&self) -> Option<Expr> { node(&self.0) }
+	pub fn index(&self) -> Option<Expr> { node_children(&self.0).nth(1usize) }
 
-	pub fn r_bracket(&self) -> Option<RBracket> { token(&self.0) }
+	pub fn r_bracket(&self) -> Option<RBracket> { token_children(&self.0).nth(0usize) }
 }
 
-#[derive(Clone, PartialEq, Eq, Hash)]
 pub enum Literal {
 	BoolLit(BoolLit),
 	CharLit(CharLit),
@@ -1240,26 +1242,27 @@ impl std::fmt::Debug for Literal {
 	}
 }
 impl AstNode for Literal {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Literal }
+	fn can_cast(kind: SyntaxKind) -> bool {
+		matches!(kind, |SyntaxKind::BoolLit| SyntaxKind::CharLit
+			| SyntaxKind::FloatLit
+			| SyntaxKind::IntLit
+			| SyntaxKind::StringLit)
+	}
 
 	fn cast(node: SyntaxNode) -> Option<Self> {
-		if Self::can_cast(node.kind()) {
-			node.children_with_tokens().find_map(|x| match x {
-				SyntaxElementRef::Node(node) => match node.kind() {
-					_ => None,
-				},
-				SyntaxElementRef::Token(tok) => match tok.kind() {
-					SyntaxKind::BoolLit => BoolLit::cast(tok.clone()).map(Self::BoolLit),
-					SyntaxKind::CharLit => CharLit::cast(tok.clone()).map(Self::CharLit),
-					SyntaxKind::FloatLit => FloatLit::cast(tok.clone()).map(Self::FloatLit),
-					SyntaxKind::IntLit => IntLit::cast(tok.clone()).map(Self::IntLit),
-					SyntaxKind::StringLit => StringLit::cast(tok.clone()).map(Self::StringLit),
-					_ => None,
-				},
-			})
-		} else {
-			None
-		}
+		node.children_with_tokens().find_map(|x| match x {
+			SyntaxElementRef::Node(node) => match node.kind() {
+				_ => None,
+			},
+			SyntaxElementRef::Token(tok) => match tok.kind() {
+				SyntaxKind::BoolLit => BoolLit::cast(tok.clone()).map(Self::BoolLit),
+				SyntaxKind::CharLit => CharLit::cast(tok.clone()).map(Self::CharLit),
+				SyntaxKind::FloatLit => FloatLit::cast(tok.clone()).map(Self::FloatLit),
+				SyntaxKind::IntLit => IntLit::cast(tok.clone()).map(Self::IntLit),
+				SyntaxKind::StringLit => StringLit::cast(tok.clone()).map(Self::StringLit),
+				_ => None,
+			},
+		})
 	}
 }
 
@@ -1280,9 +1283,13 @@ impl AstNode for LoopExpr {
 	}
 }
 impl LoopExpr {
-	pub fn loop_kw(&self) -> Option<LoopKw> { token(&self.0) }
+	pub fn loop_kw(&self) -> Option<LoopKw> { token_children(&self.0).nth(0usize) }
 
-	pub fn body(&self) -> Option<Block> { node(&self.0) }
+	pub fn body(&self) -> Option<Block> { node_children(&self.0).nth(0usize) }
+
+	pub fn while_kw(&self) -> Option<WhileKw> { token_children(&self.0).nth(0usize) }
+
+	pub fn expr(&self) -> Option<Expr> { node_children(&self.0).nth(0usize) }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -1302,15 +1309,15 @@ impl AstNode for MatchExpr {
 	}
 }
 impl MatchExpr {
-	pub fn match_kw(&self) -> Option<MatchKw> { token(&self.0) }
+	pub fn match_kw(&self) -> Option<MatchKw> { token_children(&self.0).nth(0usize) }
 
-	pub fn expr(&self) -> Option<Expr> { node(&self.0) }
+	pub fn expr(&self) -> Option<Expr> { node_children(&self.0).nth(0usize) }
 
-	pub fn l_brace(&self) -> Option<LBrace> { token(&self.0) }
+	pub fn l_brace(&self) -> Option<LBrace> { token_children(&self.0).nth(0usize) }
 
 	pub fn arms(&self) -> impl Iterator<Item = MatchArm> + '_ { node_children(&self.0) }
 
-	pub fn r_brace(&self) -> Option<RBrace> { token(&self.0) }
+	pub fn r_brace(&self) -> Option<RBrace> { token_children(&self.0).nth(0usize) }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -1330,31 +1337,11 @@ impl AstNode for ParenExpr {
 	}
 }
 impl ParenExpr {
-	pub fn l_paren(&self) -> Option<LParen> { token(&self.0) }
+	pub fn l_paren(&self) -> Option<LParen> { token_children(&self.0).nth(0usize) }
 
-	pub fn expr(&self) -> Option<Expr> { node(&self.0) }
+	pub fn expr(&self) -> Option<Expr> { node_children(&self.0).nth(0usize) }
 
-	pub fn r_paren(&self) -> Option<RParen> { token(&self.0) }
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct PathExpr(SyntaxNode);
-impl std::fmt::Debug for PathExpr {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstNode for PathExpr {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::PathExpr }
-
-	fn cast(node: SyntaxNode) -> Option<Self> {
-		if Self::can_cast(node.kind()) {
-			Some(Self(node))
-		} else {
-			None
-		}
-	}
-}
-impl PathExpr {
-	pub fn path(&self) -> Option<Path> { node(&self.0) }
+	pub fn r_paren(&self) -> Option<RParen> { token_children(&self.0).nth(0usize) }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -1374,9 +1361,9 @@ impl AstNode for PrefixExpr {
 	}
 }
 impl PrefixExpr {
-	pub fn operator(&self) -> Option<Operator> { token(&self.0) }
+	pub fn operator(&self) -> Option<Operator> { token_children(&self.0).nth(0usize) }
 
-	pub fn expr(&self) -> Option<Expr> { node(&self.0) }
+	pub fn expr(&self) -> Option<Expr> { node_children(&self.0).nth(0usize) }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -1396,9 +1383,9 @@ impl AstNode for ReturnExpr {
 	}
 }
 impl ReturnExpr {
-	pub fn return_kw(&self) -> Option<ReturnKw> { token(&self.0) }
+	pub fn return_kw(&self) -> Option<ReturnKw> { token_children(&self.0).nth(0usize) }
 
-	pub fn expr(&self) -> Option<Expr> { node(&self.0) }
+	pub fn expr(&self) -> Option<Expr> { node_children(&self.0).nth(0usize) }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -1418,11 +1405,11 @@ impl AstNode for WhileExpr {
 	}
 }
 impl WhileExpr {
-	pub fn while_kw(&self) -> Option<WhileKw> { token(&self.0) }
+	pub fn while_kw(&self) -> Option<WhileKw> { token_children(&self.0).nth(0usize) }
 
-	pub fn expr(&self) -> Option<Expr> { node(&self.0) }
+	pub fn expr(&self) -> Option<Expr> { node_children(&self.0).nth(0usize) }
 
-	pub fn body(&self) -> Option<Block> { node(&self.0) }
+	pub fn body(&self) -> Option<Block> { node_children(&self.0).nth(0usize) }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -1442,20 +1429,19 @@ impl AstNode for LetExpr {
 	}
 }
 impl LetExpr {
-	pub fn let_kw(&self) -> Option<LetKw> { token(&self.0) }
+	pub fn let_kw(&self) -> Option<LetKw> { token_children(&self.0).nth(0usize) }
 
-	pub fn name(&self) -> Option<Name> { node(&self.0) }
+	pub fn name(&self) -> Option<Name> { node_children(&self.0).nth(0usize) }
 
-	pub fn colon(&self) -> Option<Colon> { token(&self.0) }
+	pub fn colon(&self) -> Option<Colon> { token_children(&self.0).nth(0usize) }
 
-	pub fn type_(&self) -> Option<Type> { node(&self.0) }
+	pub fn type_(&self) -> Option<Type> { node_children(&self.0).nth(0usize) }
 
-	pub fn eq(&self) -> Option<Eq> { token(&self.0) }
+	pub fn eq(&self) -> Option<Eq> { token_children(&self.0).nth(0usize) }
 
-	pub fn init(&self) -> Option<Expr> { node(&self.0) }
+	pub fn init(&self) -> Option<Expr> { node_children(&self.0).nth(0usize) }
 }
 
-#[derive(Clone, PartialEq, Eq, Hash)]
 pub enum ArrayInit {
 	ArrayList(ArrayList),
 	ArrayRepeat(ArrayRepeat),
@@ -1469,23 +1455,19 @@ impl std::fmt::Debug for ArrayInit {
 	}
 }
 impl AstNode for ArrayInit {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::ArrayInit }
+	fn can_cast(kind: SyntaxKind) -> bool { matches!(kind, |SyntaxKind::ArrayList| SyntaxKind::ArrayRepeat) }
 
 	fn cast(node: SyntaxNode) -> Option<Self> {
-		if Self::can_cast(node.kind()) {
-			node.children_with_tokens().find_map(|x| match x {
-				SyntaxElementRef::Node(node) => match node.kind() {
-					SyntaxKind::ArrayList => ArrayList::cast(node.clone()).map(Self::ArrayList),
-					SyntaxKind::ArrayRepeat => ArrayRepeat::cast(node.clone()).map(Self::ArrayRepeat),
-					_ => None,
-				},
-				SyntaxElementRef::Token(tok) => match tok.kind() {
-					_ => None,
-				},
-			})
-		} else {
-			None
-		}
+		node.children_with_tokens().find_map(|x| match x {
+			SyntaxElementRef::Node(node) => match node.kind() {
+				SyntaxKind::ArrayList => ArrayList::cast(node.clone()).map(Self::ArrayList),
+				SyntaxKind::ArrayRepeat => ArrayRepeat::cast(node.clone()).map(Self::ArrayRepeat),
+				_ => None,
+			},
+			SyntaxElementRef::Token(tok) => match tok.kind() {
+				_ => None,
+			},
+		})
 	}
 }
 
@@ -1526,11 +1508,11 @@ impl AstNode for ArrayRepeat {
 	}
 }
 impl ArrayRepeat {
-	pub fn expr(&self) -> Option<Expr> { node(&self.0) }
+	pub fn expr(&self) -> Option<Expr> { node_children(&self.0).nth(0usize) }
 
-	pub fn semi(&self) -> Option<Semi> { token(&self.0) }
+	pub fn semi(&self) -> Option<Semi> { token_children(&self.0).nth(0usize) }
 
-	pub fn len(&self) -> Option<Expr> { node(&self.0) }
+	pub fn len(&self) -> Option<Expr> { node_children(&self.0).nth(1usize) }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -1550,45 +1532,11 @@ impl AstNode for ArgList {
 	}
 }
 impl ArgList {
-	pub fn l_paren(&self) -> Option<LParen> { token(&self.0) }
+	pub fn l_paren(&self) -> Option<LParen> { token_children(&self.0).nth(0usize) }
 
 	pub fn exprs(&self) -> impl Iterator<Item = Expr> + '_ { node_children(&self.0) }
 
-	pub fn r_paren(&self) -> Option<RParen> { token(&self.0) }
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub enum ElseExpr {
-	IfExpr(IfExpr),
-	Block(Block),
-}
-impl std::fmt::Debug for ElseExpr {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		match self {
-			Self::IfExpr(x) => std::fmt::Debug::fmt(x, f),
-			Self::Block(x) => std::fmt::Debug::fmt(x, f),
-		}
-	}
-}
-impl AstNode for ElseExpr {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::ElseExpr }
-
-	fn cast(node: SyntaxNode) -> Option<Self> {
-		if Self::can_cast(node.kind()) {
-			node.children_with_tokens().find_map(|x| match x {
-				SyntaxElementRef::Node(node) => match node.kind() {
-					SyntaxKind::IfExpr => IfExpr::cast(node.clone()).map(Self::IfExpr),
-					SyntaxKind::Block => Block::cast(node.clone()).map(Self::Block),
-					_ => None,
-				},
-				SyntaxElementRef::Token(tok) => match tok.kind() {
-					_ => None,
-				},
-			})
-		} else {
-			None
-		}
-	}
+	pub fn r_paren(&self) -> Option<RParen> { token_children(&self.0).nth(0usize) }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -1608,13 +1556,13 @@ impl AstNode for MatchArm {
 	}
 }
 impl MatchArm {
-	pub fn value(&self) -> Option<Expr> { node(&self.0) }
+	pub fn value(&self) -> Option<Expr> { node_children(&self.0).nth(0usize) }
 
-	pub fn fat_arrow(&self) -> Option<FatArrow> { token(&self.0) }
+	pub fn fat_arrow(&self) -> Option<FatArrow> { token_children(&self.0).nth(0usize) }
 
-	pub fn then(&self) -> Option<Expr> { node(&self.0) }
+	pub fn then(&self) -> Option<Expr> { node_children(&self.0).nth(1usize) }
 
-	pub fn comma(&self) -> Option<Comma> { token(&self.0) }
+	pub fn comma(&self) -> Option<Comma> { token_children(&self.0).nth(0usize) }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -1634,7 +1582,7 @@ impl AstNode for PathSegment {
 	}
 }
 impl PathSegment {
-	pub fn dot(&self) -> Option<Dot> { token(&self.0) }
+	pub fn name(&self) -> Option<Name> { node_children(&self.0).nth(0usize) }
 
-	pub fn name(&self) -> Option<Name> { node(&self.0) }
+	pub fn dot(&self) -> Option<Dot> { token_children(&self.0).nth(0usize) }
 }

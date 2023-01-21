@@ -1,15 +1,14 @@
 use std::{collections::VecDeque, ops::Range};
 
 use lex::{
-	token::{Delim, FileSpan, Lit, Token, TokenKind},
+	token::{FileSpan, Token, TokenKind},
 	Lexer,
 	T,
 };
 use syntax::{
 	builder::{Branch, Checkpoint, TreeBuilder, TreeBuilderContext},
-	kind::SyntaxKind,
+	SyntaxKind,
 };
-use text::Text;
 
 pub struct Api<'c, 's> {
 	lexer: Lexer<'s>,
@@ -17,15 +16,13 @@ pub struct Api<'c, 's> {
 	lookahead: [Token; Api::MAX_LOOKAHEAD],
 	trivia_ranges: [Range<usize>; Api::MAX_LOOKAHEAD],
 	trivia_buf: VecDeque<Token>,
-	ender: Branch,
 }
 
 impl<'c, 's> Api<'c, 's> {
-	pub fn new(file_name: Text, source: &'s str, ctx: &'c mut TreeBuilderContext) -> Self {
+	pub fn new(source: &'s str, ctx: &'c mut TreeBuilderContext) -> Self {
 		const EMPTY_RANGE: Range<usize> = 0..0;
 
 		let mut builder = TreeBuilder::new(ctx);
-		let ender = builder.start_node(SyntaxKind::File);
 
 		let mut this = Api {
 			builder,
@@ -33,11 +30,9 @@ impl<'c, 's> Api<'c, 's> {
 			lookahead: [Token::default(); Self::MAX_LOOKAHEAD],
 			trivia_ranges: [EMPTY_RANGE; Self::MAX_LOOKAHEAD],
 			trivia_buf: VecDeque::new(),
-			ender,
 		};
 
 		this.fill_lookahead();
-
 		this
 	}
 
@@ -49,7 +44,6 @@ impl<'c, 's> Api<'c, 's> {
 			self.push_lookahead(next, range);
 		}
 
-		self.builder.finish_node(self.ender);
 		self.builder
 	}
 }
@@ -146,7 +140,7 @@ pub fn tok_to_syntax(tok: TokenKind) -> SyntaxKind {
 		T![char] => SyntaxKind::CharLit,
 		T![float] => SyntaxKind::FloatLit,
 		T![int] => SyntaxKind::IntLit,
-		T![str] => SyntaxKind::StringLit,
+		T![string] => SyntaxKind::StringLit,
 		T![ident] => SyntaxKind::Ident,
 		T![@] => SyntaxKind::At,
 		T!['('] => SyntaxKind::LParen,
@@ -161,7 +155,7 @@ pub fn tok_to_syntax(tok: TokenKind) -> SyntaxKind {
 		T![_] => SyntaxKind::Underscore,
 		T![->] => SyntaxKind::Arrow,
 		T![op] => SyntaxKind::Operator,
-		T![err] => SyntaxKind::Err,
+		T![err] => SyntaxKind::Error,
 		T![ws] => SyntaxKind::Whitespace,
 		T![comment] => SyntaxKind::Comment,
 		T![eof] => unreachable!("eof not allowed in syntax"),
