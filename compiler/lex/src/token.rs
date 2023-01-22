@@ -51,10 +51,64 @@ pub enum TokenKind {
 	FatArrow,
 	#[token("_")]
 	Underscore,
+	#[token("||")]
+	PipePipe,
+	#[token("&&")]
+	AmpAmp,
+	#[token("!")]
+	Not,
+	#[token("==")]
+	EqEq,
+	#[token("!=")]
+	Neq,
+	#[token("<")]
+	Lt,
+	#[token(">")]
+	Gt,
+	#[token("<=")]
+	Leq,
+	#[token(">=")]
+	Geq,
+	#[token("+")]
+	Plus,
+	#[token("-")]
+	Minus,
 	#[token("*")]
 	Star,
-	#[regex(r#"[\p{Sm}\p{So}\p{Sk}\p{Pc}\p{Pd}\p{Po}]+"#)]
-	Operator,
+	#[token("/")]
+	Slash,
+	#[token("%")]
+	Percent,
+	#[token("^")]
+	Caret,
+	#[token("&")]
+	Amp,
+	#[token("|")]
+	Pipe,
+	#[token("<<")]
+	Shl,
+	#[token(">>")]
+	Shr,
+	#[token("+=")]
+	PlusEq,
+	#[token("-=")]
+	MinusEq,
+	#[token("*=")]
+	StarEq,
+	#[token("/=")]
+	SlashEq,
+	#[token("%=")]
+	PercentEq,
+	#[token("^=")]
+	CaretEq,
+	#[token("&=")]
+	AmpEq,
+	#[token("|=")]
+	PipeEq,
+	#[token("<<=")]
+	ShlEq,
+	#[token(">>=")]
+	ShrEq,
 	#[regex("[ \t\n\r]+")]
 	Whitespace,
 	#[regex("//[^\n]*")]
@@ -99,8 +153,6 @@ pub enum TokenKind {
 	ImportKw,
 	#[token("as")]
 	AsKw,
-	#[token("const")]
-	ConstKw,
 	#[token("mut")]
 	MutKw,
 	Eof,
@@ -165,14 +217,101 @@ macro_rules! T {
 	(->) => {
 		$crate::token::TokenKind::Arrow
 	};
+	(=>) => {
+		$crate::token::TokenKind::FatArrow
+	};
 	(=) => {
 		$crate::token::TokenKind::Eq
+	};
+	(.) => {
+		$crate::token::TokenKind::Dot
+	};
+	(||) => {
+		$crate::token::TokenKind::PipePipe
+	};
+	(&&) => {
+		$crate::token::TokenKind::AmpAmp
+	};
+	(!) => {
+		$crate::token::TokenKind::Not
+	};
+	(==) => {
+		$crate::token::TokenKind::EqEq
+	};
+	(!=) => {
+		$crate::token::TokenKind::Neq
+	};
+	(<) => {
+		$crate::token::TokenKind::Lt
+	};
+	(>) => {
+		$crate::token::TokenKind::Gt
+	};
+	(<=) => {
+		$crate::token::TokenKind::Leq
+	};
+	(>=) => {
+		$crate::token::TokenKind::Geq
+	};
+	(+) => {
+		$crate::token::TokenKind::Plus
+	};
+	(-) => {
+		$crate::token::TokenKind::Minus
 	};
 	(*) => {
 		$crate::token::TokenKind::Star
 	};
-	(.) => {
-		$crate::token::TokenKind::Dot
+	(/) => {
+		$crate::token::TokenKind::Slash
+	};
+	(%) => {
+		$crate::token::TokenKind::Percent
+	};
+	(^) => {
+		$crate::token::TokenKind::Caret
+	};
+	(&) => {
+		$crate::token::TokenKind::Amp
+	};
+	(|) => {
+		$crate::token::TokenKind::Pipe
+	};
+	(<<) => {
+		$crate::token::TokenKind::Shl
+	};
+	(>>) => {
+		$crate::token::TokenKind::Shr
+	};
+	(+=) => {
+		$crate::token::TokenKind::PlusEq
+	};
+	(-=) => {
+		$crate::token::TokenKind::MinusEq
+	};
+	(*=) => {
+		$crate::token::TokenKind::StarEq
+	};
+	(/=) => {
+		$crate::token::TokenKind::SlashEq
+	};
+	(%=) => {
+		$crate::token::TokenKind::PercentEq
+	};
+	(^=) => {
+		$crate::token::TokenKind::CaretEq
+	};
+	(&=) => {
+		$crate::token::TokenKind::AmpEq
+	};
+	(|=) => {
+		$crate::token::TokenKind::PipeEq
+	};
+	(<<=) => {
+		$crate::token::TokenKind::ShlEq
+	};
+	(>>=) => {
+		$crate::token::TokenKind::ShrEq
 	};
 	(_) => {
 		$crate::token::TokenKind::Underscore
@@ -245,9 +384,6 @@ macro_rules! T {
 	};
 	(as) => {
 		$crate::token::TokenKind::AsKw
-	};
-	(const) => {
-		$crate::token::TokenKind::ConstKw
 	};
 	(mut) => {
 		$crate::token::TokenKind::MutKw

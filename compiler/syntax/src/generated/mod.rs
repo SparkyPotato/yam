@@ -4,13 +4,13 @@ pub mod ast;
 pub mod kind;
 pub mod token;
 
-trait AstNode: Sized {
+pub trait AstNode: Sized {
 	fn can_cast(kind: SyntaxKind) -> bool;
 
 	fn cast(node: SyntaxNode) -> Option<Self>;
 }
 
-trait AstToken: Sized {
+pub trait AstToken: Sized {
 	fn can_cast(kind: SyntaxKind) -> bool;
 
 	fn cast(tok: SyntaxToken) -> Option<Self>;

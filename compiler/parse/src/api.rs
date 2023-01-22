@@ -1,10 +1,7 @@
 use std::{collections::VecDeque, ops::Range};
 
-use lex::{
-	token::{FileSpan, Token, TokenKind},
-	Lexer,
-	T,
-};
+use diagnostics::FileSpan;
+use lex::{token::Token, Lexer, T};
 use syntax::{
 	builder::{Branch, Checkpoint, TreeBuilder, TreeBuilderContext},
 	SyntaxKind,
@@ -16,6 +13,7 @@ pub struct Api<'c, 's> {
 	lookahead: [Token; Api::MAX_LOOKAHEAD],
 	trivia_ranges: [Range<usize>; Api::MAX_LOOKAHEAD],
 	trivia_buf: VecDeque<Token>,
+	finish: Branch,
 }
 
 impl<'c, 's> Api<'c, 's> {
@@ -23,13 +21,14 @@ impl<'c, 's> Api<'c, 's> {
 		const EMPTY_RANGE: Range<usize> = 0..0;
 
 		let mut builder = TreeBuilder::new(ctx);
-
+		let finish = builder.start_node(SyntaxKind::File);
 		let mut this = Api {
 			builder,
 			lexer: Lexer::new(source),
 			lookahead: [Token::default(); Self::MAX_LOOKAHEAD],
 			trivia_ranges: [EMPTY_RANGE; Self::MAX_LOOKAHEAD],
 			trivia_buf: VecDeque::new(),
+			finish,
 		};
 
 		this.fill_lookahead();
@@ -44,6 +43,7 @@ impl<'c, 's> Api<'c, 's> {
 			self.push_lookahead(next, range);
 		}
 
+		self.builder.finish_node(self.finish);
 		self.builder
 	}
 }
@@ -129,35 +129,7 @@ impl Api<'_, '_> {
 }
 
 fn tok(tok: Token, lexer: &Lexer, builder: &mut TreeBuilder) {
-	let kind = tok_to_syntax(tok.kind);
+	let kind = SyntaxKind::from(tok.kind);
 	let text = &lexer.source()[tok.span.start as usize..tok.span.end as usize];
 	builder.token(kind, text);
-}
-
-pub fn tok_to_syntax(tok: TokenKind) -> SyntaxKind {
-	match tok {
-		T![bool] => SyntaxKind::BoolLit,
-		T![char] => SyntaxKind::CharLit,
-		T![float] => SyntaxKind::FloatLit,
-		T![int] => SyntaxKind::IntLit,
-		T![string] => SyntaxKind::StringLit,
-		T![ident] => SyntaxKind::Ident,
-		T![@] => SyntaxKind::At,
-		T!['('] => SyntaxKind::LParen,
-		T!['{'] => SyntaxKind::LBrace,
-		T!['['] => SyntaxKind::LBracket,
-		T![')'] => SyntaxKind::RParen,
-		T!['}'] => SyntaxKind::RBrace,
-		T![']'] => SyntaxKind::RBracket,
-		T![:] => SyntaxKind::Colon,
-		T![,] => SyntaxKind::Comma,
-		T![;] => SyntaxKind::Semi,
-		T![_] => SyntaxKind::Underscore,
-		T![->] => SyntaxKind::Arrow,
-		T![op] => SyntaxKind::Operator,
-		T![err] => SyntaxKind::Error,
-		T![ws] => SyntaxKind::Whitespace,
-		T![comment] => SyntaxKind::Comment,
-		T![eof] => unreachable!("eof not allowed in syntax"),
-	}
 }

@@ -429,23 +429,6 @@ impl AstToken for Underscore {
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
-pub struct ConstKw(SyntaxToken);
-impl std::fmt::Debug for ConstKw {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstToken for ConstKw {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::ConstKw }
-
-	fn cast(tok: SyntaxToken) -> Option<Self> {
-		if Self::can_cast(tok.kind()) {
-			Some(Self(tok))
-		} else {
-			None
-		}
-	}
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct MutKw(SyntaxToken);
 impl std::fmt::Debug for MutKw {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
@@ -497,12 +480,454 @@ impl AstToken for LetKw {
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
-pub struct Operator(SyntaxToken);
-impl std::fmt::Debug for Operator {
+pub struct PipePipe(SyntaxToken);
+impl std::fmt::Debug for PipePipe {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
-impl AstToken for Operator {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Operator }
+impl AstToken for PipePipe {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::PipePipe }
+
+	fn cast(tok: SyntaxToken) -> Option<Self> {
+		if Self::can_cast(tok.kind()) {
+			Some(Self(tok))
+		} else {
+			None
+		}
+	}
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct AmpAmp(SyntaxToken);
+impl std::fmt::Debug for AmpAmp {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for AmpAmp {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::AmpAmp }
+
+	fn cast(tok: SyntaxToken) -> Option<Self> {
+		if Self::can_cast(tok.kind()) {
+			Some(Self(tok))
+		} else {
+			None
+		}
+	}
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct EqEq(SyntaxToken);
+impl std::fmt::Debug for EqEq {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for EqEq {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::EqEq }
+
+	fn cast(tok: SyntaxToken) -> Option<Self> {
+		if Self::can_cast(tok.kind()) {
+			Some(Self(tok))
+		} else {
+			None
+		}
+	}
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct Neq(SyntaxToken);
+impl std::fmt::Debug for Neq {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for Neq {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Neq }
+
+	fn cast(tok: SyntaxToken) -> Option<Self> {
+		if Self::can_cast(tok.kind()) {
+			Some(Self(tok))
+		} else {
+			None
+		}
+	}
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct Leq(SyntaxToken);
+impl std::fmt::Debug for Leq {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for Leq {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Leq }
+
+	fn cast(tok: SyntaxToken) -> Option<Self> {
+		if Self::can_cast(tok.kind()) {
+			Some(Self(tok))
+		} else {
+			None
+		}
+	}
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct Geq(SyntaxToken);
+impl std::fmt::Debug for Geq {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for Geq {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Geq }
+
+	fn cast(tok: SyntaxToken) -> Option<Self> {
+		if Self::can_cast(tok.kind()) {
+			Some(Self(tok))
+		} else {
+			None
+		}
+	}
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct Lt(SyntaxToken);
+impl std::fmt::Debug for Lt {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for Lt {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Lt }
+
+	fn cast(tok: SyntaxToken) -> Option<Self> {
+		if Self::can_cast(tok.kind()) {
+			Some(Self(tok))
+		} else {
+			None
+		}
+	}
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct Gt(SyntaxToken);
+impl std::fmt::Debug for Gt {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for Gt {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Gt }
+
+	fn cast(tok: SyntaxToken) -> Option<Self> {
+		if Self::can_cast(tok.kind()) {
+			Some(Self(tok))
+		} else {
+			None
+		}
+	}
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct Plus(SyntaxToken);
+impl std::fmt::Debug for Plus {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for Plus {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Plus }
+
+	fn cast(tok: SyntaxToken) -> Option<Self> {
+		if Self::can_cast(tok.kind()) {
+			Some(Self(tok))
+		} else {
+			None
+		}
+	}
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct Minus(SyntaxToken);
+impl std::fmt::Debug for Minus {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for Minus {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Minus }
+
+	fn cast(tok: SyntaxToken) -> Option<Self> {
+		if Self::can_cast(tok.kind()) {
+			Some(Self(tok))
+		} else {
+			None
+		}
+	}
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct Slash(SyntaxToken);
+impl std::fmt::Debug for Slash {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for Slash {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Slash }
+
+	fn cast(tok: SyntaxToken) -> Option<Self> {
+		if Self::can_cast(tok.kind()) {
+			Some(Self(tok))
+		} else {
+			None
+		}
+	}
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct Percent(SyntaxToken);
+impl std::fmt::Debug for Percent {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for Percent {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Percent }
+
+	fn cast(tok: SyntaxToken) -> Option<Self> {
+		if Self::can_cast(tok.kind()) {
+			Some(Self(tok))
+		} else {
+			None
+		}
+	}
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct Shl(SyntaxToken);
+impl std::fmt::Debug for Shl {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for Shl {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Shl }
+
+	fn cast(tok: SyntaxToken) -> Option<Self> {
+		if Self::can_cast(tok.kind()) {
+			Some(Self(tok))
+		} else {
+			None
+		}
+	}
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct Shr(SyntaxToken);
+impl std::fmt::Debug for Shr {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for Shr {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Shr }
+
+	fn cast(tok: SyntaxToken) -> Option<Self> {
+		if Self::can_cast(tok.kind()) {
+			Some(Self(tok))
+		} else {
+			None
+		}
+	}
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct Caret(SyntaxToken);
+impl std::fmt::Debug for Caret {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for Caret {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Caret }
+
+	fn cast(tok: SyntaxToken) -> Option<Self> {
+		if Self::can_cast(tok.kind()) {
+			Some(Self(tok))
+		} else {
+			None
+		}
+	}
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct Pipe(SyntaxToken);
+impl std::fmt::Debug for Pipe {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for Pipe {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Pipe }
+
+	fn cast(tok: SyntaxToken) -> Option<Self> {
+		if Self::can_cast(tok.kind()) {
+			Some(Self(tok))
+		} else {
+			None
+		}
+	}
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct Amp(SyntaxToken);
+impl std::fmt::Debug for Amp {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for Amp {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Amp }
+
+	fn cast(tok: SyntaxToken) -> Option<Self> {
+		if Self::can_cast(tok.kind()) {
+			Some(Self(tok))
+		} else {
+			None
+		}
+	}
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct PlusEq(SyntaxToken);
+impl std::fmt::Debug for PlusEq {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for PlusEq {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::PlusEq }
+
+	fn cast(tok: SyntaxToken) -> Option<Self> {
+		if Self::can_cast(tok.kind()) {
+			Some(Self(tok))
+		} else {
+			None
+		}
+	}
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct SlashEq(SyntaxToken);
+impl std::fmt::Debug for SlashEq {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for SlashEq {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::SlashEq }
+
+	fn cast(tok: SyntaxToken) -> Option<Self> {
+		if Self::can_cast(tok.kind()) {
+			Some(Self(tok))
+		} else {
+			None
+		}
+	}
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct StarEq(SyntaxToken);
+impl std::fmt::Debug for StarEq {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for StarEq {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::StarEq }
+
+	fn cast(tok: SyntaxToken) -> Option<Self> {
+		if Self::can_cast(tok.kind()) {
+			Some(Self(tok))
+		} else {
+			None
+		}
+	}
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct PercentEq(SyntaxToken);
+impl std::fmt::Debug for PercentEq {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for PercentEq {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::PercentEq }
+
+	fn cast(tok: SyntaxToken) -> Option<Self> {
+		if Self::can_cast(tok.kind()) {
+			Some(Self(tok))
+		} else {
+			None
+		}
+	}
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct ShrEq(SyntaxToken);
+impl std::fmt::Debug for ShrEq {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for ShrEq {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::ShrEq }
+
+	fn cast(tok: SyntaxToken) -> Option<Self> {
+		if Self::can_cast(tok.kind()) {
+			Some(Self(tok))
+		} else {
+			None
+		}
+	}
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct ShlEq(SyntaxToken);
+impl std::fmt::Debug for ShlEq {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for ShlEq {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::ShlEq }
+
+	fn cast(tok: SyntaxToken) -> Option<Self> {
+		if Self::can_cast(tok.kind()) {
+			Some(Self(tok))
+		} else {
+			None
+		}
+	}
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct MinusEq(SyntaxToken);
+impl std::fmt::Debug for MinusEq {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for MinusEq {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::MinusEq }
+
+	fn cast(tok: SyntaxToken) -> Option<Self> {
+		if Self::can_cast(tok.kind()) {
+			Some(Self(tok))
+		} else {
+			None
+		}
+	}
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct PipeEq(SyntaxToken);
+impl std::fmt::Debug for PipeEq {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for PipeEq {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::PipeEq }
+
+	fn cast(tok: SyntaxToken) -> Option<Self> {
+		if Self::can_cast(tok.kind()) {
+			Some(Self(tok))
+		} else {
+			None
+		}
+	}
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct AmpEq(SyntaxToken);
+impl std::fmt::Debug for AmpEq {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for AmpEq {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::AmpEq }
+
+	fn cast(tok: SyntaxToken) -> Option<Self> {
+		if Self::can_cast(tok.kind()) {
+			Some(Self(tok))
+		} else {
+			None
+		}
+	}
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct CaretEq(SyntaxToken);
+impl std::fmt::Debug for CaretEq {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for CaretEq {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::CaretEq }
 
 	fn cast(tok: SyntaxToken) -> Option<Self> {
 		if Self::can_cast(tok.kind()) {
@@ -724,6 +1149,23 @@ impl std::fmt::Debug for FatArrow {
 }
 impl AstToken for FatArrow {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::FatArrow }
+
+	fn cast(tok: SyntaxToken) -> Option<Self> {
+		if Self::can_cast(tok.kind()) {
+			Some(Self(tok))
+		} else {
+			None
+		}
+	}
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct Not(SyntaxToken);
+impl std::fmt::Debug for Not {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for Not {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Not }
 
 	fn cast(tok: SyntaxToken) -> Option<Self> {
 		if Self::can_cast(tok.kind()) {

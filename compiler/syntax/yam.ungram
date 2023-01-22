@@ -2,6 +2,8 @@
 // Items
 //*******
 
+File = Item*
+
 TokenTree = ';' // Ignore, manually implemented
 
 Attribute = '@' Name TokenTree?
@@ -47,7 +49,7 @@ Enum =
 VariantList = '{' variants:((Name (',' Name)* ','?)?) '}'
 
 TypeAlias =
-  'type' Name ('=' Type)? ';'
+  'type' Name '=' Type ';'
 
 Static =
   'static' Name ':' Type '=' init:Expr ';'
@@ -81,7 +83,7 @@ Type =
   ArrayType
 | FnType
 | InferType
-| Path
+| PathType
 | PtrType
 
 ArrayType =
@@ -96,12 +98,10 @@ TyParamList =
 InferType =
   '_'
 
-PtrType =
-  '*' PtrMutability Type
+PathType = Path
 
-PtrMutability =
-  'const'
-| 'mut'
+PtrType =
+  '*' 'mut'? Type
 
 //****************************
 // Statements and Expressions
@@ -157,7 +157,13 @@ Block =
   '{' statements:(Stmt*) '}'
 
 InfixExpr =
-  lhs:Expr 'op' rhs:Expr
+  lhs:Expr op:InfixOp rhs:Expr
+
+InfixOp =
+  '||' | '&&'
+| '==' | '!=' | '<=' | '>=' | '<' | '>'
+| '+' | '*' | '-' | '/' | '%' | '<<' | '>>' | '^' | '|' | '&'
+| '=' | '+=' | '/=' | '*=' | '%=' | '>>=' | '<<=' | '-=' | '|=' | '&=' | '^='
 
 BreakExpr =
   'break' Expr?
@@ -175,7 +181,7 @@ ForExpr =
   'for' Name 'in' iter:Expr body:Block
 
 IfExpr =
-  'if' cond:Expr then:Block ('else' Expr)?
+  'if' cond:Expr then:Block ('else' else_:Expr)?
 
 IndexExpr =
   base:Expr '[' index:Expr ']'
@@ -195,14 +201,19 @@ MatchArm =
 ParenExpr =
   '(' Expr ')'
 
+RefExpr = '&' 'mut'? Expr
+
 PrefixExpr =
-  'op' Expr
+  op:PrefixOp Expr
+
+PrefixOp =
+  '-' | '!' | '*'
 
 ReturnExpr =
   'return' Expr?
 
 WhileExpr =
-    'while' Expr body:Block
+  'while' Expr body:Block
 
 ArgList =
   '(' (Expr (',' Expr)* ','?)? ')'

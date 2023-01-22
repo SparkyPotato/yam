@@ -4,6 +4,50 @@
 use crate::{generated::*, token::*, *};
 
 #[derive(Clone, PartialEq, Eq, Hash)]
+pub struct File(SyntaxNode);
+impl std::fmt::Debug for File {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstNode for File {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::File }
+
+	fn cast(node: SyntaxNode) -> Option<Self> {
+		if Self::can_cast(node.kind()) {
+			Some(Self(node))
+		} else {
+			None
+		}
+	}
+}
+impl File {
+	pub fn items(&self) -> impl Iterator<Item = Item> + '_ { node_children(&self.0) }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct Item(SyntaxNode);
+impl std::fmt::Debug for Item {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstNode for Item {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Item }
+
+	fn cast(node: SyntaxNode) -> Option<Self> {
+		if Self::can_cast(node.kind()) {
+			Some(Self(node))
+		} else {
+			None
+		}
+	}
+}
+impl Item {
+	pub fn attributes(&self) -> impl Iterator<Item = Attribute> + '_ { node_children(&self.0) }
+
+	pub fn visibility(&self) -> Option<Visibility> { node_children(&self.0).nth(0usize) }
+
+	pub fn item_kind(&self) -> Option<ItemKind> { node_children(&self.0).nth(0usize) }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Attribute(SyntaxNode);
 impl std::fmt::Debug for Attribute {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
@@ -45,30 +89,6 @@ impl AstNode for Name {
 }
 impl Name {
 	pub fn ident(&self) -> Option<Ident> { token_children(&self.0).nth(0usize) }
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct Item(SyntaxNode);
-impl std::fmt::Debug for Item {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstNode for Item {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Item }
-
-	fn cast(node: SyntaxNode) -> Option<Self> {
-		if Self::can_cast(node.kind()) {
-			Some(Self(node))
-		} else {
-			None
-		}
-	}
-}
-impl Item {
-	pub fn attributes(&self) -> impl Iterator<Item = Attribute> + '_ { node_children(&self.0) }
-
-	pub fn visibility(&self) -> Option<Visibility> { node_children(&self.0).nth(0usize) }
-
-	pub fn item_kind(&self) -> Option<ItemKind> { node_children(&self.0).nth(0usize) }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -453,7 +473,7 @@ pub enum Type {
 	ArrayType(ArrayType),
 	FnType(FnType),
 	InferType(InferType),
-	Path(Path),
+	PathType(PathType),
 	PtrType(PtrType),
 }
 impl std::fmt::Debug for Type {
@@ -462,7 +482,7 @@ impl std::fmt::Debug for Type {
 			Self::ArrayType(x) => std::fmt::Debug::fmt(x, f),
 			Self::FnType(x) => std::fmt::Debug::fmt(x, f),
 			Self::InferType(x) => std::fmt::Debug::fmt(x, f),
-			Self::Path(x) => std::fmt::Debug::fmt(x, f),
+			Self::PathType(x) => std::fmt::Debug::fmt(x, f),
 			Self::PtrType(x) => std::fmt::Debug::fmt(x, f),
 		}
 	}
@@ -471,7 +491,7 @@ impl AstNode for Type {
 	fn can_cast(kind: SyntaxKind) -> bool {
 		matches!(kind, |SyntaxKind::ArrayType| SyntaxKind::FnType
 			| SyntaxKind::InferType
-			| SyntaxKind::Path
+			| SyntaxKind::PathType
 			| SyntaxKind::PtrType)
 	}
 
@@ -481,7 +501,7 @@ impl AstNode for Type {
 				SyntaxKind::ArrayType => ArrayType::cast(node.clone()).map(Self::ArrayType),
 				SyntaxKind::FnType => FnType::cast(node.clone()).map(Self::FnType),
 				SyntaxKind::InferType => InferType::cast(node.clone()).map(Self::InferType),
-				SyntaxKind::Path => Path::cast(node.clone()).map(Self::Path),
+				SyntaxKind::PathType => PathType::cast(node.clone()).map(Self::PathType),
 				SyntaxKind::PtrType => PtrType::cast(node.clone()).map(Self::PtrType),
 				_ => None,
 			},
@@ -867,6 +887,26 @@ impl InferType {
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
+pub struct PathType(SyntaxNode);
+impl std::fmt::Debug for PathType {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstNode for PathType {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::PathType }
+
+	fn cast(node: SyntaxNode) -> Option<Self> {
+		if Self::can_cast(node.kind()) {
+			Some(Self(node))
+		} else {
+			None
+		}
+	}
+}
+impl PathType {
+	pub fn path(&self) -> Option<Path> { node_children(&self.0).nth(0usize) }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct PtrType(SyntaxNode);
 impl std::fmt::Debug for PtrType {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
@@ -885,7 +925,7 @@ impl AstNode for PtrType {
 impl PtrType {
 	pub fn star(&self) -> Option<Star> { token_children(&self.0).nth(0usize) }
 
-	pub fn ptr_mutability(&self) -> Option<PtrMutability> { node_children(&self.0).nth(0usize) }
+	pub fn mut_kw(&self) -> Option<MutKw> { token_children(&self.0).nth(0usize) }
 
 	pub fn type_(&self) -> Option<Type> { node_children(&self.0).nth(0usize) }
 }
@@ -912,35 +952,6 @@ impl TyParamList {
 	pub fn types(&self) -> impl Iterator<Item = Type> + '_ { node_children(&self.0) }
 
 	pub fn r_paren(&self) -> Option<RParen> { token_children(&self.0).nth(0usize) }
-}
-
-pub enum PtrMutability {
-	ConstKw(ConstKw),
-	MutKw(MutKw),
-}
-impl std::fmt::Debug for PtrMutability {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		match self {
-			Self::ConstKw(x) => std::fmt::Debug::fmt(x, f),
-			Self::MutKw(x) => std::fmt::Debug::fmt(x, f),
-		}
-	}
-}
-impl AstNode for PtrMutability {
-	fn can_cast(kind: SyntaxKind) -> bool { matches!(kind, |SyntaxKind::ConstKw| SyntaxKind::MutKw) }
-
-	fn cast(node: SyntaxNode) -> Option<Self> {
-		node.children_with_tokens().find_map(|x| match x {
-			SyntaxElementRef::Node(node) => match node.kind() {
-				_ => None,
-			},
-			SyntaxElementRef::Token(tok) => match tok.kind() {
-				SyntaxKind::ConstKw => ConstKw::cast(tok.clone()).map(Self::ConstKw),
-				SyntaxKind::MutKw => MutKw::cast(tok.clone()).map(Self::MutKw),
-				_ => None,
-			},
-		})
-	}
 }
 
 pub enum Stmt {
@@ -1044,7 +1055,7 @@ impl AstNode for InfixExpr {
 impl InfixExpr {
 	pub fn lhs(&self) -> Option<Expr> { node_children(&self.0).nth(0usize) }
 
-	pub fn operator(&self) -> Option<Operator> { token_children(&self.0).nth(0usize) }
+	pub fn op(&self) -> Option<InfixOp> { node_children(&self.0).nth(0usize) }
 
 	pub fn rhs(&self) -> Option<Expr> { node_children(&self.0).nth(1usize) }
 }
@@ -1194,7 +1205,7 @@ impl IfExpr {
 
 	pub fn else_kw(&self) -> Option<ElseKw> { token_children(&self.0).nth(0usize) }
 
-	pub fn expr(&self) -> Option<Expr> { node_children(&self.0).nth(1usize) }
+	pub fn else_(&self) -> Option<Expr> { node_children(&self.0).nth(1usize) }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -1361,7 +1372,7 @@ impl AstNode for PrefixExpr {
 	}
 }
 impl PrefixExpr {
-	pub fn operator(&self) -> Option<Operator> { token_children(&self.0).nth(0usize) }
+	pub fn op(&self) -> Option<PrefixOp> { node_children(&self.0).nth(0usize) }
 
 	pub fn expr(&self) -> Option<Expr> { node_children(&self.0).nth(0usize) }
 }
@@ -1515,6 +1526,145 @@ impl ArrayRepeat {
 	pub fn len(&self) -> Option<Expr> { node_children(&self.0).nth(1usize) }
 }
 
+pub enum InfixOp {
+	PipePipe(PipePipe),
+	AmpAmp(AmpAmp),
+	EqEq(EqEq),
+	Neq(Neq),
+	Leq(Leq),
+	Geq(Geq),
+	Lt(Lt),
+	Gt(Gt),
+	Plus(Plus),
+	Star(Star),
+	Minus(Minus),
+	Slash(Slash),
+	Percent(Percent),
+	Shl(Shl),
+	Shr(Shr),
+	Caret(Caret),
+	Pipe(Pipe),
+	Amp(Amp),
+	Eq(Eq),
+	PlusEq(PlusEq),
+	SlashEq(SlashEq),
+	StarEq(StarEq),
+	PercentEq(PercentEq),
+	ShrEq(ShrEq),
+	ShlEq(ShlEq),
+	MinusEq(MinusEq),
+	PipeEq(PipeEq),
+	AmpEq(AmpEq),
+	CaretEq(CaretEq),
+}
+impl std::fmt::Debug for InfixOp {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		match self {
+			Self::PipePipe(x) => std::fmt::Debug::fmt(x, f),
+			Self::AmpAmp(x) => std::fmt::Debug::fmt(x, f),
+			Self::EqEq(x) => std::fmt::Debug::fmt(x, f),
+			Self::Neq(x) => std::fmt::Debug::fmt(x, f),
+			Self::Leq(x) => std::fmt::Debug::fmt(x, f),
+			Self::Geq(x) => std::fmt::Debug::fmt(x, f),
+			Self::Lt(x) => std::fmt::Debug::fmt(x, f),
+			Self::Gt(x) => std::fmt::Debug::fmt(x, f),
+			Self::Plus(x) => std::fmt::Debug::fmt(x, f),
+			Self::Star(x) => std::fmt::Debug::fmt(x, f),
+			Self::Minus(x) => std::fmt::Debug::fmt(x, f),
+			Self::Slash(x) => std::fmt::Debug::fmt(x, f),
+			Self::Percent(x) => std::fmt::Debug::fmt(x, f),
+			Self::Shl(x) => std::fmt::Debug::fmt(x, f),
+			Self::Shr(x) => std::fmt::Debug::fmt(x, f),
+			Self::Caret(x) => std::fmt::Debug::fmt(x, f),
+			Self::Pipe(x) => std::fmt::Debug::fmt(x, f),
+			Self::Amp(x) => std::fmt::Debug::fmt(x, f),
+			Self::Eq(x) => std::fmt::Debug::fmt(x, f),
+			Self::PlusEq(x) => std::fmt::Debug::fmt(x, f),
+			Self::SlashEq(x) => std::fmt::Debug::fmt(x, f),
+			Self::StarEq(x) => std::fmt::Debug::fmt(x, f),
+			Self::PercentEq(x) => std::fmt::Debug::fmt(x, f),
+			Self::ShrEq(x) => std::fmt::Debug::fmt(x, f),
+			Self::ShlEq(x) => std::fmt::Debug::fmt(x, f),
+			Self::MinusEq(x) => std::fmt::Debug::fmt(x, f),
+			Self::PipeEq(x) => std::fmt::Debug::fmt(x, f),
+			Self::AmpEq(x) => std::fmt::Debug::fmt(x, f),
+			Self::CaretEq(x) => std::fmt::Debug::fmt(x, f),
+		}
+	}
+}
+impl AstNode for InfixOp {
+	fn can_cast(kind: SyntaxKind) -> bool {
+		matches!(kind, |SyntaxKind::PipePipe| SyntaxKind::AmpAmp
+			| SyntaxKind::EqEq
+			| SyntaxKind::Neq
+			| SyntaxKind::Leq
+			| SyntaxKind::Geq
+			| SyntaxKind::Lt
+			| SyntaxKind::Gt
+			| SyntaxKind::Plus
+			| SyntaxKind::Star
+			| SyntaxKind::Minus
+			| SyntaxKind::Slash
+			| SyntaxKind::Percent
+			| SyntaxKind::Shl
+			| SyntaxKind::Shr
+			| SyntaxKind::Caret
+			| SyntaxKind::Pipe
+			| SyntaxKind::Amp
+			| SyntaxKind::Eq
+			| SyntaxKind::PlusEq
+			| SyntaxKind::SlashEq
+			| SyntaxKind::StarEq
+			| SyntaxKind::PercentEq
+			| SyntaxKind::ShrEq
+			| SyntaxKind::ShlEq
+			| SyntaxKind::MinusEq
+			| SyntaxKind::PipeEq
+			| SyntaxKind::AmpEq
+			| SyntaxKind::CaretEq)
+	}
+
+	fn cast(node: SyntaxNode) -> Option<Self> {
+		node.children_with_tokens().find_map(|x| match x {
+			SyntaxElementRef::Node(node) => match node.kind() {
+				_ => None,
+			},
+			SyntaxElementRef::Token(tok) => match tok.kind() {
+				SyntaxKind::PipePipe => PipePipe::cast(tok.clone()).map(Self::PipePipe),
+				SyntaxKind::AmpAmp => AmpAmp::cast(tok.clone()).map(Self::AmpAmp),
+				SyntaxKind::EqEq => EqEq::cast(tok.clone()).map(Self::EqEq),
+				SyntaxKind::Neq => Neq::cast(tok.clone()).map(Self::Neq),
+				SyntaxKind::Leq => Leq::cast(tok.clone()).map(Self::Leq),
+				SyntaxKind::Geq => Geq::cast(tok.clone()).map(Self::Geq),
+				SyntaxKind::Lt => Lt::cast(tok.clone()).map(Self::Lt),
+				SyntaxKind::Gt => Gt::cast(tok.clone()).map(Self::Gt),
+				SyntaxKind::Plus => Plus::cast(tok.clone()).map(Self::Plus),
+				SyntaxKind::Star => Star::cast(tok.clone()).map(Self::Star),
+				SyntaxKind::Minus => Minus::cast(tok.clone()).map(Self::Minus),
+				SyntaxKind::Slash => Slash::cast(tok.clone()).map(Self::Slash),
+				SyntaxKind::Percent => Percent::cast(tok.clone()).map(Self::Percent),
+				SyntaxKind::Shl => Shl::cast(tok.clone()).map(Self::Shl),
+				SyntaxKind::Shr => Shr::cast(tok.clone()).map(Self::Shr),
+				SyntaxKind::Caret => Caret::cast(tok.clone()).map(Self::Caret),
+				SyntaxKind::Pipe => Pipe::cast(tok.clone()).map(Self::Pipe),
+				SyntaxKind::Amp => Amp::cast(tok.clone()).map(Self::Amp),
+				SyntaxKind::Eq => Eq::cast(tok.clone()).map(Self::Eq),
+				SyntaxKind::PlusEq => PlusEq::cast(tok.clone()).map(Self::PlusEq),
+				SyntaxKind::SlashEq => SlashEq::cast(tok.clone()).map(Self::SlashEq),
+				SyntaxKind::StarEq => StarEq::cast(tok.clone()).map(Self::StarEq),
+				SyntaxKind::PercentEq => PercentEq::cast(tok.clone()).map(Self::PercentEq),
+				SyntaxKind::ShrEq => ShrEq::cast(tok.clone()).map(Self::ShrEq),
+				SyntaxKind::ShlEq => ShlEq::cast(tok.clone()).map(Self::ShlEq),
+				SyntaxKind::MinusEq => MinusEq::cast(tok.clone()).map(Self::MinusEq),
+				SyntaxKind::PipeEq => PipeEq::cast(tok.clone()).map(Self::PipeEq),
+				SyntaxKind::AmpEq => AmpEq::cast(tok.clone()).map(Self::AmpEq),
+				SyntaxKind::CaretEq => CaretEq::cast(tok.clone()).map(Self::CaretEq),
+				_ => None,
+			},
+		})
+	}
+}
+
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct ArgList(SyntaxNode);
 impl std::fmt::Debug for ArgList {
@@ -1563,6 +1713,62 @@ impl MatchArm {
 	pub fn then(&self) -> Option<Expr> { node_children(&self.0).nth(1usize) }
 
 	pub fn comma(&self) -> Option<Comma> { token_children(&self.0).nth(0usize) }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct RefExpr(SyntaxNode);
+impl std::fmt::Debug for RefExpr {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstNode for RefExpr {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::RefExpr }
+
+	fn cast(node: SyntaxNode) -> Option<Self> {
+		if Self::can_cast(node.kind()) {
+			Some(Self(node))
+		} else {
+			None
+		}
+	}
+}
+impl RefExpr {
+	pub fn amp(&self) -> Option<Amp> { token_children(&self.0).nth(0usize) }
+
+	pub fn mut_kw(&self) -> Option<MutKw> { token_children(&self.0).nth(0usize) }
+
+	pub fn expr(&self) -> Option<Expr> { node_children(&self.0).nth(0usize) }
+}
+
+pub enum PrefixOp {
+	Minus(Minus),
+	Not(Not),
+	Star(Star),
+}
+impl std::fmt::Debug for PrefixOp {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		match self {
+			Self::Minus(x) => std::fmt::Debug::fmt(x, f),
+			Self::Not(x) => std::fmt::Debug::fmt(x, f),
+			Self::Star(x) => std::fmt::Debug::fmt(x, f),
+		}
+	}
+}
+impl AstNode for PrefixOp {
+	fn can_cast(kind: SyntaxKind) -> bool { matches!(kind, |SyntaxKind::Minus| SyntaxKind::Not | SyntaxKind::Star) }
+
+	fn cast(node: SyntaxNode) -> Option<Self> {
+		node.children_with_tokens().find_map(|x| match x {
+			SyntaxElementRef::Node(node) => match node.kind() {
+				_ => None,
+			},
+			SyntaxElementRef::Token(tok) => match tok.kind() {
+				SyntaxKind::Minus => Minus::cast(tok.clone()).map(Self::Minus),
+				SyntaxKind::Not => Not::cast(tok.clone()).map(Self::Not),
+				SyntaxKind::Star => Star::cast(tok.clone()).map(Self::Star),
+				_ => None,
+			},
+		})
+	}
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]

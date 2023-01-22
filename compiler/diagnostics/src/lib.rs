@@ -60,3 +60,17 @@ pub fn quick_diagnostic(kind: DiagKind, message: impl ToString) {
 		.eprint(Source::from(""))
 		.unwrap();
 }
+
+pub mod test {
+	use crate::DiagSink;
+
+	impl<F: Clone + PartialEq> DiagSink<F> {
+		pub fn emit_test(self, source: &str) -> String {
+			let mut s = String::new();
+			for diag in self.inner {
+				s += &diag.emit_test(source);
+			}
+			s
+		}
+	}
+}

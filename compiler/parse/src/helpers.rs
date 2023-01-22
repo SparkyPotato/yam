@@ -11,15 +11,13 @@ impl Parser<'_, '_> {
 		let token = self.api.peek();
 
 		if token.kind != kind {
-			if !self.silent {
-				let diag = token.span.error(format!("expected `{}`", SyntaxKind::from(kind)));
+			let diag = token.span.error(format!("expected `{}`", SyntaxKind::from(kind)));
 
-				self.diags.push(if self.api.is_span_eof(token.span) {
-					diag
-				} else {
-					diag.label(token.span.label(format!("found `{}`", SyntaxKind::from(token.kind))))
-				});
-			}
+			self.diags.push(if self.api.is_span_eof(token.span) {
+				diag
+			} else {
+				diag.label(token.span.label(format!("found `{}`", SyntaxKind::from(token.kind))))
+			});
 
 			self.try_recover(kind, next)
 		} else {
@@ -38,13 +36,11 @@ impl Parser<'_, '_> {
 			}
 
 			if !end_comma {
-				if !self.silent {
-					self.diags.push(
-						next.span
-							.error(format!("expected `,` or `{}`", SyntaxKind::from(end)))
-							.label(next.span.label(format!("found `{}`", SyntaxKind::from(next.kind)))),
-					);
-				}
+				self.diags.push(
+					next.span
+						.error(format!("expected `,` or `{}`", SyntaxKind::from(end)))
+						.label(next.span.label(format!("found `{}`", SyntaxKind::from(next.kind)))),
+				);
 
 				let b = self.api.start_node(SyntaxKind::Error);
 				loop {
@@ -74,8 +70,6 @@ impl Parser<'_, '_> {
 
 	pub fn try_recover(&mut self, want: TokenKind, next: &[TokenKind]) -> FileSpan {
 		let b = self.api.start_node(SyntaxKind::Error);
-
-		self.silent = true;
 
 		enum Delim {
 			Paren,
