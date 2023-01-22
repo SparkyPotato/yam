@@ -132,7 +132,7 @@ Expr =
 | LoopExpr
 | MatchExpr
 | ParenExpr
-| Path
+| PathExpr
 | PrefixExpr
 | ReturnExpr
 | WhileExpr
@@ -201,6 +201,8 @@ MatchArm =
 ParenExpr =
   '(' Expr ')'
 
+PathExpr = Path
+
 RefExpr = '&' 'mut'? Expr
 
 PrefixExpr =
@@ -223,9 +225,10 @@ ArgList =
 //****************
 
 Path =
-  '.'? qualifier:PathSegment* Name
+  scope:'.'? qualifier:(PathSegment*) end:Name
 
-PathSegment = Name '.'
+PathSegment =
+  Name '.'
 
 Name =
   'ident'

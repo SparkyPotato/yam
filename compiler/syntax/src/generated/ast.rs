@@ -552,7 +552,7 @@ pub enum Expr {
 	LoopExpr(LoopExpr),
 	MatchExpr(MatchExpr),
 	ParenExpr(ParenExpr),
-	Path(Path),
+	PathExpr(PathExpr),
 	PrefixExpr(PrefixExpr),
 	ReturnExpr(ReturnExpr),
 	WhileExpr(WhileExpr),
@@ -576,7 +576,7 @@ impl std::fmt::Debug for Expr {
 			Self::LoopExpr(x) => std::fmt::Debug::fmt(x, f),
 			Self::MatchExpr(x) => std::fmt::Debug::fmt(x, f),
 			Self::ParenExpr(x) => std::fmt::Debug::fmt(x, f),
-			Self::Path(x) => std::fmt::Debug::fmt(x, f),
+			Self::PathExpr(x) => std::fmt::Debug::fmt(x, f),
 			Self::PrefixExpr(x) => std::fmt::Debug::fmt(x, f),
 			Self::ReturnExpr(x) => std::fmt::Debug::fmt(x, f),
 			Self::WhileExpr(x) => std::fmt::Debug::fmt(x, f),
@@ -599,7 +599,7 @@ impl AstNode for Expr {
 			| SyntaxKind::LoopExpr
 			| SyntaxKind::MatchExpr
 			| SyntaxKind::ParenExpr
-			| SyntaxKind::Path
+			| SyntaxKind::PathExpr
 			| SyntaxKind::PrefixExpr
 			| SyntaxKind::ReturnExpr
 			| SyntaxKind::WhileExpr
@@ -623,7 +623,7 @@ impl AstNode for Expr {
 				SyntaxKind::LoopExpr => LoopExpr::cast(node.clone()).map(Self::LoopExpr),
 				SyntaxKind::MatchExpr => MatchExpr::cast(node.clone()).map(Self::MatchExpr),
 				SyntaxKind::ParenExpr => ParenExpr::cast(node.clone()).map(Self::ParenExpr),
-				SyntaxKind::Path => Path::cast(node.clone()).map(Self::Path),
+				SyntaxKind::PathExpr => PathExpr::cast(node.clone()).map(Self::PathExpr),
 				SyntaxKind::PrefixExpr => PrefixExpr::cast(node.clone()).map(Self::PrefixExpr),
 				SyntaxKind::ReturnExpr => ReturnExpr::cast(node.clone()).map(Self::ReturnExpr),
 				SyntaxKind::WhileExpr => WhileExpr::cast(node.clone()).map(Self::WhileExpr),
@@ -730,11 +730,11 @@ impl AstNode for Path {
 	}
 }
 impl Path {
-	pub fn dot(&self) -> Option<Dot> { token_children(&self.0).nth(0usize) }
+	pub fn scope(&self) -> Option<Dot> { token_children(&self.0).nth(0usize) }
 
 	pub fn qualifier(&self) -> impl Iterator<Item = PathSegment> + '_ { node_children(&self.0) }
 
-	pub fn name(&self) -> Option<Name> { node_children(&self.0).nth(0usize) }
+	pub fn end(&self) -> Option<Name> { node_children(&self.0).nth(0usize) }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -1353,6 +1353,26 @@ impl ParenExpr {
 	pub fn expr(&self) -> Option<Expr> { node_children(&self.0).nth(0usize) }
 
 	pub fn r_paren(&self) -> Option<RParen> { token_children(&self.0).nth(0usize) }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct PathExpr(SyntaxNode);
+impl std::fmt::Debug for PathExpr {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstNode for PathExpr {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::PathExpr }
+
+	fn cast(node: SyntaxNode) -> Option<Self> {
+		if Self::can_cast(node.kind()) {
+			Some(Self(node))
+		} else {
+			None
+		}
+	}
+}
+impl PathExpr {
+	pub fn path(&self) -> Option<Path> { node_children(&self.0).nth(0usize) }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]

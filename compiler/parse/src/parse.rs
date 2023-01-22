@@ -26,13 +26,9 @@ impl<'c, 's> Parser<'c, 's> {
 	}
 
 	fn parse_inner(&mut self) {
-		let b = self.api.start_node(SyntaxKind::File);
-
 		while !self.is_empty() {
 			self.item();
 		}
-
-		self.api.finish_node(b);
 	}
 }
 
@@ -346,7 +342,16 @@ impl Parser<'_, '_> {
 			T![bool] | T![char] | T![float] | T![int] | T![string] => {
 				self.api.bump();
 			},
-			T![ident] => self.api.bump(),
+			T![ident] => {
+				let b = self.api.start_node(SyntaxKind::PathExpr);
+				self.path();
+				self.api.finish_node(b);
+			},
+			T![.] => {
+				let b = self.api.start_node(SyntaxKind::PathExpr);
+				self.path();
+				self.api.finish_node(b);
+			},
 			T![break] => {
 				let b = self.api.start_node(SyntaxKind::BreakExpr);
 
@@ -551,9 +556,12 @@ impl Parser<'_, '_> {
 		}
 
 		loop {
+			let c = self.api.checkpoint();
 			self.name(&[T![.], T![ident]]);
 			if matches!(self.api.peek().kind, T![.]) {
+				let b = self.api.start_node_at(c, SyntaxKind::PathSegment);
 				self.api.bump();
+				self.api.finish_node(b);
 			} else {
 				break;
 			}
