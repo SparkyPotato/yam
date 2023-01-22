@@ -2,13 +2,17 @@
 // Items
 //*******
 
-File = Item*
+File =
+  Item*
 
-TokenTree = ';' // Ignore, manually implemented
+TokenTree =
+  ';' // Ignore, manually implemented
 
-Attribute = '@' Name TokenTree?
+Attribute =
+  '@' Name TokenTree?
 
-Item = (Attribute)* Visibility? ItemKind
+Item =
+  (Attribute)* Visibility? ItemKind
 
 ItemKind =
   Fn
@@ -46,7 +50,8 @@ Struct =
 Enum =
   'enum' Name VariantList
 
-VariantList = '{' variants:((Name (',' Name)* ','?)?) '}'
+VariantList =
+  '{' variants:((Name (',' Name)* ','?)?) '}'
 
 TypeAlias =
   'type' Name '=' Type ';'
@@ -61,9 +66,11 @@ ImportTree =
   ListImport
 | RenameImport
 
-RenameImport = (Path Rename?)
+RenameImport =
+  (Path Rename?)
 
-ListImport = (prefix:Path? '.')? Wildcard
+ListImport =
+  (prefix:Path? '.')? Wildcard
 
 Wildcard =
   ImportTreeList
@@ -138,7 +145,8 @@ Expr =
 | WhileExpr
 | LetExpr
 
-ArrayExpr = '[' ArrayInit ']'
+ArrayExpr =
+  '[' ArrayInit ']'
 
 ArrayInit =
   ArrayList
@@ -190,7 +198,7 @@ Literal =
   'bool' | 'char' | 'float' | 'int' | 'string'
 
 LoopExpr =
-    'loop' body:Block ('while' Expr)?
+  'loop' body:Block ('while' Expr)?
 
 MatchExpr =
   'match' Expr '{' arms:(MatchArm*) '}'
@@ -201,9 +209,11 @@ MatchArm =
 ParenExpr =
   '(' Expr ')'
 
-PathExpr = Path
+PathExpr =
+  Path
 
-RefExpr = '&' 'mut'? Expr
+RefExpr =
+  '&' 'mut'? Expr
 
 PrefixExpr =
   op:PrefixOp Expr
