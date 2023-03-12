@@ -1,6 +1,6 @@
 use ariadne::{Report, ReportKind};
 
-use crate::{File, FileCache, Span};
+use crate::{FileCache, FilePath, Span};
 
 #[derive(Copy, Clone, Eq, PartialEq)]
 pub enum DiagKind {
@@ -74,7 +74,7 @@ impl<F> Diagnostic<F> {
 	}
 }
 
-impl Diagnostic<File> {
+impl Diagnostic<FilePath> {
 	pub fn emit(&self, cache: &FileCache) {
 		let mut builder = Report::build(self.kind.into_report_kind(), self.span.relative, self.span.start as _);
 		builder.set_message(&self.message);
@@ -90,7 +90,7 @@ impl Diagnostic<File> {
 	}
 }
 
-pub type FullDiagnostic = Diagnostic<File>;
+pub type FullDiagnostic = Diagnostic<FilePath>;
 pub type FileDiagnostic = Diagnostic<()>;
 
 pub mod test {

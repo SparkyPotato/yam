@@ -13,19 +13,19 @@ pub use crate::{diag::*, span::*};
 
 #[derive(Default)]
 pub struct FileCache {
-	files: HashMap<File, Source>,
+	files: HashMap<FilePath, Source>,
 }
 
 impl FileCache {
 	pub fn new() -> Self { Self::default() }
 
-	pub fn set_file(&mut self, file: File, data: String) { self.files.insert(file, Source::from(data)); }
+	pub fn set_file(&mut self, file: FilePath, data: String) { self.files.insert(file, Source::from(data)); }
 }
 
-impl Cache<File> for &FileCache {
-	fn fetch(&mut self, id: &File) -> Result<&Source, Box<dyn Debug + '_>> { Ok(&self.files[id]) }
+impl Cache<FilePath> for &FileCache {
+	fn fetch(&mut self, id: &FilePath) -> Result<&Source, Box<dyn Debug + '_>> { Ok(&self.files[id]) }
 
-	fn display<'a>(&self, id: &'a File) -> Option<Box<dyn Display + 'a>> { Some(Box::new(id)) }
+	fn display<'a>(&self, id: &'a FilePath) -> Option<Box<dyn Display + 'a>> { Some(Box::new(id)) }
 }
 
 pub struct DiagSink<F> {

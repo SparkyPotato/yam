@@ -5,7 +5,7 @@ combine_control_expr = true
 comment_width = 120
 condense_wildcard_suffixes = true
 empty_item_single_line = true
-fn_args_layout = "Compressed"
+fn_params_layout = "Compressed"
 fn_single_line = true
 force_explicit_abi = true
 format_code_in_doc_comments = true
@@ -30,3 +30,4 @@ trailing_semicolon = true
 use_field_init_shorthand = true
 use_try_shorthand = true
 wrap_comments = true
+

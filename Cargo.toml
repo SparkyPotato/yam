@@ -1,5 +1,5 @@
 [workspace]
-members = ["compiler/*"]
+members = ["compiler/*", "compiler/verde/derive"]
 
 [profile.release]
 debug = true

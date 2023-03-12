@@ -413,7 +413,7 @@ impl Parser<'_, '_> {
 				self.block();
 				if matches!(self.api.peek().kind, T![else]) {
 					self.api.bump();
-					self.expr();
+					self.expr(); // TODO: this should be a block or an if expr
 				}
 
 				self.api.finish_node(b);

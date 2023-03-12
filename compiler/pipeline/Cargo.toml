@@ -1,0 +1,11 @@
+[package]
+name = "pipeline"
+version = "0.0.0"
+edition = "2021"
+
+[dependencies]
+diagnostics = { path = "../diagnostics" }
+syntax = { path = "../syntax" }
+text = { path = "../text" }
+
+rustc-hash = "1.1.0"

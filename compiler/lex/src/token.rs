@@ -11,15 +11,15 @@ pub struct Token {
 pub enum TokenKind {
 	#[regex("true|false")]
 	BoolLit,
-	#[regex(r#"'(\.|[^'\\])*'"#)]
+	#[regex(r"'(\.|[^'\\])*'")]
 	CharLit,
-	#[regex(r"[+-]?(\d*[.])?\d+")]
+	#[regex(r"(\d*[.])?\d+")]
 	FloatLit,
-	#[regex(r"[+-]?(\d+)|(0x[0-9a-f]+)|(0b[01]+)", priority = 2)]
+	#[regex(r"(\d+)|(0x[0-9a-fA-F]+)|(0b[01]+)", priority = 2)]
 	IntLit,
 	#[regex(r#""(\.|[^"\\])*""#)]
 	StringLit,
-	#[regex(r"\p{XID_Start}\p{XID_Continue}*", priority = 2)]
+	#[regex(r"(\p{XID_Start}\p{XID_Continue}*)|(_\p{XID_Continue}+)", priority = 2)]
 	Ident,
 	#[token("@")]
 	At,

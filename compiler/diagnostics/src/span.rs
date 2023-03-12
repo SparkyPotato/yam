@@ -2,6 +2,7 @@ use std::{
 	fmt::{Debug, Display},
 	hash::{Hash, Hasher},
 	ops::{Add, Index},
+	path::Path,
 };
 
 use text::Text;
@@ -9,14 +10,16 @@ use text::Text;
 use crate::{DiagKind, Diagnostic, Label};
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
-pub struct File(Text);
+pub struct FilePath(Text);
 
-impl Display for File {
+impl Display for FilePath {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { self.0.fmt(f) }
 }
 
-impl File {
+impl FilePath {
 	pub fn new(name: &str) -> Self { Self(Text::new(name)) }
+
+	pub fn path(&self) -> &'static Path { Path::new(self.0.as_str()) }
 }
 
 #[derive(Debug, Default, Copy, Clone)]
@@ -78,5 +81,5 @@ impl<F> Span<F> {
 	pub fn mark(self) -> Label<F> { Label::no_message(self) }
 }
 
-pub type FullSpan = Span<File>;
+pub type FullSpan = Span<FilePath>;
 pub type FileSpan = Span<()>;
