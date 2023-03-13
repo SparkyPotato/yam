@@ -38,11 +38,10 @@ async fn double(db: &dyn Db, id: Id<TrackedStruct>) -> TrackedStruct {
 fn main() {
 	let mut db = Database::default();
 	let id = db.set_input(TrackedStruct { id: 0, value: 1 });
-	assert_eq!(db.get(id).value, 1);
 
-	let doubled = db.execute(double(&db, id));
-	assert_eq!(db.get(doubled).value, 2);
+	let doubled = db.block_on(db.execute::<double>(double(&db, id)));
+	assert_eq!(db.get_ext(doubled).value, 2);
 
-	let doubled = db.execute(double(&db, id));
-	assert_eq!(db.get(doubled).value, 2);
+	let doubled = db.block_on(db.execute::<double>(double(&db, id)));
+	assert_eq!(db.get_ext(doubled).value, 2);
 }

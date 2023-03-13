@@ -2,6 +2,7 @@ use std::hash::BuildHasherDefault;
 
 use rustc_hash::FxHasher;
 
+mod generation_future;
 mod query;
 pub mod routing;
 mod tracked;

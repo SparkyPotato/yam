@@ -79,10 +79,6 @@ pub(crate) fn database(input: ItemStruct) -> Result<TokenStream> {
 				&self.__verde_internal_core
 			}
 
-			fn core_mut(&mut self) -> &mut ::verde::DatabaseCore {
-				&mut self.__verde_internal_core
-			}
-
 			fn routing_table(&self) -> &::verde::storage::routing::RoutingTable {
 				&self.__verde_internal_routing_table
 			}
@@ -95,7 +91,7 @@ pub(crate) fn database(input: ItemStruct) -> Result<TokenStream> {
 				static METADATA: std::ptr::DynMetadata<dyn Db> = std::ptr::metadata(std::ptr::null::<#name>() as *const dyn ::verde::Db);
 				::verde::DbForQuery {
 					db: unsafe { &*std::ptr::from_raw_parts(self as *const Self as *const (), METADATA) },
-					dependencies: ::std::cell::RefCell::new(::std::option::Option::Some(::std::default::Default::default())),
+					dependencies: ::std::sync::Mutex::new(::std::option::Option::Some(::std::default::Default::default())),
 				}
 			}
 

@@ -43,7 +43,7 @@ impl<T: Query> QueryStorage<T> {
 				for &dep in data.dependencies.iter() {
 					if output_generation < ctx.db.get_generation_erased(dep).await {
 						let ret = fut.await;
-						let dependencies = ctx.dependencies.borrow_mut().take().unwrap();
+						let dependencies = ctx.dependencies.lock().unwrap().take().unwrap();
 						let output = ctx.db.insert(query, ret).await;
 						self.map.insert(input, QueryData { dependencies, output });
 						return output;
@@ -53,7 +53,7 @@ impl<T: Query> QueryStorage<T> {
 			},
 			None => {
 				let ret = fut.await;
-				let dependencies = ctx.dependencies.borrow_mut().take().unwrap();
+				let dependencies = ctx.dependencies.lock().unwrap().take().unwrap();
 				let output = ctx.db.insert(query, ret).await;
 				self.map.insert(input, QueryData { dependencies, output });
 				output

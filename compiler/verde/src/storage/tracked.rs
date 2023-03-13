@@ -1,15 +1,12 @@
 use std::{
 	ops::Deref,
-	pin::Pin,
 	sync::atomic::{AtomicU64, Ordering},
 };
 
-use async_rwlock::{RwLock, RwLockReadGuard};
+use tokio::sync::{RwLock, RwLockReadGuard};
 
 use crate::{
-	arena::ArenaFuture,
-	storage::{routing::Route, DashMap},
-	DatabaseCore,
+	storage::{generation_future::GenerationFuture, routing::Route, DashMap},
 	Tracked,
 };
 
@@ -20,7 +17,7 @@ pub struct ErasedId {
 }
 
 pub trait ErasedTrackedStorage {
-	fn get_erased_generation<'a>(&'a self, core: &'a DatabaseCore, index: u32) -> ArenaFuture<'_, u64>;
+	fn get_erased_generation(&self, index: u32) -> GenerationFuture<'_>;
 }
 
 impl<'a> dyn ErasedTrackedStorage + 'a {
@@ -55,7 +52,7 @@ pub struct Id<T> {
 
 pub struct Get<'a, T> {
 	slot: RwLockReadGuard<'a, T>,
-	values: RwLockReadGuard<'a, Vec<Slot<T>>>,
+	_values: RwLockReadGuard<'a, Vec<Slot<T>>>,
 }
 
 pub struct TrackedStorage<T: Tracked> {
@@ -64,8 +61,8 @@ pub struct TrackedStorage<T: Tracked> {
 }
 
 impl<T: Tracked> ErasedTrackedStorage for TrackedStorage<T> {
-	fn get_erased_generation<'a>(&'a self, core: &'a DatabaseCore, index: u32) -> ArenaFuture<'_, u64> {
-		unsafe { Pin::new_unchecked(Box::new_in(self.get_generation(index), &core.arena)) }
+	fn get_erased_generation(&self, index: u32) -> GenerationFuture<'_> {
+		GenerationFuture::new(self.get_generation(index))
 	}
 }
 
@@ -110,7 +107,7 @@ impl<T: Tracked> TrackedStorage<T> {
 		unsafe {
 			Get {
 				slot: std::mem::transmute(slot),
-				values: std::mem::transmute(values),
+				_values: std::mem::transmute(values),
 			}
 		}
 	}

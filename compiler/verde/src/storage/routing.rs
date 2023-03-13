@@ -32,7 +32,6 @@ impl Route {
 /// This is required because `TypeId`s are not guaranteed to be stable across compilations, while `Route`s are.
 pub struct RoutingTable {
 	routes: FxHashMap<TypeId, Route>,
-	inverse_routes: FxHashMap<Route, TypeId>,
 }
 
 impl RoutingTable {
@@ -59,12 +58,7 @@ impl RoutingTableBuilder {
 		}
 	}
 
-	pub fn finish(self) -> RoutingTable {
-		RoutingTable {
-			routes: self.routes,
-			inverse_routes: self.inverse_routes,
-		}
-	}
+	pub fn finish(self) -> RoutingTable { RoutingTable { routes: self.routes } }
 }
 
 pub struct RouteBuilder<'a> {

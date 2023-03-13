@@ -1,46 +1,38 @@
-#![feature(allocator_api)]
-#![feature(ptr_metadata)]
-#![feature(strict_provenance)]
+#![feature(type_alias_impl_trait)]
 
-use std::{cell::RefCell, future::Future, hash::Hash};
+use std::{future::Future, hash::Hash, sync::Mutex};
 
-use futures::{
-	executor::{block_on, ThreadPool},
-	future::{AbortHandle, RemoteHandle},
-};
 use rustc_hash::FxHashSet;
+use tokio::{
+	runtime::{Builder, Runtime},
+	task::{AbortHandle, JoinHandle},
+};
 pub use verde_derive::{db, query, storage, Tracked};
 
-pub use crate::storage::{Id, QueryStorage, TrackedStorage};
-use crate::{
-	arena::Arena,
-	storage::{
-		routing::{Route, RouteBuilder, RoutingTable, RoutingTableBuilder},
-		ErasedId,
-		ErasedQueryStorage,
-		ErasedTrackedStorage,
-		Get,
-	},
+use crate::storage::{
+	routing::{Route, RouteBuilder, RoutingTable, RoutingTableBuilder},
+	ErasedId,
+	ErasedQueryStorage,
+	ErasedTrackedStorage,
+	Get,
 };
+pub use crate::storage::{Id, QueryStorage, TrackedStorage};
 
-mod arena;
 pub mod storage;
 
 /// An asynchronously running query.
 pub struct PendingQuery<T> {
-	handle: RemoteHandle<T>,
+	handle: JoinHandle<Id<T>>,
 }
 
 pub struct DbForQuery<'a> {
 	pub db: &'a dyn Db,
-	pub dependencies: RefCell<Option<FxHashSet<ErasedId>>>,
+	pub dependencies: Mutex<Option<FxHashSet<ErasedId>>>,
 }
 
 /// A database. This trait provides most of the functionality of the concrete database type.
-pub trait Db {
+pub trait Db: Send + Sync {
 	fn core(&self) -> &DatabaseCore;
-
-	fn core_mut(&mut self) -> &mut DatabaseCore;
 
 	fn routing_table(&self) -> &RoutingTable;
 
@@ -63,32 +55,94 @@ pub trait Db {
 	where
 		Self: Sized,
 	{
-		for handle in self.core_mut().pending_queries.drain(..) {
-			handle.abort();
+		self.core().cancel_all();
+
+		let fut = (self as &dyn Db).insert(Route::input(), value);
+		self.core().rt.block_on(fut)
+	}
+
+	fn get_ext<T: Tracked>(&self, id: Id<T>) -> Get<'_, T>
+	where
+		Self: Sized,
+	{
+		let fut = (self as &dyn Db).get_inner(id);
+		self.core().rt.block_on(fut)
+	}
+
+	fn execute<Q: Query>(&self, fut: Q::Future) -> PendingQuery<Q::Output>
+	where
+		Self: Sized,
+	{
+		let handle = self.core().rt.spawn(fut);
+		self.core().pending_queries.lock().unwrap().push(handle.abort_handle());
+		PendingQuery { handle }
+	}
+
+	fn block_on<T>(&self, pending: PendingQuery<T>) -> Id<T>
+	where
+		Self: Sized,
+	{
+		match self.core().rt.block_on(pending.handle) {
+			Ok(v) => v,
+			Err(err) => {
+				if err.is_panic() {
+					std::panic::resume_unwind(err.into_panic());
+				} else {
+					panic!("query was aborted");
+				}
+			},
 		}
-
-		block_on((self as &dyn Db).insert(Route::input(), value))
-	}
-
-	fn get<T: Tracked>(&mut self, id: Id<T>) -> Get<'_, T>
-	where
-		Self: Sized,
-	{
-		let fut = (self as &dyn Db).get(id);
-		block_on(fut)
-	}
-
-	fn execute<F: Future>(&self, fut: F) -> F::Output
-	where
-		Self: Sized,
-	{
-		block_on(fut)
 	}
 }
 
-impl<'a> dyn Db + 'a {
-	pub async fn get<T: Tracked>(&self, id: Id<T>) -> Get<'_, T> {
-		self.register_dependency(id.inner);
+type EndQueryFutureInner<'a, 'b, T: Query, F: Future<Output = T::Output> + 'b> =
+	impl Future<Output = Id<T::Output>> + 'b;
+pub struct EndQueryFuture<'a, 'b, T: Query, F: Future<Output = T::Output> + 'b>(EndQueryFutureInner<'a, 'b, T, F>);
+unsafe impl<T: Query, F: Future<Output = T::Output>> Send for EndQueryFuture<'_, '_, T, F> {}
+impl<'a, 'b, T: Query, F: Future<Output = T::Output> + 'a> Future for EndQueryFuture<'a, 'b, T, F> {
+	type Output = Id<T::Output>;
+
+	fn poll(self: std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> std::task::Poll<Self::Output> {
+		let this = unsafe { self.get_unchecked_mut() };
+		unsafe { std::pin::Pin::new_unchecked(&mut this.0) }.poll(cx)
+	}
+}
+
+type GetFutureInner<'a, T: Tracked> = impl Future<Output = Get<'a, T>> + 'a;
+pub struct GetFuture<'a, T: Tracked>(GetFutureInner<'a, T>);
+unsafe impl<'a, T: Tracked> Send for GetFuture<'a, T> {}
+impl<'a, T: Tracked> Future for GetFuture<'a, T> {
+	type Output = Get<'a, T>;
+
+	fn poll(self: std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> std::task::Poll<Self::Output> {
+		let this = unsafe { self.get_unchecked_mut() };
+		unsafe { std::pin::Pin::new_unchecked(&mut this.0) }.poll(cx)
+	}
+}
+
+impl dyn Db + '_ {
+	pub fn get<T: Tracked>(&self, id: Id<T>) -> GetFuture<'_, T> {
+		GetFuture(async move {
+			self.register_dependency(id.inner);
+			self.get_inner(id).await
+		})
+	}
+
+	pub fn end_query<'a, 'b, T, F>(
+		&'a self, input: T::Input, ctx: &'b DbForQuery<'a>, fut: F,
+	) -> EndQueryFuture<'a, 'b, T, F>
+	where
+		T: Query,
+		F: Future<Output = T::Output> + 'b,
+	{
+		EndQueryFuture(async move {
+			let query = self.routing_table().route::<T>();
+			let storage = self.storage_struct(query.storage).query_storage(query.index).unwrap();
+			unsafe { storage.execute::<T, F>(query, input, ctx, fut).await }
+		})
+	}
+
+	async fn get_inner<T: Tracked>(&self, id: Id<T>) -> Get<'_, T> {
 		let storage = self
 			.storage_struct(id.inner.route.storage)
 			.tracked_storage(id.inner.route.index)
@@ -116,35 +170,23 @@ impl<'a> dyn Db + 'a {
 			.storage_struct(id.route.storage)
 			.tracked_storage(id.route.index)
 			.unwrap();
-		storage.get_erased_generation(self.core(), id.index).await
-	}
-
-	pub async fn end_query<T, F>(&self, input: T::Input, ctx: &DbForQuery<'_>, fut: F) -> Id<T::Output>
-	where
-		T: Query,
-		F: Future<Output = T::Output>,
-	{
-		let query = self.routing_table().route::<T>();
-		let storage = self.storage_struct(query.storage).query_storage(query.index).unwrap();
-		unsafe { storage.execute::<T, F>(query, input, ctx, fut).await }
+		storage.get_erased_generation(id.index).await
 	}
 }
 
 impl Db for DbForQuery<'_> {
 	fn core(&self) -> &DatabaseCore { self.db.core() }
 
-	fn core_mut(&mut self) -> &mut DatabaseCore { panic!("Invalid method called on `DbForQuery`") }
-
 	fn routing_table(&self) -> &RoutingTable { self.db.routing_table() }
 
 	fn storage_struct(&self, storage: u16) -> &dyn Storage { self.db.storage_struct(storage) }
 
-	fn register_dependency(&self, id: ErasedId) { self.dependencies.borrow_mut().as_mut().unwrap().insert(id); }
+	fn register_dependency(&self, id: ErasedId) { self.dependencies.lock().unwrap().as_mut().unwrap().insert(id); }
 
 	fn start_query(&self) -> DbForQuery<'_> {
 		DbForQuery {
 			db: self.db,
-			dependencies: RefCell::new(Some(Default::default())),
+			dependencies: Mutex::new(Some(Default::default())),
 		}
 	}
 
@@ -169,6 +211,8 @@ pub trait Query: TrackedOrQuery<ToStore = QueryStorage<Self>> {
 	type Input: Clone + Eq + Hash + Send + Sync;
 	/// The output of the query.
 	type Output: Tracked + Send + Sync;
+	/// The future type returned by the query.
+	type Future: Future<Output = Id<Self::Output>> + Send + 'static;
 }
 
 /// A type that is either a [`Tracked`] struct or a query.
@@ -215,17 +259,34 @@ pub trait DbWith<S> {
 
 /// The core of the database runtime. This is stored inside your custom database struct, alongside the type storages.
 pub struct DatabaseCore {
-	pool: ThreadPool,
-	arena: Arena,
-	pending_queries: Vec<AbortHandle>,
+	rt: Runtime,
+	pending_queries: Mutex<Vec<AbortHandle>>,
 }
 
 impl Default for DatabaseCore {
 	fn default() -> Self {
 		Self {
-			pool: ThreadPool::builder().name_prefix("tango-worker-").create().unwrap(),
-			arena: Arena::new(),
-			pending_queries: Vec::new(),
+			rt: Builder::new_multi_thread().thread_name("tango-worker").build().unwrap(),
+			pending_queries: Mutex::new(Vec::new()),
 		}
 	}
 }
+
+impl DatabaseCore {
+	fn cancel_all(&self) {
+		let mut pending_queries = self.pending_queries.lock().unwrap();
+		for handle in pending_queries.drain(..) {
+			handle.abort();
+		}
+	}
+}
+
+impl Drop for DatabaseCore {
+	fn drop(&mut self) { self.cancel_all(); }
+}
+
+pub struct DbWrapper(pub *const dyn Db);
+impl DbWrapper {
+	pub unsafe fn to_ref(&self) -> &dyn Db { unsafe { &*self.0 } }
+}
+unsafe impl Send for DbWrapper {}

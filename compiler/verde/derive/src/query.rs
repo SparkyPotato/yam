@@ -33,7 +33,7 @@ pub(crate) fn query(input: ItemFn) -> Result<TokenStream> {
 	} = generate(&input)?;
 
 	let fn_type_name = format_ident!("__verde_internal_type_of_{}", name);
-	let ret_type_name = format_ident!("__verde_internal_return_type_of_{}", name);
+	let fut_type_name = format_ident!("__verde_internal_future_type_of_{}", name);
 	let input_type_name = format_ident!("__verde_internal_input_type_of_{}", name);
 
 	let arg_types = inputs.iter().map(|x| &x.ty);
@@ -46,9 +46,9 @@ pub(crate) fn query(input: ItemFn) -> Result<TokenStream> {
 		#[derive(Copy, Clone)]
 		#vis struct #name;
 		#[allow(non_camel_case_types)]
-		type #ret_type_name = impl ::std::future::Future<Output = ::verde::Id<#ret_ty>>;
+		type #fut_type_name = impl ::std::future::Future<Output = ::verde::Id<#ret_ty>>;
 		#[allow(non_camel_case_types)]
-		type #fn_type_name = impl ::std::ops::Fn(*const dyn ::verde::Db, #(#arg_types,)*) -> #ret_type_name;
+		type #fn_type_name = impl for<'a> ::std::ops::Fn(&'a (dyn ::verde::Db + 'a), #(#arg_types,)*) -> #fut_type_name;
 
 		#[allow(non_camel_case_types)]
 		#[derive(Clone, PartialEq, Eq, Hash)]
@@ -59,13 +59,13 @@ pub(crate) fn query(input: ItemFn) -> Result<TokenStream> {
 		impl ::std::ops::Deref for #name {
 			type Target = #fn_type_name;
 			fn deref(&self) -> &Self::Target {
-				fn inner(#ctx_name: *const dyn ::verde::Db, #(#inputs,)*) -> #ret_type_name {
-					let __verde_internal_parent_ctx_ptr = #ctx_name as *const dyn ::verde::Db;
+				fn inner(#ctx, #(#inputs,)*) -> #fut_type_name {
+					let __verde_internal_parent_ctx_wrapper = ::verde::DbWrapper(unsafe { ::std::mem::transmute(#ctx_name) });
 					async move {
 						let __verde_internal_query_input = #input_type_name {
 							#(#input_names: ::std::clone::Clone::clone(&#input_names),)*
 						};
-						let __verde_internal_parent_ctx = unsafe { &*__verde_internal_parent_ctx_ptr };
+						let __verde_internal_parent_ctx = unsafe { __verde_internal_parent_ctx_wrapper.to_ref() };
 						let __verde_internal_ctx = __verde_internal_parent_ctx.start_query();
 
 						let out = async {
@@ -84,6 +84,7 @@ pub(crate) fn query(input: ItemFn) -> Result<TokenStream> {
 		impl ::verde::Query for #name {
 			type Input = #input_type_name;
 			type Output = #ret_ty;
+			type Future = #fut_type_name;
 		}
 
 		impl ::verde::TrackedOrQuery for #name {
