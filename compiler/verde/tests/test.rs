@@ -36,7 +36,7 @@ async fn double(db: &dyn Db, id: Id<TrackedStruct>) -> TrackedStruct {
 
 #[test]
 fn main() {
-	let mut db = Database::default();
+	let mut db = Database::new();
 	let id = db.set_input(TrackedStruct { id: 0, value: 1 });
 
 	let doubled = db.block_on(db.execute(double(&db, id)));

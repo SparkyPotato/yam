@@ -1,6 +1,6 @@
 #![feature(type_alias_impl_trait)]
 
-use std::{future::Future, hash::Hash};
+use std::{future::Future, hash::Hash, pin::Pin};
 
 use tokio::task::JoinHandle;
 pub use verde_derive::{db, query, storage, Tracked};
@@ -11,6 +11,7 @@ use crate::{
 	internal::{
 		storage::{ErasedId, Get, Route, RoutingTable, RoutingTableBuilder, TrackedStorage},
 		DatabaseCore,
+		DbBuilder,
 		DbForQuery,
 		Query,
 		Storable,
@@ -21,31 +22,8 @@ use crate::{
 mod cursed;
 pub mod internal;
 
-/// An asynchronously running query.
-pub struct PendingQuery<T> {
-	handle: JoinHandle<Id<T>>,
-}
-
 /// A database. This trait provides most of the functionality of the concrete database type.
 pub trait Db: Send + Sync {
-	fn core(&self) -> &DatabaseCore;
-
-	fn routing_table(&self) -> &RoutingTable;
-
-	/// Get the storage struct with route index `storage`.
-	fn storage_struct(&self, storage: u16) -> &dyn Storage;
-
-	/// Register a dependency of the currently executing query.
-	fn register_dependency(&self, id: ErasedId) { let _ = id; }
-
-	/// Get a derived database for a query.
-	fn start_query(&self) -> DbForQuery<'_>;
-
-	/// Initialize the routing table at database initialization.
-	fn init_routing(table: &mut RoutingTableBuilder)
-	where
-		Self: Sized;
-
 	/// Set an input value. This will cancel all asynchronously running queries.
 	fn set_input<T: Tracked>(&mut self, value: T) -> Id<T>
 	where
@@ -91,6 +69,47 @@ pub trait Db: Send + Sync {
 			},
 		}
 	}
+
+	/// Register a dependency of the currently executing query.
+	fn register_dependency(&self, id: ErasedId) { let _ = id; }
+
+	fn new() -> Pin<Box<Self>>
+	where
+		Self: Sized,
+	{
+		Self::builder().build()
+	}
+
+	fn builder() -> DbBuilder<Self>
+	where
+		Self: Sized,
+	{
+		DbBuilder::new()
+	}
+
+	fn build_with_core(core: DatabaseCore) -> Pin<Box<Self>>
+	where
+		Self: Sized;
+
+	/// Initialize the routing table at database initialization.
+	fn init_routing(table: &mut RoutingTableBuilder)
+	where
+		Self: Sized;
+
+	fn core(&self) -> &DatabaseCore;
+
+	fn routing_table(&self) -> &RoutingTable;
+
+	/// Get the storage struct with route index `storage`.
+	fn storage_struct(&self, storage: u16) -> &dyn Storage;
+
+	/// Get a derived database for a query.
+	fn start_query(&self) -> DbForQuery<'_>;
+}
+
+/// An asynchronously running query.
+pub struct PendingQuery<T> {
+	handle: JoinHandle<Id<T>>,
 }
 
 /// A type that can be tracked by the database.

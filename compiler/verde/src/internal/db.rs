@@ -1,4 +1,4 @@
-use std::sync::Mutex;
+use std::{marker::PhantomData, pin::Pin, sync::Mutex};
 
 use rustc_hash::FxHashSet;
 use tokio::{
@@ -20,15 +20,6 @@ use crate::{
 pub struct DatabaseCore {
 	pub(crate) rt: Runtime,
 	pub(crate) pending_queries: Mutex<Vec<AbortHandle>>,
-}
-
-impl Default for DatabaseCore {
-	fn default() -> Self {
-		Self {
-			rt: Builder::new_multi_thread().thread_name("tango-worker").build().unwrap(),
-			pending_queries: Mutex::new(Vec::new()),
-		}
-	}
 }
 
 impl DatabaseCore {
@@ -83,13 +74,36 @@ impl dyn Db + '_ {
 }
 
 impl Db for DbForQuery<'_> {
+	fn register_dependency(&self, id: ErasedId) { self.dependencies.lock().unwrap().as_mut().unwrap().insert(id); }
+
+	fn new() -> Pin<Box<Self>>
+	where
+		Self: Sized,
+	{
+		panic!("Invalid method called on `DbForQuery`")
+	}
+
+	fn builder() -> DbBuilder<Self>
+	where
+		Self: Sized,
+	{
+		panic!("Invalid method called on `DbForQuery`")
+	}
+
+	fn build_with_core(_: DatabaseCore) -> Pin<Box<Self>>
+	where
+		Self: Sized,
+	{
+		panic!("Invalid method called on `DbForQuery`")
+	}
+
+	fn init_routing(_: &mut RoutingTableBuilder) { panic!("Invalid method called on `DbForQuery`") }
+
 	fn core(&self) -> &DatabaseCore { self.db.core() }
 
 	fn routing_table(&self) -> &RoutingTable { self.db.routing_table() }
 
 	fn storage_struct(&self, storage: u16) -> &dyn Storage { self.db.storage_struct(storage) }
-
-	fn register_dependency(&self, id: ErasedId) { self.dependencies.lock().unwrap().as_mut().unwrap().insert(id); }
 
 	fn start_query(&self) -> DbForQuery<'_> {
 		DbForQuery {
@@ -97,6 +111,64 @@ impl Db for DbForQuery<'_> {
 			dependencies: Mutex::new(Some(Default::default())),
 		}
 	}
+}
 
-	fn init_routing(_: &mut RoutingTableBuilder) { panic!("Invalid method called on `DbForQuery`") }
+pub struct DbBuilder<T> {
+	builder: Builder,
+	_phantom: PhantomData<T>,
+}
+
+impl<T: Db> DbBuilder<T> {
+	pub fn new() -> Self {
+		let mut builder = Builder::new_multi_thread();
+		builder.thread_name("tango-worker");
+		Self {
+			builder,
+			_phantom: PhantomData,
+		}
+	}
+
+	pub fn thread_name(mut self, name: impl Into<String>) -> Self {
+		self.builder.thread_name(name);
+		self
+	}
+
+	/// Sets the number of worker threads for the runtime.
+	/// If not set, the number of logical cores on the system will be used.
+	/// If the value is 0, it will panic.
+	pub fn worker_threads(mut self, threads: usize) -> Self {
+		self.builder.worker_threads(threads);
+		self
+	}
+
+	pub fn build(&mut self) -> Pin<Box<T>> {
+		T::build_with_core(DatabaseCore {
+			rt: self.builder.build().unwrap(),
+			pending_queries: Mutex::new(Vec::new()),
+		})
+	}
+}
+
+impl<T: Db> Db for Pin<Box<T>> {
+	fn build_with_core(_: DatabaseCore) -> Pin<Box<Self>>
+	where
+		Self: Sized,
+	{
+		panic!("Invalid method called on `Pin<Box<Db>>`");
+	}
+
+	fn init_routing(_: &mut RoutingTableBuilder)
+	where
+		Self: Sized,
+	{
+		panic!("Invalid method called on `Pin<Box<Db>>`");
+	}
+
+	fn core(&self) -> &DatabaseCore { self.as_ref().get_ref().core() }
+
+	fn routing_table(&self) -> &RoutingTable { self.as_ref().get_ref().routing_table() }
+
+	fn storage_struct(&self, storage: u16) -> &dyn Storage { self.as_ref().get_ref().storage_struct(storage) }
+
+	fn start_query(&self) -> DbForQuery<'_> { self.as_ref().get_ref().start_query() }
 }
