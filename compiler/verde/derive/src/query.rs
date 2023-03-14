@@ -46,7 +46,7 @@ pub(crate) fn query(input: ItemFn) -> Result<TokenStream> {
 		#[derive(Copy, Clone)]
 		#vis struct #name;
 		#[allow(non_camel_case_types)]
-		type #fut_type_name = impl ::std::future::Future<Output = ::verde::Id<#ret_ty>>;
+		type #fut_type_name = impl ::std::future::Future<Output = ::verde::Id<#ret_ty>> + ::std::marker::Send;
 		#[allow(non_camel_case_types)]
 		type #fn_type_name = impl for<'a> ::std::ops::Fn(&'a (dyn ::verde::Db + 'a), #(#arg_types,)*) -> #fut_type_name;
 
@@ -81,20 +81,20 @@ pub(crate) fn query(input: ItemFn) -> Result<TokenStream> {
 			}
 		}
 
-		impl ::verde::Query for #name {
+		impl ::verde::internal::Query for #name {
 			type Input = #input_type_name;
 			type Output = #ret_ty;
 			type Future = #fut_type_name;
 		}
 
-		impl ::verde::TrackedOrQuery for #name {
-			type ToStore = ::verde::QueryStorage<Self>;
+		impl ::verde::internal::Storable for #name {
+			type Storage = ::verde::internal::storage::QueryStorage<Self>;
 
-			fn tracked_storage(store: &Self::ToStore) -> Option<&dyn ::verde::storage::ErasedTrackedStorage> {
+			fn tracked_storage(store: &Self::Storage) -> Option<&dyn ::verde::internal::storage::ErasedTrackedStorage> {
 				None
 			}
 
-			fn query_storage(store: &Self::ToStore) -> Option<&dyn ::verde::storage::ErasedQueryStorage> {
+			fn query_storage(store: &Self::Storage) -> Option<&dyn ::verde::internal::storage::ErasedQueryStorage> {
 				Some(store)
 			}
 		}

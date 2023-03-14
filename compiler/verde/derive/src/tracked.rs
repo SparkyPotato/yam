@@ -40,14 +40,14 @@ pub(crate) fn tracked(input: DeriveInput) -> Result<TokenStream> {
 					}
 				}
 
-				impl ::verde::TrackedOrQuery for #ty {
-					type ToStore = ::verde::TrackedStorage<Self>;
+				impl ::verde::internal::Storable for #ty {
+					type Storage = ::verde::internal::storage::TrackedStorage<Self>;
 
-					fn tracked_storage(store: &Self::ToStore) -> Option<&dyn ::verde::storage::ErasedTrackedStorage> {
+					fn tracked_storage(store: &Self::Storage) -> Option<&dyn ::verde::internal::storage::ErasedTrackedStorage> {
 						Some(store)
 					}
 
-					fn query_storage(store: &Self::ToStore) -> Option<&dyn ::verde::storage::ErasedQueryStorage> {
+					fn query_storage(store: &Self::Storage) -> Option<&dyn ::verde::internal::storage::ErasedQueryStorage> {
 						None
 					}
 				}

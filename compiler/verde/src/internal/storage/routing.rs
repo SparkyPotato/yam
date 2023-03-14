@@ -11,7 +11,7 @@ use std::any::TypeId;
 
 use rustc_hash::FxHashMap;
 
-use crate::TrackedOrQuery;
+use crate::Storable;
 
 /// A type-erased route through the database storage.
 /// Uniquely identifies the storage for a particular [`Tracked`](crate::Tracked) type.
@@ -35,7 +35,7 @@ pub struct RoutingTable {
 }
 
 impl RoutingTable {
-	pub fn route<T: TrackedOrQuery>(&self) -> Route {
+	pub fn route<T: Storable>(&self) -> Route {
 		match self.routes.get(&TypeId::of::<T>()) {
 			Some(route) => *route,
 			None => panic!("Database does not contain `{}`", std::any::type_name::<T>()),
@@ -68,7 +68,7 @@ pub struct RouteBuilder<'a> {
 }
 
 impl RouteBuilder<'_> {
-	pub fn add<T: TrackedOrQuery>(&mut self, index: u16) {
+	pub fn add<T: Storable>(&mut self, index: u16) {
 		let route = Route {
 			storage: self.storage,
 			index,

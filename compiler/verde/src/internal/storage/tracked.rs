@@ -6,7 +6,7 @@ use std::{
 use tokio::sync::{RwLock, RwLockReadGuard};
 
 use crate::{
-	storage::{generation_future::GenerationFuture, routing::Route, DashMap},
+	internal::storage::{generation_future::GenerationFuture, routing::Route, DashMap},
 	Tracked,
 };
 
@@ -49,6 +49,8 @@ pub struct Id<T> {
 	pub(crate) inner: ErasedId,
 	_phantom: std::marker::PhantomData<T>,
 }
+unsafe impl<T> Send for Id<T> {}
+unsafe impl<T> Sync for Id<T> {}
 
 pub struct Get<'a, T> {
 	slot: RwLockReadGuard<'a, T>,

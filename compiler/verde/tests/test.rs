@@ -39,9 +39,9 @@ fn main() {
 	let mut db = Database::default();
 	let id = db.set_input(TrackedStruct { id: 0, value: 1 });
 
-	let doubled = db.block_on(db.execute::<double>(double(&db, id)));
+	let doubled = db.block_on(db.execute(double(&db, id)));
 	assert_eq!(db.get_ext(doubled).value, 2);
 
-	let doubled = db.block_on(db.execute::<double>(double(&db, id)));
+	let doubled = db.block_on(db.execute(double(&db, id)));
 	assert_eq!(db.get_ext(doubled).value, 2);
 }

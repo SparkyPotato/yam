@@ -18,31 +18,31 @@ pub(crate) fn storage(input: ItemStruct) -> Result<TokenStream> {
 	Ok(quote! {
 		#[derive(Default)]
 		#vis struct #name {
-			#(#field_names: <#fields as ::verde::TrackedOrQuery>::ToStore),*
+			#(#field_names: <#fields as ::verde::internal::Storable>::Storage),*
 		}
 
-		impl ::verde::Storage for #name {
-			fn init_routing(table: &mut ::verde::storage::routing::RouteBuilder) {
+		impl ::verde::internal::Storage for #name {
+			fn init_routing(table: &mut ::verde::internal::storage::RouteBuilder) {
 				#(table.add::<#fields>(#field_indices);)*
 			}
 
-			fn tracked_storage(&self, index: u16) -> Option<&dyn ::verde::storage::ErasedTrackedStorage> {
+			fn tracked_storage(&self, index: u16) -> Option<&dyn ::verde::internal::storage::ErasedTrackedStorage> {
 				match index {
-					#(#field_indices => <#fields as ::verde::TrackedOrQuery>::tracked_storage(&self.#field_names)),*,
+					#(#field_indices => <#fields as ::verde::internal::Storable>::tracked_storage(&self.#field_names)),*,
 					_ => panic!("invalid route index"),
 				}
 			}
 
-			fn query_storage(&self, index: u16) -> Option<&dyn ::verde::storage::ErasedQueryStorage> {
+			fn query_storage(&self, index: u16) -> Option<&dyn ::verde::internal::storage::ErasedQueryStorage> {
 				match index {
-					#(#field_indices => <#fields as ::verde::TrackedOrQuery>::query_storage(&self.#field_names)),*,
+					#(#field_indices => <#fields as ::verde::internal::Storable>::query_storage(&self.#field_names)),*,
 					_ => panic!("invalid route index"),
 				}
 			}
 		}
 
 		#(
-			impl ::verde::StorageOf<#fields> for #name {
+			impl ::verde::internal::StorageOf<#fields> for #name {
 				fn storage_index(&self) -> u16 {
 					#field_indices
 				}
@@ -69,33 +69,33 @@ pub(crate) fn database(input: ItemStruct) -> Result<TokenStream> {
 
 	Ok(quote! {
 		#vis struct #name {
-			__verde_internal_core: ::verde::DatabaseCore,
-			__verde_internal_routing_table: ::verde::storage::routing::RoutingTable,
+			__verde_internal_core: ::verde::internal::DatabaseCore,
+			__verde_internal_routing_table: ::verde::internal::storage::RoutingTable,
 			#(#field_names: #fields,)*
 		}
 
 		impl ::verde::Db for #name {
-			fn core(&self) -> & ::verde::DatabaseCore {
+			fn core(&self) -> & ::verde::internal::DatabaseCore {
 				&self.__verde_internal_core
 			}
 
-			fn routing_table(&self) -> &::verde::storage::routing::RoutingTable {
+			fn routing_table(&self) -> &::verde::internal::storage::RoutingTable {
 				&self.__verde_internal_routing_table
 			}
 
-			fn init_routing(table: &mut ::verde::storage::routing::RoutingTableBuilder) {
-				#(<#fields as ::verde::Storage>::init_routing(&mut table.start_route(#field_indices));)*
+			fn init_routing(table: &mut ::verde::internal::storage::RoutingTableBuilder) {
+				#(<#fields as ::verde::internal::Storage>::init_routing(&mut table.start_route(#field_indices));)*
 			}
 
-			fn start_query(&self) -> ::verde::DbForQuery<'_> {
+			fn start_query(&self) -> ::verde::internal::DbForQuery<'_> {
 				static METADATA: std::ptr::DynMetadata<dyn Db> = std::ptr::metadata(std::ptr::null::<#name>() as *const dyn ::verde::Db);
-				::verde::DbForQuery {
+				::verde::internal::DbForQuery {
 					db: unsafe { &*std::ptr::from_raw_parts(self as *const Self as *const (), METADATA) },
 					dependencies: ::std::sync::Mutex::new(::std::option::Option::Some(::std::default::Default::default())),
 				}
 			}
 
-			fn storage_struct(&self, storage: u16) -> &dyn ::verde::Storage {
+			fn storage_struct(&self, storage: u16) -> &dyn ::verde::internal::Storage {
 				match storage {
 					#(#field_indices => &self.#field_names),*,
 					_ => panic!("invalid route storage"),
@@ -105,10 +105,10 @@ pub(crate) fn database(input: ItemStruct) -> Result<TokenStream> {
 
 		impl ::std::default::Default for #name {
 			fn default() -> Self {
-				let mut builder = ::verde::storage::routing::RoutingTableBuilder::default();
+				let mut builder = ::verde::internal::storage::RoutingTableBuilder::default();
 				<Self as ::verde::Db>::init_routing(&mut builder);
 				Self {
-					__verde_internal_core: ::verde::DatabaseCore::default(),
+					__verde_internal_core: ::verde::internal::DatabaseCore::default(),
 					__verde_internal_routing_table: builder.finish(),
 					#(#field_names: #fields::default(),)*
 				}
@@ -116,7 +116,7 @@ pub(crate) fn database(input: ItemStruct) -> Result<TokenStream> {
 		}
 
 		#(
-			impl ::verde::DbWith<#fields> for #name {
+			impl ::verde::internal::DbWith<#fields> for #name {
 				fn storage_struct_index(&self) -> u16 {
 					#field_indices
 				}

@@ -3,7 +3,7 @@ use std::future::Future;
 use rustc_hash::FxHashSet;
 
 use crate::{
-	storage::{routing::Route, DashMap, ErasedId},
+	internal::storage::{routing::Route, DashMap, ErasedId},
 	DbForQuery,
 	Id,
 	Query,
