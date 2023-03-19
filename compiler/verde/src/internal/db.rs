@@ -8,7 +8,7 @@ use tokio::{
 
 use crate::{
 	internal::{
-		storage::{ErasedId, Get, Route, RoutingTable, RoutingTableBuilder},
+		storage::{ErasedId, ErasedQueryId, Get, Route, RoutingTable, RoutingTableBuilder},
 		Storage,
 	},
 	Db,
@@ -38,6 +38,7 @@ impl Drop for DatabaseCore {
 pub struct DbForQuery<'a> {
 	pub db: &'a dyn Db,
 	pub dependencies: Mutex<Option<FxHashSet<ErasedId>>>,
+	pub curr_query: ErasedQueryId,
 }
 
 impl dyn Db + '_ {
@@ -76,6 +77,10 @@ impl dyn Db + '_ {
 impl Db for DbForQuery<'_> {
 	fn register_dependency(&self, id: ErasedId) { self.dependencies.lock().unwrap().as_mut().unwrap().insert(id); }
 
+	fn get_current_query_id(&self) -> ErasedQueryId { self.curr_query }
+
+	fn parent_db(&self) -> &dyn Db { self.db }
+
 	fn new() -> Pin<Box<Self>>
 	where
 		Self: Sized,
@@ -104,13 +109,6 @@ impl Db for DbForQuery<'_> {
 	fn routing_table(&self) -> &RoutingTable { self.db.routing_table() }
 
 	fn storage_struct(&self, storage: u16) -> &dyn Storage { self.db.storage_struct(storage) }
-
-	fn start_query(&self) -> DbForQuery<'_> {
-		DbForQuery {
-			db: self.db,
-			dependencies: Mutex::new(Some(Default::default())),
-		}
-	}
 }
 
 pub struct DbBuilder<T> {
@@ -170,5 +168,5 @@ impl<T: Db> Db for Pin<Box<T>> {
 
 	fn storage_struct(&self, storage: u16) -> &dyn Storage { self.as_ref().get_ref().storage_struct(storage) }
 
-	fn start_query(&self) -> DbForQuery<'_> { self.as_ref().get_ref().start_query() }
+	fn parent_db(&self) -> &dyn Db { self.as_ref().get_ref().parent_db() }
 }

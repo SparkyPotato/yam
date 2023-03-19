@@ -32,6 +32,7 @@ impl Route {
 /// This is required because `TypeId`s are not guaranteed to be stable across compilations, while `Route`s are.
 pub struct RoutingTable {
 	routes: FxHashMap<TypeId, Route>,
+	pushables: Vec<Route>,
 }
 
 impl RoutingTable {
@@ -41,12 +42,15 @@ impl RoutingTable {
 			None => panic!("Database does not contain `{}`", std::any::type_name::<T>()),
 		}
 	}
+
+	pub fn pushables(&self) -> &[Route] { &self.pushables }
 }
 
 #[derive(Default)]
 pub struct RoutingTableBuilder {
 	routes: FxHashMap<TypeId, Route>,
 	inverse_routes: FxHashMap<Route, TypeId>,
+	pushables: Vec<Route>,
 }
 
 impl RoutingTableBuilder {
@@ -54,16 +58,23 @@ impl RoutingTableBuilder {
 		RouteBuilder {
 			routes: &mut self.routes,
 			inverse_routes: &mut self.inverse_routes,
+			pushables: &mut self.pushables,
 			storage,
 		}
 	}
 
-	pub fn finish(self) -> RoutingTable { RoutingTable { routes: self.routes } }
+	pub fn finish(self) -> RoutingTable {
+		RoutingTable {
+			routes: self.routes,
+			pushables: self.pushables,
+		}
+	}
 }
 
 pub struct RouteBuilder<'a> {
 	routes: &'a mut FxHashMap<TypeId, Route>,
 	inverse_routes: &'a mut FxHashMap<Route, TypeId>,
+	pushables: &'a mut Vec<Route>,
 	storage: u16,
 }
 
@@ -74,6 +85,10 @@ impl RouteBuilder<'_> {
 			index,
 		};
 		let id = TypeId::of::<T>();
+		
+		if T::IS_PUSHABLE {
+			self.pushables.push(route);
+		}
 
 		if self.routes.insert(id, route).is_some() {
 			panic!("Duplicate route for type `{}`", std::any::type_name::<T>());

@@ -3,6 +3,7 @@ use quote::{quote, quote_spanned, ToTokens};
 use syn::{parse_macro_input, spanned::Spanned, DeriveInput, ItemFn, ItemStruct};
 
 mod database;
+mod pushable;
 mod query;
 mod tracked;
 
@@ -32,6 +33,16 @@ impl ToTokens for Error {
 pub fn tracked(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
 	let input = parse_macro_input!(item as DeriveInput);
 	match tracked::tracked(input) {
+		Ok(x) => x,
+		Err(e) => quote!(#e),
+	}
+	.into()
+}
+
+#[proc_macro_derive(Pushable)]
+pub fn pushable(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
+	let input = parse_macro_input!(item as DeriveInput);
+	match pushable::pushable(input) {
 		Ok(x) => x,
 		Err(e) => quote!(#e),
 	}

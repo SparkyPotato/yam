@@ -1,15 +1,24 @@
 #![feature(type_alias_impl_trait)]
 
-use std::{future::Future, hash::Hash, pin::Pin};
+use std::{future::Future, hash::Hash, pin::Pin, sync::Mutex};
 
 use tokio::task::JoinHandle;
-pub use verde_derive::{db, query, storage, Tracked};
+pub use verde_derive::{db, query, storage, Pushable, Tracked};
 
 pub use crate::{cursed::DbWrapper, internal::storage::Id};
 use crate::{
-	cursed::{EndQueryFuture, GetFuture},
+	cursed::{EndQueryFuture, GetFuture, PushFuture, StartQueryFuture},
 	internal::{
-		storage::{ErasedId, Get, Route, RoutingTable, RoutingTableBuilder, TrackedStorage},
+		storage::{
+			ErasedId,
+			ErasedQueryId,
+			Get,
+			PushableStorage,
+			Route,
+			RoutingTable,
+			RoutingTableBuilder,
+			TrackedStorage,
+		},
 		DatabaseCore,
 		DbBuilder,
 		DbForQuery,
@@ -43,6 +52,21 @@ pub trait Db: Send + Sync {
 		self.core().rt.block_on(fut)
 	}
 
+	fn get_all<T: Pushable>(&self) -> Vec<T>
+	where
+		Self: Sized,
+	{
+		let fut = async move {
+			let route = self.routing_table().route::<T>();
+			let storage = self
+				.storage_struct(route.storage)
+				.pushable_storage(route.index)
+				.unwrap();
+			unsafe { storage.get_all().await }
+		};
+		self.core().rt.block_on(fut)
+	}
+
 	fn execute<F, T>(&self, query: F) -> PendingQuery<T>
 	where
 		Self: Sized,
@@ -73,6 +97,14 @@ pub trait Db: Send + Sync {
 	/// Register a dependency of the currently executing query.
 	fn register_dependency(&self, id: ErasedId) { let _ = id; }
 
+	/// Get the query ID of the currently executing query.
+	fn get_current_query_id(&self) -> ErasedQueryId {
+		panic!("Cannot get query ID from main database");
+	}
+
+	/// Get the parent database.
+	fn parent_db(&self) -> &dyn Db;
+
 	fn new() -> Pin<Box<Self>>
 	where
 		Self: Sized,
@@ -102,9 +134,6 @@ pub trait Db: Send + Sync {
 
 	/// Get the storage struct with route index `storage`.
 	fn storage_struct(&self, storage: u16) -> &dyn Storage;
-
-	/// Get a derived database for a query.
-	fn start_query(&self) -> DbForQuery<'_>;
 }
 
 /// An asynchronously running query.
@@ -122,9 +151,13 @@ pub trait Tracked: Eq + Storable<Storage = TrackedStorage<Self>> {
 	fn id(&self) -> &Self::Id;
 }
 
+pub trait Pushable: Clone + Storable<Storage = PushableStorage<Self>> {}
+
+type StartQueryFutureInner<'a, T: Query> = impl Future<Output = DbForQuery<'a>> + 'a;
 type EndQueryFutureInner<'a, 'b, T: Query, F: Future<Output = T::Output> + 'b> =
 	impl Future<Output = Id<T::Output>> + 'b;
 type GetFutureInner<'a, T: Tracked> = impl Future<Output = Get<'a, T>> + 'a;
+type PushFutureInner<'a, T: Pushable> = impl Future<Output = ()> + 'a;
 
 impl dyn Db + '_ {
 	pub fn get<T: Tracked>(&self, id: Id<T>) -> GetFuture<'_, T> {
@@ -134,9 +167,45 @@ impl dyn Db + '_ {
 		})
 	}
 
-	pub fn end_query<'a, 'b, T, F>(
-		&'a self, input: T::Input, ctx: &'b DbForQuery<'a>, fut: F,
-	) -> EndQueryFuture<'a, 'b, T, F>
+	pub fn push<T: Pushable>(&self, value: T) -> PushFuture<T> {
+		PushFuture(async move {
+			let query = self.get_current_query_id();
+			let route = self.routing_table().route::<T>();
+			let storage = self
+				.storage_struct(route.storage)
+				.pushable_storage(route.index)
+				.unwrap();
+			unsafe {
+				storage.push(query, value).await;
+			}
+		})
+	}
+
+	pub fn start_query<T: Query>(&self, input: T::Input) -> StartQueryFuture<T> {
+		StartQueryFuture(async move {
+			let route = self.routing_table().route::<T>();
+			let storage = self.storage_struct(route.storage).query_storage(route.index).unwrap();
+			unsafe {
+				let index = storage.start_query::<T>(input).await;
+				let curr_query = ErasedQueryId { route, index };
+				for route in self.routing_table().pushables() {
+					let storage = self
+						.storage_struct(route.storage)
+						.pushable_storage(route.index)
+						.unwrap();
+					storage.clear(curr_query).await;
+				}
+
+				DbForQuery {
+					db: self.parent_db(),
+					dependencies: Mutex::new(Some(Default::default())),
+					curr_query,
+				}
+			}
+		})
+	}
+
+	pub fn end_query<'a, 'b, T, F>(&'a self, ctx: &'b DbForQuery<'a>, fut: F) -> EndQueryFuture<'a, 'b, T, F>
 	where
 		T: Query,
 		F: Future<Output = T::Output> + 'b,
@@ -144,7 +213,7 @@ impl dyn Db + '_ {
 		EndQueryFuture(async move {
 			let query = self.routing_table().route::<T>();
 			let storage = self.storage_struct(query.storage).query_storage(query.index).unwrap();
-			unsafe { storage.execute::<T, F>(query, input, ctx, fut).await }
+			unsafe { storage.execute::<T, F>(ctx, fut).await }
 		})
 	}
 }

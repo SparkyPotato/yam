@@ -43,11 +43,17 @@ pub(crate) fn tracked(input: DeriveInput) -> Result<TokenStream> {
 				impl ::verde::internal::Storable for #ty {
 					type Storage = ::verde::internal::storage::TrackedStorage<Self>;
 
+					const IS_PUSHABLE: bool = false;
+
 					fn tracked_storage(store: &Self::Storage) -> Option<&dyn ::verde::internal::storage::ErasedTrackedStorage> {
 						Some(store)
 					}
 
 					fn query_storage(store: &Self::Storage) -> Option<&dyn ::verde::internal::storage::ErasedQueryStorage> {
+						None
+					}
+
+					fn pushable_storage(store: &Self::Storage) -> Option<&dyn ::verde::internal::storage::ErasedPushableStorage> {
 						None
 					}
 				}

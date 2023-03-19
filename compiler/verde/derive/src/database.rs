@@ -39,6 +39,13 @@ pub(crate) fn storage(input: ItemStruct) -> Result<TokenStream> {
 					_ => panic!("invalid route index"),
 				}
 			}
+
+			fn pushable_storage(&self, index: u16) -> Option<&dyn ::verde::internal::storage::ErasedPushableStorage> {
+				match index {
+					#(#field_indices => <#fields as ::verde::internal::Storable>::pushable_storage(&self.#field_names)),*,
+					_ => panic!("invalid route index"),
+				}
+			}
 		}
 
 		#(
@@ -106,12 +113,9 @@ pub(crate) fn database(input: ItemStruct) -> Result<TokenStream> {
 				}
 			}
 
-			fn start_query(&self) -> ::verde::internal::DbForQuery<'_> {
-				static METADATA: std::ptr::DynMetadata<dyn Db> = std::ptr::metadata(std::ptr::null::<#name>() as *const dyn ::verde::Db);
-				::verde::internal::DbForQuery {
-					db: unsafe { &*std::ptr::from_raw_parts(self as *const Self as *const (), METADATA) },
-					dependencies: ::std::sync::Mutex::new(::std::option::Option::Some(::std::default::Default::default())),
-				}
+			fn parent_db(&self) -> &dyn ::verde::Db {
+				static METADATA: std::ptr::DynMetadata<dyn ::verde::Db> = std::ptr::metadata(std::ptr::null::<#name>() as *const dyn ::verde::Db);
+				unsafe { &*std::ptr::from_raw_parts(self as *const Self as *const (), METADATA) }
 			}
 		}
 

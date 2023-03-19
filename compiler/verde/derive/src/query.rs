@@ -66,14 +66,14 @@ pub(crate) fn query(input: ItemFn) -> Result<TokenStream> {
 							#(#input_names: ::std::clone::Clone::clone(&#input_names),)*
 						};
 						let __verde_internal_parent_ctx = unsafe { __verde_internal_parent_ctx_wrapper.to_ref() };
-						let __verde_internal_ctx = __verde_internal_parent_ctx.start_query();
+						let __verde_internal_ctx = __verde_internal_parent_ctx.start_query::<#name>(__verde_internal_query_input).await;
 
 						let out = async {
 							let #ctx_name = &__verde_internal_ctx as &dyn ::verde::Db;
 							#block
 						};
 
-						__verde_internal_parent_ctx.end_query::<#name, _>(__verde_internal_query_input, &__verde_internal_ctx, out).await
+						__verde_internal_parent_ctx.end_query::<#name, _>(&__verde_internal_ctx, out).await
 					}
 				}
 
@@ -89,6 +89,8 @@ pub(crate) fn query(input: ItemFn) -> Result<TokenStream> {
 
 		impl ::verde::internal::Storable for #name {
 			type Storage = ::verde::internal::storage::QueryStorage<Self>;
+			
+			const IS_PUSHABLE: bool = false;
 
 			fn tracked_storage(store: &Self::Storage) -> Option<&dyn ::verde::internal::storage::ErasedTrackedStorage> {
 				None
@@ -96,6 +98,10 @@ pub(crate) fn query(input: ItemFn) -> Result<TokenStream> {
 
 			fn query_storage(store: &Self::Storage) -> Option<&dyn ::verde::internal::storage::ErasedQueryStorage> {
 				Some(store)
+			}
+
+			fn pushable_storage(store: &Self::Storage) -> Option<&dyn ::verde::internal::storage::ErasedPushableStorage> {
+				None
 			}
 		}
 	})

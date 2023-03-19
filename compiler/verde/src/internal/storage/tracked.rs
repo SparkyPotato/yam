@@ -6,7 +6,7 @@ use std::{
 use tokio::sync::{RwLock, RwLockReadGuard};
 
 use crate::{
-	internal::storage::{generation_future::GenerationFuture, routing::Route, DashMap},
+	internal::storage::{routing::Route, stack_future::StackFuture, DashMap},
 	Tracked,
 };
 
@@ -17,32 +17,7 @@ pub struct ErasedId {
 }
 
 pub trait ErasedTrackedStorage {
-	fn get_erased_generation(&self, index: u32) -> GenerationFuture<'_>;
-}
-
-impl<'a> dyn ErasedTrackedStorage + 'a {
-	/// **Safety**: The type of `self` must be `TrackedStorage<T>`.
-	pub async unsafe fn insert<T: Tracked>(&self, value: T, query: Route) -> u32 {
-		unsafe {
-			let storage = self as *const dyn ErasedTrackedStorage as *const TrackedStorage<T>;
-			(*storage).insert(value, query).await
-		}
-	}
-
-	/// **Safety**: The type of `self` must be `TrackedStorage<T>`.
-	pub async unsafe fn get<T: Tracked>(&self, index: u32) -> Get<'_, T> {
-		unsafe {
-			let storage = self as *const dyn ErasedTrackedStorage as *const TrackedStorage<T>;
-			(*storage).get(index).await
-		}
-	}
-
-	pub async unsafe fn get_generation<T: Tracked>(&self, index: u32) -> u64 {
-		unsafe {
-			let storage = self as *const dyn ErasedTrackedStorage as *const TrackedStorage<T>;
-			(*storage).get_generation(index).await
-		}
-	}
+	fn get_erased_generation(&self, index: u32) -> StackFuture<'_, u64>;
 }
 
 pub struct Id<T> {
@@ -63,9 +38,7 @@ pub struct TrackedStorage<T: Tracked> {
 }
 
 impl<T: Tracked> ErasedTrackedStorage for TrackedStorage<T> {
-	fn get_erased_generation(&self, index: u32) -> GenerationFuture<'_> {
-		GenerationFuture::new(self.get_generation(index))
-	}
+	fn get_erased_generation(&self, index: u32) -> StackFuture<'_, u64> { StackFuture::new(self.get_generation(index)) }
 }
 
 impl<T: Tracked> TrackedStorage<T> {
@@ -118,6 +91,31 @@ impl<T: Tracked> TrackedStorage<T> {
 		let values = self.values.read().await;
 		let slot = &values[index as usize];
 		slot.generation.load(Ordering::Acquire)
+	}
+}
+
+impl<'a> dyn ErasedTrackedStorage + 'a {
+	/// **Safety**: The type of `self` must be `TrackedStorage<T>`.
+	pub async unsafe fn insert<T: Tracked>(&self, value: T, query: Route) -> u32 {
+		unsafe {
+			let storage = self as *const dyn ErasedTrackedStorage as *const TrackedStorage<T>;
+			(*storage).insert(value, query).await
+		}
+	}
+
+	/// **Safety**: The type of `self` must be `TrackedStorage<T>`.
+	pub async unsafe fn get<T: Tracked>(&self, index: u32) -> Get<'_, T> {
+		unsafe {
+			let storage = self as *const dyn ErasedTrackedStorage as *const TrackedStorage<T>;
+			(*storage).get(index).await
+		}
+	}
+
+	pub async unsafe fn get_generation<T: Tracked>(&self, index: u32) -> u64 {
+		unsafe {
+			let storage = self as *const dyn ErasedTrackedStorage as *const TrackedStorage<T>;
+			(*storage).get_generation(index).await
+		}
 	}
 }
 

@@ -1,7 +1,7 @@
 use std::{future::Future, hash::Hash};
 
 use crate::{
-	internal::storage::{ErasedQueryStorage, ErasedTrackedStorage, QueryStorage, RouteBuilder},
+	internal::storage::{ErasedPushableStorage, ErasedQueryStorage, ErasedTrackedStorage, QueryStorage, RouteBuilder},
 	Id,
 	Tracked,
 };
@@ -24,6 +24,9 @@ pub trait Storage {
 
 	/// Get a `&dyn QueryStorage<T>` if the route with `index` is a query.
 	fn query_storage(&self, index: u16) -> Option<&dyn ErasedQueryStorage>;
+
+	/// Get a `&dyn PushableStorage<T>` if the route with `index` is a storage struct.
+	fn pushable_storage(&self, index: u16) -> Option<&dyn ErasedPushableStorage>;
 }
 
 /// A database that contains a storage struct `S`,
@@ -53,9 +56,14 @@ pub trait Storable: Sized + Send + Sync + 'static {
 	/// If the type is a query, this should be [`QueryStorage<Self>`].
 	type Storage: Default;
 
+	const IS_PUSHABLE: bool;
+
 	/// Cast to a `&dyn TrackedStorage<Self>` if `Self` is a tracked struct.
 	fn tracked_storage(store: &Self::Storage) -> Option<&dyn ErasedTrackedStorage>;
 
 	/// Cast to a `&dyn QueryStorage<Self>` if `Self` is a query.
 	fn query_storage(store: &Self::Storage) -> Option<&dyn ErasedQueryStorage>;
+
+	/// Get a `&dyn PushableStorage<T>` if the route with `index` is a storage struct.
+	fn pushable_storage(store: &Self::Storage) -> Option<&dyn ErasedPushableStorage>;
 }
