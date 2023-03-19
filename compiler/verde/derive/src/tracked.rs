@@ -11,6 +11,7 @@ use syn::{
 	DataUnion,
 	DeriveInput,
 	Ident,
+	Meta,
 	Type,
 };
 
@@ -106,14 +107,11 @@ fn generate(input: &DataStruct) -> Result<TrackedStruct> {
 		.iter()
 		.enumerate()
 		.map(|(i, f)| {
-			if let Some(attr) = f.attrs.iter().find(|x| x.path.is_ident("id")) {
-				if !attr.tokens.is_empty() {
-					return Err(Error::new(
-						attr.tokens.span(),
-						"id attribute does not take any arguments",
-					));
-				}
-
+			if f.attrs
+				.iter()
+				.find(|x| matches!(&x.meta, Meta::Path(p) if p.is_ident("id")))
+				.is_some()
+			{
 				if id.is_some() {
 					return Err(Error::new(f.span(), "Only a single field can be marked with `#[id]`"));
 				}

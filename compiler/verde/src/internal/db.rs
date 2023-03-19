@@ -1,6 +1,7 @@
 use std::{marker::PhantomData, pin::Pin, sync::Mutex};
 
 use rustc_hash::FxHashSet;
+use serde::Deserializer;
 use tokio::{
 	runtime::{Builder, Runtime},
 	task::AbortHandle,
@@ -20,6 +21,15 @@ use crate::{
 pub struct DatabaseCore {
 	pub(crate) rt: Runtime,
 	pub(crate) pending_queries: Mutex<Vec<AbortHandle>>,
+}
+
+impl Default for DatabaseCore {
+	fn default() -> Self {
+		Self {
+			rt: Builder::new_multi_thread().enable_all().build().unwrap(),
+			pending_queries: Mutex::new(Vec::new()),
+		}
+	}
 }
 
 impl DatabaseCore {
@@ -104,11 +114,30 @@ impl Db for DbForQuery<'_> {
 
 	fn init_routing(_: &mut RoutingTableBuilder) { panic!("Invalid method called on `DbForQuery`") }
 
+	#[cfg(feature = "serde")]
+	fn serialize<S: serde::Serializer>(self, _: S) -> Result<S::Ok, S::Error>
+	where
+		Self: Sized,
+	{
+		panic!("Invalid method called on `DbForQuery`")
+	}
+
+	fn deserialize_with_core<'de, D: Deserializer<'de>>(_: DatabaseCore, _: D) -> Result<Pin<Box<Self>>, D::Error>
+	where
+		Self: Sized,
+	{
+		panic!("Invalid method called on `DbForQuery`");
+	}
+
 	fn core(&self) -> &DatabaseCore { self.db.core() }
 
 	fn routing_table(&self) -> &RoutingTable { self.db.routing_table() }
 
 	fn storage_struct(&self, storage: u16) -> &dyn Storage { self.db.storage_struct(storage) }
+
+	fn shutdown(&mut self) {
+		panic!("Invalid method called on `DbForQuery`");
+	}
 }
 
 pub struct DbBuilder<T> {
@@ -148,6 +177,8 @@ impl<T: Db> DbBuilder<T> {
 }
 
 impl<T: Db> Db for Pin<Box<T>> {
+	fn parent_db(&self) -> &dyn Db { self.as_ref().get_ref().parent_db() }
+
 	fn build_with_core(_: DatabaseCore) -> Pin<Box<Self>>
 	where
 		Self: Sized,
@@ -162,11 +193,30 @@ impl<T: Db> Db for Pin<Box<T>> {
 		panic!("Invalid method called on `Pin<Box<Db>>`");
 	}
 
+	#[cfg(feature = "serde")]
+	fn serialize<S: serde::Serializer>(mut self, serializer: S) -> Result<S::Ok, S::Error> {
+		self.shutdown();
+		// SAFETY: We don't need to be pinned anymore.
+		let inner = unsafe { Pin::into_inner_unchecked(self) };
+		(*inner).serialize(serializer)
+	}
+
+	fn deserialize_with_core<'de, D: Deserializer<'de>>(_: DatabaseCore, _: D) -> Result<Pin<Box<Self>>, D::Error>
+	where
+		Self: Sized,
+	{
+		panic!("Invalid method called on `Pin<Box<Db>>`");
+	}
+
 	fn core(&self) -> &DatabaseCore { self.as_ref().get_ref().core() }
 
 	fn routing_table(&self) -> &RoutingTable { self.as_ref().get_ref().routing_table() }
 
 	fn storage_struct(&self, storage: u16) -> &dyn Storage { self.as_ref().get_ref().storage_struct(storage) }
 
-	fn parent_db(&self) -> &dyn Db { self.as_ref().get_ref().parent_db() }
+	fn shutdown(&mut self) {
+		unsafe {
+			self.as_mut().get_unchecked_mut().shutdown();
+		}
+	}
 }

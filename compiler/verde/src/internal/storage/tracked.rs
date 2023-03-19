@@ -12,8 +12,8 @@ use crate::{
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash)]
 pub struct ErasedId {
-	pub(crate) index: u32,
 	pub(crate) route: Route,
+	pub(crate) index: u32,
 }
 
 pub trait ErasedTrackedStorage {
@@ -22,7 +22,7 @@ pub trait ErasedTrackedStorage {
 
 pub struct Id<T> {
 	pub(crate) inner: ErasedId,
-	_phantom: std::marker::PhantomData<T>,
+	pub(crate) _phantom: std::marker::PhantomData<T>,
 }
 unsafe impl<T> Send for Id<T> {}
 unsafe impl<T> Sync for Id<T> {}
@@ -33,8 +33,8 @@ pub struct Get<'a, T> {
 }
 
 pub struct TrackedStorage<T: Tracked> {
-	id_map: DashMap<TrackedIdent<T>, u32>,
-	values: RwLock<Vec<Slot<T>>>,
+	pub(crate) map: DashMap<TrackedIdent<T>, u32>,
+	pub(crate) values: RwLock<Vec<Slot<T>>>,
 }
 
 impl<T: Tracked> ErasedTrackedStorage for TrackedStorage<T> {
@@ -48,7 +48,7 @@ impl<T: Tracked> TrackedStorage<T> {
 			id: value.id().clone(),
 			query,
 		};
-		match self.id_map.get(&ident) {
+		match self.map.get(&ident) {
 			Some(index) => {
 				let index = *index;
 				let values = self.values.read().await;
@@ -69,7 +69,7 @@ impl<T: Tracked> TrackedStorage<T> {
 					value: RwLock::new(value),
 					generation: AtomicU64::new(0),
 				});
-				self.id_map.insert(ident, index);
+				self.map.insert(ident, index);
 				index
 			},
 		}
@@ -119,14 +119,14 @@ impl<'a> dyn ErasedTrackedStorage + 'a {
 	}
 }
 
-struct Slot<T> {
-	value: RwLock<T>,
-	generation: AtomicU64,
+pub(crate) struct Slot<T> {
+	pub(crate) value: RwLock<T>,
+	pub(crate) generation: AtomicU64,
 }
 
-struct TrackedIdent<T: Tracked> {
-	id: T::Id,
-	query: Route,
+pub(crate) struct TrackedIdent<T: Tracked> {
+	pub(crate) id: T::Id,
+	pub(crate) query: Route,
 }
 
 impl<T: Tracked> Clone for TrackedIdent<T> {
@@ -151,7 +151,7 @@ impl<T: Tracked> std::hash::Hash for TrackedIdent<T> {
 impl<T: Tracked> Default for TrackedStorage<T> {
 	fn default() -> Self {
 		Self {
-			id_map: DashMap::default(),
+			map: DashMap::default(),
 			values: RwLock::new(Vec::new()),
 		}
 	}

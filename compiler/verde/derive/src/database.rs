@@ -6,6 +6,7 @@ use crate::{Error, Result};
 
 pub(crate) fn storage(input: ItemStruct) -> Result<TokenStream> {
 	let Storage { vis, name, fields } = generate(input)?;
+	let serde_name = format_ident!("__verde_internal_serde_{}", name);
 	let field_names = fields
 		.iter()
 		.map(|x| Ok(format_ident!("__verde_internal_storage_{}", ty_to_ident(x)?)))
@@ -15,11 +16,41 @@ pub(crate) fn storage(input: ItemStruct) -> Result<TokenStream> {
 		.collect::<std::result::Result<Vec<u16>, _>>()
 		.map_err(|_| Error::new(name.span(), "how do you have more than 65536 fields?"))?;
 
+	let serde = if cfg!(feature = "serde") {
+		quote! {
+			#[allow(non_camel_case_types)]
+			#[derive(::verde::serde::Serialize, ::verde::serde::Deserialize)]
+			#vis struct #serde_name {
+				#(#field_names: <<#fields as ::verde::internal::Storable>::Storage as ::verde::Serde>::Serializable),*
+			}
+
+			impl ::verde::Serde for #name {
+				type Serializable = #serde_name;
+
+				fn to_serializable(self) -> Self::Serializable {
+					#serde_name {
+						#(#field_names: <<#fields as ::verde::internal::Storable>::Storage as ::verde::Serde>::to_serializable(self.#field_names)),*
+					}
+				}
+
+				fn from_serializable(serializable: Self::Serializable) -> Self {
+					Self {
+						#(#field_names: <<#fields as ::verde::internal::Storable>::Storage as ::verde::Serde>::from_serializable(serializable.#field_names)),*
+					}
+				}
+			}
+		}
+	} else {
+		quote! {}
+	};
+
 	Ok(quote! {
 		#[derive(Default)]
 		#vis struct #name {
 			#(#field_names: <#fields as ::verde::internal::Storable>::Storage),*
 		}
+
+		#serde
 
 		impl ::verde::internal::Storage for #name {
 			fn init_routing(table: &mut ::verde::internal::storage::RouteBuilder) {
@@ -73,6 +104,79 @@ pub(crate) fn database(input: ItemStruct) -> Result<TokenStream> {
 		.map(|x| x.try_into())
 		.collect::<std::result::Result<Vec<u16>, _>>()
 		.map_err(|_| Error::new(name.span(), "how do you have more than 65536 fields?"))?;
+	let field_count = fields.len();
+
+	let serde = if cfg!(feature = "serde") {
+		quote! {
+			fn serialize<S: ::verde::serde::Serializer>(self, serializer: S) -> ::std::result::Result<S::Ok, S::Error>{
+				use ::verde::serde::ser::SerializeStruct;
+
+				let mut state = serializer.serialize_struct(::std::stringify!(#name), #field_count)?;
+				#(state.serialize_field(::std::stringify!(#field_names), &<#fields as ::verde::Serde>::to_serializable(self.#field_names))?;)*
+				state.end()
+			}
+
+			fn deserialize_with_core<'de, D: ::verde::serde::Deserializer<'de>>(core: ::verde::internal::DatabaseCore, deserializer: D) -> Result<::std::pin::Pin<::std::boxed::Box<Self>>, D::Error> {
+				use ::verde::serde::de::Error;
+
+				struct Deser {
+					#(#field_names: <#fields as ::verde::Serde>::Serializable),*
+				}
+
+				struct Visitor;
+
+				impl<'de> ::verde::serde::de::Visitor<'de> for Visitor {
+					type Value = Deser;
+
+					fn expecting(&self, formatter: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+						formatter.write_str("the database")
+					}
+
+					fn visit_map<V: ::verde::serde::de::MapAccess<'de>>(self, mut map: V) -> ::std::result::Result<Self::Value, V::Error> {
+						#(
+							let mut #field_names = None;
+						)*
+
+						while let Some(key) = map.next_key::<::std::string::String>()? {
+							match key.as_str() {
+								#(
+									::std::stringify!(#field_names) => {
+										if #field_names.is_some() {
+											return Err(V::Error::duplicate_field(::std::stringify!(#field_names)));
+										}
+										#field_names = Some(map.next_value()?);
+									}
+								)*
+								_ => {
+									let _: ::verde::serde::de::IgnoredAny = map.next_value()?;
+								}
+							}
+						}
+
+						#(
+							let #field_names = #field_names.ok_or_else(|| V::Error::missing_field(::std::stringify!(#field_names)))?;
+						)*
+
+						Ok(Deser {
+							#(#field_names),*
+						})
+					}
+				}
+
+				let deser = deserializer.deserialize_struct(::std::stringify!(#name), &[#(::std::stringify!(#field_names),)*], Visitor)?;
+				let mut builder = ::verde::internal::storage::RoutingTableBuilder::default();
+				<#name as ::verde::Db>::init_routing(&mut builder);
+				Ok(::std::boxed::Box::pin(#name {
+					__verde_internal_core: core,
+					__verde_internal_routing_table: builder.finish(),
+					__verde_internal_pinned: ::std::marker::PhantomPinned,
+					#(#field_names: <#fields as ::verde::Serde>::from_serializable(deser.#field_names)),*
+				}))
+			}
+		}
+	} else {
+		quote! {}
+	};
 
 	Ok(quote! {
 		#vis struct #name {
@@ -97,6 +201,10 @@ pub(crate) fn database(input: ItemStruct) -> Result<TokenStream> {
 			fn init_routing(table: &mut ::verde::internal::storage::RoutingTableBuilder) {
 				#(<#fields as ::verde::internal::Storage>::init_routing(&mut table.start_route(#field_indices));)*
 			}
+
+			#serde
+
+			fn shutdown(&mut self) { ::std::mem::drop(::std::mem::take(&mut self.__verde_internal_core)) }
 
 			fn core(&self) -> & ::verde::internal::DatabaseCore {
 				&self.__verde_internal_core

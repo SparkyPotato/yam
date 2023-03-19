@@ -28,7 +28,7 @@ impl<'a> dyn ErasedPushableStorage + 'a {
 }
 
 pub struct PushableStorage<T> {
-	map: DashMap<Route, Vec<Mutex<Vec<T>>>>,
+	pub(crate) map: DashMap<Route, Vec<Mutex<Vec<T>>>>,
 }
 
 impl<T: Pushable> ErasedPushableStorage for PushableStorage<T> {

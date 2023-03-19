@@ -2,9 +2,13 @@
 
 use std::{future::Future, hash::Hash, pin::Pin, sync::Mutex};
 
+#[cfg(feature = "serde")]
+pub use serde;
 use tokio::task::JoinHandle;
 pub use verde_derive::{db, query, storage, Pushable, Tracked};
 
+#[cfg(feature = "serde")]
+pub use crate::internal::serde::*;
 pub use crate::{cursed::DbWrapper, internal::storage::Id};
 use crate::{
 	cursed::{EndQueryFuture, GetFuture, PushFuture, StartQueryFuture},
@@ -123,8 +127,19 @@ pub trait Db: Send + Sync {
 	where
 		Self: Sized;
 
+	fn deserialize_with_core<'de, D: serde::Deserializer<'de>>(
+		core: DatabaseCore, deserializer: D,
+	) -> Result<Pin<Box<Self>>, D::Error>
+	where
+		Self: Sized;
+
 	/// Initialize the routing table at database initialization.
 	fn init_routing(table: &mut RoutingTableBuilder)
+	where
+		Self: Sized;
+
+	#[cfg(feature = "serde")]
+	fn serialize<S: serde::Serializer>(self, serializer: S) -> Result<S::Ok, S::Error>
 	where
 		Self: Sized;
 
@@ -134,6 +149,8 @@ pub trait Db: Send + Sync {
 
 	/// Get the storage struct with route index `storage`.
 	fn storage_struct(&self, storage: u16) -> &dyn Storage;
+
+	fn shutdown(&mut self);
 }
 
 /// An asynchronously running query.
@@ -217,3 +234,6 @@ impl dyn Db + '_ {
 		})
 	}
 }
+
+#[cfg(not(feature = "serde"))]
+pub trait Serde {}

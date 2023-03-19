@@ -41,6 +41,12 @@ pub(crate) fn query(input: ItemFn) -> Result<TokenStream> {
 	let ctx_name = &ctx.name;
 	let input_names = inputs.iter().map(|x| &x.name);
 
+	let serde = if cfg!(feature = "serde") {
+		quote! { #[derive(::verde::serde::Serialize, ::verde::serde::Deserialize)] }
+	} else {
+		quote! {}
+	};
+
 	Ok(quote! {
 		#[allow(non_camel_case_types)]
 		#[derive(Copy, Clone)]
@@ -52,6 +58,7 @@ pub(crate) fn query(input: ItemFn) -> Result<TokenStream> {
 
 		#[allow(non_camel_case_types)]
 		#[derive(Clone, PartialEq, Eq, Hash)]
+		#serde
 		struct #input_type_name {
 			#(#inputs,)*
 		}
@@ -89,7 +96,7 @@ pub(crate) fn query(input: ItemFn) -> Result<TokenStream> {
 
 		impl ::verde::internal::Storable for #name {
 			type Storage = ::verde::internal::storage::QueryStorage<Self>;
-			
+
 			const IS_PUSHABLE: bool = false;
 
 			fn tracked_storage(store: &Self::Storage) -> Option<&dyn ::verde::internal::storage::ErasedTrackedStorage> {

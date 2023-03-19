@@ -3,10 +3,11 @@
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use futures::{stream, StreamExt};
+use futures::stream::{self, StreamExt};
+use serde::{Deserialize, Serialize};
 use verde::{db, query, storage, Db, Id, Pushable, Tracked};
 
-#[derive(Eq, PartialEq, Tracked)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Serialize, Deserialize, Tracked)]
 struct TrackedStruct {
 	#[id]
 	id: u32,
@@ -49,7 +50,7 @@ fn doesnt_execute_twice() {
 
 #[test]
 fn correct_result() {
-	#[derive(Clone, Pushable)]
+	#[derive(Clone, Pushable, Serialize, Deserialize)]
 	struct Accum;
 
 	#[storage]

@@ -85,7 +85,7 @@ impl RouteBuilder<'_> {
 			index,
 		};
 		let id = TypeId::of::<T>();
-		
+
 		if T::IS_PUSHABLE {
 			self.pushables.push(route);
 		}
