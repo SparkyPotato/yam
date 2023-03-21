@@ -1,7 +1,6 @@
 use std::{marker::PhantomData, pin::Pin, sync::Mutex};
 
 use rustc_hash::FxHashSet;
-use serde::Deserializer;
 use tokio::{
 	runtime::{Builder, Runtime},
 	task::AbortHandle,
@@ -122,7 +121,10 @@ impl Db for DbForQuery<'_> {
 		panic!("Invalid method called on `DbForQuery`")
 	}
 
-	fn deserialize_with_core<'de, D: Deserializer<'de>>(_: DatabaseCore, _: D) -> Result<Pin<Box<Self>>, D::Error>
+	#[cfg(feature = "serde")]
+	fn deserialize_with_core<'de, D: serde::Deserializer<'de>>(
+		_: DatabaseCore, _: D,
+	) -> Result<Pin<Box<Self>>, D::Error>
 	where
 		Self: Sized,
 	{
@@ -155,7 +157,7 @@ impl<T: Db> DbBuilder<T> {
 		}
 	}
 
-	pub fn thread_name(mut self, name: impl Into<String>) -> Self {
+	pub fn thread_name(&mut self, name: impl Into<String>) -> &mut Self {
 		self.builder.thread_name(name);
 		self
 	}
@@ -163,16 +165,23 @@ impl<T: Db> DbBuilder<T> {
 	/// Sets the number of worker threads for the runtime.
 	/// If not set, the number of logical cores on the system will be used.
 	/// If the value is 0, it will panic.
-	pub fn worker_threads(mut self, threads: usize) -> Self {
+	pub fn worker_threads(&mut self, threads: usize) -> &mut Self {
 		self.builder.worker_threads(threads);
 		self
 	}
 
-	pub fn build(&mut self) -> Pin<Box<T>> {
-		T::build_with_core(DatabaseCore {
+	pub fn build(&mut self) -> Pin<Box<T>> { T::build_with_core(self.make_core()) }
+
+	#[cfg(feature = "serde")]
+	pub fn deserialize<'de, D: serde::Deserializer<'de>>(&mut self, deserializer: D) -> Result<Pin<Box<T>>, D::Error> {
+		T::deserialize_with_core(self.make_core(), deserializer)
+	}
+
+	fn make_core(&mut self) -> DatabaseCore {
+		DatabaseCore {
 			rt: self.builder.build().unwrap(),
 			pending_queries: Mutex::new(Vec::new()),
-		})
+		}
 	}
 }
 
@@ -180,6 +189,16 @@ impl<T: Db> Db for Pin<Box<T>> {
 	fn parent_db(&self) -> &dyn Db { self.as_ref().get_ref().parent_db() }
 
 	fn build_with_core(_: DatabaseCore) -> Pin<Box<Self>>
+	where
+		Self: Sized,
+	{
+		panic!("Invalid method called on `Pin<Box<Db>>`");
+	}
+
+	#[cfg(feature = "serde")]
+	fn deserialize_with_core<'de, D: serde::Deserializer<'de>>(
+		_: DatabaseCore, _: D,
+	) -> Result<Pin<Box<Self>>, D::Error>
 	where
 		Self: Sized,
 	{
@@ -199,13 +218,6 @@ impl<T: Db> Db for Pin<Box<T>> {
 		// SAFETY: We don't need to be pinned anymore.
 		let inner = unsafe { Pin::into_inner_unchecked(self) };
 		(*inner).serialize(serializer)
-	}
-
-	fn deserialize_with_core<'de, D: Deserializer<'de>>(_: DatabaseCore, _: D) -> Result<Pin<Box<Self>>, D::Error>
-	where
-		Self: Sized,
-	{
-		panic!("Invalid method called on `Pin<Box<Db>>`");
 	}
 
 	fn core(&self) -> &DatabaseCore { self.as_ref().get_ref().core() }

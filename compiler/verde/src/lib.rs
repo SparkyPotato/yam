@@ -127,6 +127,7 @@ pub trait Db: Send + Sync {
 	where
 		Self: Sized;
 
+	#[cfg(feature = "serde")]
 	fn deserialize_with_core<'de, D: serde::Deserializer<'de>>(
 		core: DatabaseCore, deserializer: D,
 	) -> Result<Pin<Box<Self>>, D::Error>

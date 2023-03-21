@@ -54,7 +54,7 @@ fn correct_result() {
 	struct Accum;
 
 	#[storage]
-	struct Storage(TrackedStruct, double, sum, Accum);
+	struct Storage(TrackedStruct, Accum, double, sum);
 
 	#[db]
 	struct Database(Storage);
