@@ -44,7 +44,7 @@ pub trait Db: Send + Sync {
 	{
 		self.core().cancel_all();
 
-		let fut = (self as &dyn Db).insert(Route::input(), value);
+		let fut = (self as &dyn Db).insert(Route::input(), value, None);
 		self.core().rt.block_on(fut)
 	}
 
@@ -187,12 +187,16 @@ impl dyn Db + '_ {
 
 	pub fn push<T: Pushable>(&self, value: T) -> PushFuture<T> {
 		PushFuture(async move {
-			let query = self.get_current_query_id();
-			let route = self.routing_table().route::<T>();
-			let storage = self
-				.storage_struct(route.storage)
-				.pushable_storage(route.index)
-				.unwrap();
+			let span = span!(debug, "push", ty = std::any::type_name::<T>());
+			let (query, storage) = span.in_scope(|| {
+				let query = self.get_current_query_id();
+				let route = self.routing_table().route::<T>();
+				let storage = self
+					.storage_struct(route.storage)
+					.pushable_storage(route.index)
+					.unwrap();
+				(query, storage)
+			});
 			unsafe {
 				storage.push(query, value).await;
 			}
@@ -200,27 +204,34 @@ impl dyn Db + '_ {
 	}
 
 	pub fn start_query<T: Query>(&self, input: T::Input) -> StartQueryFuture<T> {
-		StartQueryFuture(async move {
-			let route = self.routing_table().route::<T>();
-			let storage = self.storage_struct(route.storage).query_storage(route.index).unwrap();
-			unsafe {
-				let index = storage.start_query::<T>(input).await;
-				let curr_query = ErasedQueryId { route, index };
-				for route in self.routing_table().pushables() {
-					let storage = self
-						.storage_struct(route.storage)
-						.pushable_storage(route.index)
-						.unwrap();
-					storage.clear(curr_query).await;
-				}
+		StartQueryFuture(
+			async move {
+				let route = self.routing_table().route::<T>();
+				let storage = self.storage_struct(route.storage).query_storage(route.index).unwrap();
+				unsafe {
+					let index = storage.start_query::<T>(input).await;
+					let curr_query = ErasedQueryId { route, index };
+					async move {
+						for route in self.routing_table().pushables() {
+							let storage = self
+								.storage_struct(route.storage)
+								.pushable_storage(route.index)
+								.unwrap();
+							storage.clear(curr_query).await;
+						}
+					}
+					.instrument(span!(trace, "clear pushables", query = std::any::type_name::<T>()))
+					.await;
 
-				DbForQuery {
-					db: self.parent_db(),
-					dependencies: Mutex::new(Some(Default::default())),
-					curr_query,
+					DbForQuery {
+						db: self.parent_db(),
+						dependencies: Mutex::new(Some(Default::default())),
+						curr_query,
+					}
 				}
 			}
-		})
+			.instrument(span!(trace, "initialize query", query = std::any::type_name::<T>())),
+		)
 	}
 
 	pub fn end_query<'a, 'b, T, F>(&'a self, ctx: &'b DbForQuery<'a>, fut: F) -> EndQueryFuture<'a, 'b, T, F>
@@ -238,3 +249,87 @@ impl dyn Db + '_ {
 
 #[cfg(not(feature = "serde"))]
 pub trait Serde {}
+
+#[cfg(feature = "tracing")]
+use tracing_futures::Instrument;
+
+#[cfg(not(feature = "tracing"))]
+trait Instrument {
+	fn instrument(self, _: Span) -> Self;
+}
+
+#[cfg(not(feature = "tracing"))]
+impl<T> Instrument for T {
+	fn instrument(self, _: Span) -> Self { self }
+}
+
+#[cfg(feature = "tracing")]
+macro_rules! span {
+	(enter $($x:tt)*) => {
+		let _e = crate::span!($($x)*).entered();
+	};
+
+	(trace, $($x:tt)*) => {
+		tracing::span!(tracing::Level::TRACE, $($x)*)
+	};
+    (debug, $($x:tt)*) => {
+		tracing::span!(tracing::Level::DEBUG, $($x)*)
+	};
+	(info, $($x:tt)*) => {
+		tracing::span!(tracing::Level::INFO, $($x)*)
+	};
+	(warn, $($x:tt)*) => {
+		tracing::span!(tracing::Level::WARN, $($x)*)
+	};
+	(error, $($x:tt)*) => {
+		tracing::span!(tracing::Level::ERROR, $($x)*)
+	};
+}
+
+#[cfg(not(feature = "tracing"))]
+macro_rules! span {
+	($($x:tt)*) => {{
+		let x = crate::Span;
+		x
+	}};
+}
+
+use span;
+
+#[cfg(feature = "tracing")]
+macro_rules! event {
+	(trace, $($x:tt)*) => {
+		tracing::event!(tracing::Level::TRACE, $($x)*)
+	};
+    (debug, $($x:tt)*) => {
+		tracing::event!(tracing::Level::DEBUG, $($x)*)
+	};
+	(info, $($x:tt)*) => {
+		tracing::event!(tracing::Level::INFO, $($x)*)
+	};
+	(warn, $($x:tt)*) => {
+		tracing::event!(tracing::Level::WARN, $($x)*)
+	};
+	(error, $($x:tt)*) => {
+		tracing::event!(tracing::Level::ERROR, $($x)*)
+	};
+}
+
+#[cfg(not(feature = "tracing"))]
+macro_rules! event {
+	($($x:tt)*) => {
+		()
+	};
+}
+
+use event;
+
+#[cfg(not(feature = "tracing"))]
+struct Span;
+
+#[cfg(not(feature = "tracing"))]
+impl Span {
+	fn record<Q: ?Sized, V>(&self, _: &Q, _: V) -> &Self { self }
+
+	fn in_scope<F: FnOnce() -> T, T>(&self, f: F) -> T { f() }
+}

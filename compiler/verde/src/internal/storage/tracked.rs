@@ -43,7 +43,7 @@ impl<T: Tracked> ErasedTrackedStorage for TrackedStorage<T> {
 
 impl<T: Tracked> TrackedStorage<T> {
 	/// Insert a new value into the storage.
-	pub async fn insert(&self, value: T, query: Route) -> u32 {
+	pub async fn insert(&self, value: T, query: Route, target_gen: Option<u64>) -> u32 {
 		let ident = TrackedIdent {
 			id: value.id().clone(),
 			query,
@@ -57,7 +57,10 @@ impl<T: Tracked> TrackedStorage<T> {
 
 				if *out != value {
 					*out = value;
-					slot.generation.fetch_add(1, Ordering::Release);
+					match target_gen {
+						Some(x) => slot.generation.fetch_max(x, Ordering::Release),
+						None => slot.generation.fetch_add(1, Ordering::Release),
+					};
 				}
 
 				index
@@ -96,10 +99,10 @@ impl<T: Tracked> TrackedStorage<T> {
 
 impl<'a> dyn ErasedTrackedStorage + 'a {
 	/// **Safety**: The type of `self` must be `TrackedStorage<T>`.
-	pub async unsafe fn insert<T: Tracked>(&self, value: T, query: Route) -> u32 {
+	pub async unsafe fn insert<T: Tracked>(&self, value: T, query: Route, target_gen: Option<u64>) -> u32 {
 		unsafe {
 			let storage = self as *const dyn ErasedTrackedStorage as *const TrackedStorage<T>;
-			(*storage).insert(value, query).await
+			(*storage).insert(value, query, target_gen).await
 		}
 	}
 

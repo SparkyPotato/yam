@@ -32,6 +32,7 @@ impl Route {
 /// This is required because `TypeId`s are not guaranteed to be stable across compilations, while `Route`s are.
 pub struct RoutingTable {
 	routes: FxHashMap<TypeId, Route>,
+	type_names: FxHashMap<Route, &'static str>,
 	pushables: Vec<Route>,
 }
 
@@ -43,13 +44,15 @@ impl RoutingTable {
 		}
 	}
 
+	pub fn name(&self, route: Route) -> &str { self.type_names.get(&route).unwrap() }
+
 	pub fn pushables(&self) -> &[Route] { &self.pushables }
 }
 
 #[derive(Default)]
 pub struct RoutingTableBuilder {
 	routes: FxHashMap<TypeId, Route>,
-	inverse_routes: FxHashMap<Route, TypeId>,
+	type_names: FxHashMap<Route, &'static str>,
 	pushables: Vec<Route>,
 }
 
@@ -57,7 +60,7 @@ impl RoutingTableBuilder {
 	pub fn start_route(&mut self, storage: u16) -> RouteBuilder {
 		RouteBuilder {
 			routes: &mut self.routes,
-			inverse_routes: &mut self.inverse_routes,
+			type_names: &mut self.type_names,
 			pushables: &mut self.pushables,
 			storage,
 		}
@@ -66,6 +69,7 @@ impl RoutingTableBuilder {
 	pub fn finish(self) -> RoutingTable {
 		RoutingTable {
 			routes: self.routes,
+			type_names: self.type_names,
 			pushables: self.pushables,
 		}
 	}
@@ -73,7 +77,7 @@ impl RoutingTableBuilder {
 
 pub struct RouteBuilder<'a> {
 	routes: &'a mut FxHashMap<TypeId, Route>,
-	inverse_routes: &'a mut FxHashMap<Route, TypeId>,
+	type_names: &'a mut FxHashMap<Route, &'static str>,
 	pushables: &'a mut Vec<Route>,
 	storage: u16,
 }
@@ -93,6 +97,6 @@ impl RouteBuilder<'_> {
 		if self.routes.insert(id, route).is_some() {
 			panic!("Duplicate route for type `{}`", std::any::type_name::<T>());
 		}
-		self.inverse_routes.insert(route, id);
+		self.type_names.insert(route, std::any::type_name::<T>());
 	}
 }

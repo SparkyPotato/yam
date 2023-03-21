@@ -11,8 +11,10 @@ use crate::{
 		storage::{ErasedId, ErasedQueryId, Get, Route, RoutingTable, RoutingTableBuilder},
 		Storage,
 	},
+	span,
 	Db,
 	Id,
+	Instrument,
 	Tracked,
 };
 
@@ -33,6 +35,8 @@ impl Default for DatabaseCore {
 
 impl DatabaseCore {
 	pub(crate) fn cancel_all(&self) {
+		span!(enter debug, "cancelling all queries");
+
 		let mut pending_queries = self.pending_queries.lock().unwrap();
 		for handle in pending_queries.drain(..) {
 			handle.abort();
@@ -52,39 +56,84 @@ pub struct DbForQuery<'a> {
 
 impl dyn Db + '_ {
 	pub(crate) async fn get_inner<T: Tracked>(&self, id: Id<T>) -> Get<'_, T> {
-		let storage = self
-			.storage_struct(id.inner.route.storage)
-			.tracked_storage(id.inner.route.index)
-			.unwrap();
-		unsafe { storage.get(id.inner.index).await }
+		async move {
+			let storage = self
+				.storage_struct(id.inner.route.storage)
+				.tracked_storage(id.inner.route.index)
+				.unwrap();
+			unsafe { storage.get(id.inner.index).await }
+		}
+		.instrument(span!(
+			trace,
+			"fetching value",
+			ty = std::any::type_name::<T>(),
+			id = id.inner.index
+		))
+		.await
 	}
 
-	pub(crate) async fn insert<T: Tracked>(&self, query: Route, value: T) -> Id<T> {
-		let route = self.routing_table().route::<T>();
-		let storage = self.storage_struct(route.storage).tracked_storage(route.index).unwrap();
-		let id = unsafe { storage.insert(value, query).await };
+	pub(crate) async fn insert<T: Tracked>(&self, query: Route, value: T, target_gen: Option<u64>) -> Id<T> {
+		let span = span!(
+			trace,
+			"inserting value",
+			ty = std::any::type_name::<T>(),
+			id = tracing::field::Empty
+		);
+		let (route, storage) = span.in_scope(|| {
+			let route = self.routing_table().route::<T>();
+			let storage = self.storage_struct(route.storage).tracked_storage(route.index).unwrap();
+			(route, storage)
+		});
+		let id = unsafe { storage.insert(value, query, target_gen).await };
+		span.record("id", id);
 		Id::new(id, route)
 	}
 
 	pub(crate) async fn get_generation<T: Tracked>(&self, id: Id<T>) -> u64 {
-		let storage = self
-			.storage_struct(id.inner.route.storage)
-			.tracked_storage(id.inner.route.index)
-			.unwrap();
-		unsafe { storage.get_generation::<T>(id.inner.index).await }
+		async move {
+			let storage = self
+				.storage_struct(id.inner.route.storage)
+				.tracked_storage(id.inner.route.index)
+				.unwrap();
+			unsafe { storage.get_generation::<T>(id.inner.index).await }
+		}
+		.instrument(span!(
+			trace,
+			"fetching generation",
+			ty = std::any::type_name::<T>(),
+			id = id.inner.index
+		))
+		.await
 	}
 
 	pub(crate) async fn get_generation_erased(&self, id: ErasedId) -> u64 {
-		let storage = self
-			.storage_struct(id.route.storage)
-			.tracked_storage(id.route.index)
-			.unwrap();
-		storage.get_erased_generation(id.index).await
+		async move {
+			let storage = self
+				.storage_struct(id.route.storage)
+				.tracked_storage(id.route.index)
+				.unwrap();
+			storage.get_erased_generation(id.index).await
+		}
+		.instrument(span!(
+			trace,
+			"fetching generation",
+			ty = self.routing_table().name(id.route),
+			id = id.index
+		))
+		.await
 	}
 }
 
 impl Db for DbForQuery<'_> {
-	fn register_dependency(&self, id: ErasedId) { self.dependencies.lock().unwrap().as_mut().unwrap().insert(id); }
+	fn register_dependency(&self, id: ErasedId) {
+		span!(
+			enter debug, "registering dependency",
+			query = self.routing_table().name(self.curr_query.route),
+			ty = self.routing_table().name(id.route),
+			id = id.index
+		);
+		self.dependencies.lock().unwrap().as_mut().unwrap().insert(id);
+	}
 
 	fn get_current_query_id(&self) -> ErasedQueryId { self.curr_query }
 
@@ -174,10 +223,13 @@ impl<T: Db> DbBuilder<T> {
 
 	#[cfg(feature = "serde")]
 	pub fn deserialize<'de, D: serde::Deserializer<'de>>(&mut self, deserializer: D) -> Result<Pin<Box<T>>, D::Error> {
-		T::deserialize_with_core(self.make_core(), deserializer)
+		let core = self.make_core();
+		span!(enter trace, "deserializing database");
+		T::deserialize_with_core(core, deserializer)
 	}
 
 	fn make_core(&mut self) -> DatabaseCore {
+		span!(enter trace, "initializing database");
 		DatabaseCore {
 			rt: self.builder.build().unwrap(),
 			pending_queries: Mutex::new(Vec::new()),
@@ -214,6 +266,7 @@ impl<T: Db> Db for Pin<Box<T>> {
 
 	#[cfg(feature = "serde")]
 	fn serialize<S: serde::Serializer>(mut self, serializer: S) -> Result<S::Ok, S::Error> {
+		span!(enter trace, "serializing database");
 		self.shutdown();
 		// SAFETY: We don't need to be pinned anymore.
 		let inner = unsafe { Pin::into_inner_unchecked(self) };
@@ -227,6 +280,7 @@ impl<T: Db> Db for Pin<Box<T>> {
 	fn storage_struct(&self, storage: u16) -> &dyn Storage { self.as_ref().get_ref().storage_struct(storage) }
 
 	fn shutdown(&mut self) {
+		span!(enter trace, "shutting down database");
 		unsafe {
 			self.as_mut().get_unchecked_mut().shutdown();
 		}
