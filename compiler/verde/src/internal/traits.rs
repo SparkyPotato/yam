@@ -1,8 +1,7 @@
-use std::{future::Future, hash::Hash};
+use std::hash::Hash;
 
 use crate::{
 	internal::storage::{ErasedPushableStorage, ErasedQueryStorage, ErasedTrackedStorage, QueryStorage, RouteBuilder},
-	Id,
 	Tracked,
 };
 
@@ -44,8 +43,6 @@ pub trait Query: Storable<Storage = QueryStorage<Self>> {
 	type Input: Clone + Eq + Hash + Send + Sync;
 	/// The output of the query.
 	type Output: Tracked + Send + Sync;
-	/// The future type returned by the query.
-	type Future: Future<Output = Id<Self::Output>> + Send + 'static;
 }
 
 /// A type that is either a [`Tracked`] struct or a query.

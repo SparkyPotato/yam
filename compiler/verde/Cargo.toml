@@ -7,21 +7,14 @@ edition = "2021"
 all-features = true
 
 [features]
-serde = ["dep:serde", "dashmap/serde", "verde-derive/serde"]
-tracing = ["dep:tracing", "dep:tracing-futures"]
-tracing-unstable = ["tokio/tracing"]
-
-[dev-dependencies]
-futures = "0.3.27"
+serde = ["dep:serde", "dashmap/serde", "verde-derive/serde", "parking_lot/serde"]
+tracing = ["dep:tracing"]
 
 [dependencies]
 verde-derive = { path = "derive" }
 
-crossbeam-utils = "0.8.15"
 dashmap = "5.4.0"
-pin-project = "1.0.12"
+parking_lot = "0.12.1"
 rustc-hash = "1.1.0"
 serde = { version = "1.0.156", optional = true, features = ["derive"] }
-tokio = { version = "1.26.0", features = ["rt-multi-thread", "sync", "parking_lot"] }
 tracing = { version = "0.1.29", optional = true }
-tracing-futures = { version = "0.2.5", optional = true }

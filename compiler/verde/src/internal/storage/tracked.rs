@@ -3,10 +3,13 @@ use std::{
 	sync::atomic::{AtomicU64, Ordering},
 };
 
-use tokio::sync::{RwLock, RwLockReadGuard};
+use parking_lot::{
+	lock_api::{RawRwLock, RawRwLockFair},
+	RwLock,
+};
 
 use crate::{
-	internal::storage::{routing::Route, stack_future::StackFuture, DashMap},
+	internal::storage::{routing::Route, DashMap},
 	Tracked,
 };
 
@@ -17,7 +20,7 @@ pub struct ErasedId {
 }
 
 pub trait ErasedTrackedStorage {
-	fn get_erased_generation(&self, index: u32) -> StackFuture<'_, u64>;
+	fn get_erased_generation(&self, index: u32) -> u64;
 }
 
 pub struct Id<T> {
@@ -28,8 +31,8 @@ unsafe impl<T> Send for Id<T> {}
 unsafe impl<T> Sync for Id<T> {}
 
 pub struct Get<'a, T> {
-	slot: RwLockReadGuard<'a, T>,
-	_values: RwLockReadGuard<'a, Vec<Slot<T>>>,
+	slot: &'a RwLock<T>,
+	values: &'a RwLock<Vec<Slot<T>>>,
 }
 
 pub struct TrackedStorage<T: Tracked> {
@@ -38,12 +41,12 @@ pub struct TrackedStorage<T: Tracked> {
 }
 
 impl<T: Tracked> ErasedTrackedStorage for TrackedStorage<T> {
-	fn get_erased_generation(&self, index: u32) -> StackFuture<'_, u64> { StackFuture::new(self.get_generation(index)) }
+	fn get_erased_generation(&self, index: u32) -> u64 { self.get_generation(index) }
 }
 
 impl<T: Tracked> TrackedStorage<T> {
 	/// Insert a new value into the storage.
-	pub async fn insert(&self, value: T, query: Route, target_gen: Option<u64>) -> u32 {
+	pub fn insert(&self, value: T, query: Route, target_gen: Option<u64>) -> u32 {
 		let ident = TrackedIdent {
 			id: value.id().clone(),
 			query,
@@ -51,9 +54,9 @@ impl<T: Tracked> TrackedStorage<T> {
 		match self.map.get(&ident) {
 			Some(index) => {
 				let index = *index;
-				let values = self.values.read().await;
+				let values = self.values.read();
 				let slot = &values[index as usize];
-				let mut out = slot.value.write().await;
+				let mut out = slot.value.write();
 
 				if *out != value {
 					*out = value;
@@ -66,7 +69,7 @@ impl<T: Tracked> TrackedStorage<T> {
 				index
 			},
 			None => {
-				let mut values = self.values.write().await;
+				let mut values = self.values.write();
 				let index = values.len() as u32;
 				values.push(Slot {
 					value: RwLock::new(value),
@@ -78,20 +81,20 @@ impl<T: Tracked> TrackedStorage<T> {
 		}
 	}
 
-	pub async fn get(&self, index: u32) -> Get<'_, T> {
-		let values = self.values.read().await;
-		let slot = &values[index as usize];
-		let slot = slot.value.read().await;
+	pub fn get(&self, index: u32) -> Get<'_, T> {
 		unsafe {
+			self.values.raw().lock_shared();
+			let slot = &(*self.values.data_ptr())[index as usize].value;
+			slot.raw().lock_shared();
 			Get {
-				slot: std::mem::transmute(slot),
-				_values: std::mem::transmute(values),
+				slot,
+				values: &self.values,
 			}
 		}
 	}
 
-	pub async fn get_generation(&self, index: u32) -> u64 {
-		let values = self.values.read().await;
+	pub fn get_generation(&self, index: u32) -> u64 {
+		let values = self.values.read();
 		let slot = &values[index as usize];
 		slot.generation.load(Ordering::Acquire)
 	}
@@ -99,25 +102,25 @@ impl<T: Tracked> TrackedStorage<T> {
 
 impl<'a> dyn ErasedTrackedStorage + 'a {
 	/// **Safety**: The type of `self` must be `TrackedStorage<T>`.
-	pub async unsafe fn insert<T: Tracked>(&self, value: T, query: Route, target_gen: Option<u64>) -> u32 {
+	pub unsafe fn insert<T: Tracked>(&self, value: T, query: Route, target_gen: Option<u64>) -> u32 {
 		unsafe {
 			let storage = self as *const dyn ErasedTrackedStorage as *const TrackedStorage<T>;
-			(*storage).insert(value, query, target_gen).await
+			(*storage).insert(value, query, target_gen)
 		}
 	}
 
 	/// **Safety**: The type of `self` must be `TrackedStorage<T>`.
-	pub async unsafe fn get<T: Tracked>(&self, index: u32) -> Get<'_, T> {
+	pub unsafe fn get<T: Tracked>(&self, index: u32) -> Get<'_, T> {
 		unsafe {
 			let storage = self as *const dyn ErasedTrackedStorage as *const TrackedStorage<T>;
-			(*storage).get(index).await
+			(*storage).get(index)
 		}
 	}
 
-	pub async unsafe fn get_generation<T: Tracked>(&self, index: u32) -> u64 {
+	pub unsafe fn get_generation<T: Tracked>(&self, index: u32) -> u64 {
 		unsafe {
 			let storage = self as *const dyn ErasedTrackedStorage as *const TrackedStorage<T>;
-			(*storage).get_generation(index).await
+			(*storage).get_generation(index)
 		}
 	}
 }
@@ -183,5 +186,14 @@ impl<T> Id<T> {
 impl<T> Deref for Get<'_, T> {
 	type Target = T;
 
-	fn deref(&self) -> &Self::Target { self.slot.deref() }
+	fn deref(&self) -> &Self::Target { unsafe { &*self.slot.data_ptr() } }
+}
+
+impl<T> Drop for Get<'_, T> {
+	fn drop(&mut self) {
+		unsafe {
+			self.slot.raw().unlock_shared_fair();
+			self.values.raw().unlock_shared_fair();
+		}
+	}
 }

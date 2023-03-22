@@ -222,8 +222,7 @@ pub(crate) fn database(input: ItemStruct) -> Result<TokenStream> {
 			}
 
 			fn parent_db(&self) -> &dyn ::verde::Db {
-				static METADATA: std::ptr::DynMetadata<dyn ::verde::Db> = std::ptr::metadata(std::ptr::null::<#name>() as *const dyn ::verde::Db);
-				unsafe { &*std::ptr::from_raw_parts(self as *const Self as *const (), METADATA) }
+				self
 			}
 		}
 

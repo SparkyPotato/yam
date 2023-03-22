@@ -5,7 +5,6 @@ use rustc_hash::FxHasher;
 mod pushable;
 mod query;
 mod routing;
-mod stack_future;
 mod tracked;
 
 pub use pushable::*;

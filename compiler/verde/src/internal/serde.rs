@@ -1,5 +1,8 @@
+//! TODO: Don't need this
+
 use std::{fmt::Formatter, marker::PhantomData, sync::atomic::AtomicU64};
 
+use parking_lot::{Mutex, RwLock};
 use serde::{
 	ser::{SerializeStruct, SerializeTuple},
 	Deserialize,
@@ -7,7 +10,6 @@ use serde::{
 	Serialize,
 	Serializer,
 };
-use tokio::sync::{Mutex, RwLock};
 
 use crate::{
 	internal::{

@@ -1,13 +1,8 @@
-#![feature(ptr_metadata)]
-#![feature(type_alias_impl_trait)]
-
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use futures::stream::{self, StreamExt};
-use serde::{Deserialize, Serialize};
 use verde::{db, query, storage, Db, Id, Pushable, Tracked};
 
-#[derive(Copy, Clone, Eq, PartialEq, Hash, Serialize, Deserialize, Tracked)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Tracked)]
 struct TrackedStruct {
 	#[id]
 	id: u32,
@@ -25,13 +20,13 @@ fn doesnt_execute_twice() {
 	static EXECUTED: AtomicBool = AtomicBool::new(false);
 
 	#[query]
-	async fn double(db: &dyn Db, id: Id<TrackedStruct>) -> TrackedStruct {
+	fn double(db: &dyn Db, id: Id<TrackedStruct>) -> TrackedStruct {
 		if EXECUTED.load(Ordering::Relaxed) {
 			panic!("double() was executed twice");
 		}
 		EXECUTED.store(true, Ordering::Relaxed);
 
-		let s = db.get(id).await;
+		let s = db.get(id);
 		TrackedStruct {
 			id: s.id,
 			value: s.value * 2,
@@ -41,16 +36,16 @@ fn doesnt_execute_twice() {
 	let mut db = Database::new();
 	let id = db.set_input(TrackedStruct { id: 0, value: 1 });
 
-	let doubled = db.block_on(db.execute(double(&db, id)));
+	let doubled = double(&db, id);
 	assert_eq!(db.get_ext(doubled).value, 2);
 
-	let doubled = db.block_on(db.execute(double(&db, id)));
+	let doubled = double(&db, id);
 	assert_eq!(db.get_ext(doubled).value, 2);
 }
 
 #[test]
 fn correct_result() {
-	#[derive(Clone, Pushable, Serialize, Deserialize)]
+	#[derive(Clone, Pushable)]
 	struct Accum;
 
 	#[storage]
@@ -60,9 +55,9 @@ fn correct_result() {
 	struct Database(Storage);
 
 	#[query]
-	async fn double(db: &dyn Db, id: Id<TrackedStruct>) -> TrackedStruct {
-		db.push(Accum).await;
-		let s = db.get(id).await;
+	fn double(db: &dyn Db, id: Id<TrackedStruct>) -> TrackedStruct {
+		db.push(Accum);
+		let s = db.get(id);
 		TrackedStruct {
 			id: s.id,
 			value: s.value * 2,
@@ -70,12 +65,13 @@ fn correct_result() {
 	}
 
 	#[query]
-	async fn sum(db: &dyn Db, id: u32, ids: Vec<Id<TrackedStruct>>) -> TrackedStruct {
-		db.push(Accum).await;
-		let val = stream::iter(ids)
-			.then(|x| db.get(x))
-			.fold(0, |acc, x| async move { acc + x.value });
-		TrackedStruct { id, value: val.await }
+	fn sum(db: &dyn Db, id: u32, ids: Vec<Id<TrackedStruct>>) -> TrackedStruct {
+		db.push(Accum);
+		let mut value = 0;
+		for x in ids.into_iter().map(|x| db.get(x)) {
+			value += x.value;
+		}
+		TrackedStruct { id, value }
 	}
 
 	let mut db = Database::new();
@@ -83,15 +79,11 @@ fn correct_result() {
 		.map(|x| db.set_input(TrackedStruct { id: x, value: x }))
 		.collect();
 
-	let doubled: Vec<_> = init
-		.iter()
-		.map(|x| db.execute(double(&db, *x)))
-		.map(|x| db.block_on(x))
-		.collect();
-	let first_double_then_sum = db.block_on(db.execute(sum(&db, 0, doubled)));
+	let doubled: Vec<_> = init.iter().map(|x| double(&db, *x)).collect();
+	let first_double_then_sum = sum(&db, 0, doubled);
 
-	let first_sum = db.block_on(db.execute(sum(&db, 1, init)));
-	let first_sum_then_double = db.block_on(db.execute(double(&db, first_sum)));
+	let first_sum = sum(&db, 1, init);
+	let first_sum_then_double = double(&db, first_sum);
 
 	let val1 = db.get_ext(first_double_then_sum).value;
 	let val2 = db.get_ext(first_sum_then_double).value;

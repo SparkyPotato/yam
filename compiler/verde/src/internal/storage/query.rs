@@ -1,7 +1,7 @@
-use std::{future::Future, marker::PhantomData, num::NonZeroU64};
+use std::{marker::PhantomData, num::NonZeroU64};
 
+use parking_lot::{Mutex, RwLock};
 use rustc_hash::FxHashSet;
-use tokio::sync::{Mutex, RwLock};
 
 use crate::{
 	event,
@@ -9,7 +9,6 @@ use crate::{
 	span,
 	DbForQuery,
 	Id,
-	Instrument,
 	Query,
 };
 
@@ -22,22 +21,18 @@ pub struct ErasedQueryId {
 pub trait ErasedQueryStorage {}
 
 impl<'a> dyn ErasedQueryStorage + 'a {
-	pub async unsafe fn start_query<T: Query>(&self, input: T::Input) -> u32 {
+	pub unsafe fn start_query<T: Query>(&self, input: T::Input) -> u32 {
 		unsafe {
 			let storage = self as *const dyn ErasedQueryStorage as *const QueryStorage<T>;
-			(*storage).start_query(input).await
+			(*storage).start_query(input)
 		}
 	}
 
 	/// **Safety**: The type of `self` must be `QueryStorage<T>`.
-	pub async unsafe fn execute<T, F>(&self, ctx: &DbForQuery<'_>, fut: F) -> Id<T::Output>
-	where
-		T: Query,
-		F: Future<Output = T::Output>,
-	{
+	pub unsafe fn execute<T: Query>(&self, ctx: &DbForQuery<'_>, f: impl FnOnce() -> T::Output) -> Id<T::Output> {
 		unsafe {
 			let storage = self as *const dyn ErasedQueryStorage as *const QueryStorage<T>;
-			(*storage).execute(ctx, fut).await
+			(*storage).execute(ctx, f)
 		}
 	}
 }
@@ -50,11 +45,11 @@ pub struct QueryStorage<T: Query> {
 impl<T: Query> ErasedQueryStorage for QueryStorage<T> {}
 
 impl<T: Query> QueryStorage<T> {
-	pub async fn start_query(&self, input: T::Input) -> u32 {
+	pub fn start_query(&self, input: T::Input) -> u32 {
 		match self.map.get(&input) {
 			Some(index) => *index,
 			None => {
-				let mut values = self.values.write().await;
+				let mut values = self.values.write();
 				let index = values.len() as u32;
 				values.push(Mutex::new(QueryData {
 					dependencies: Default::default(),
@@ -66,62 +61,63 @@ impl<T: Query> QueryStorage<T> {
 		}
 	}
 
-	pub async fn execute<F: Future<Output = T::Output>>(&self, ctx: &DbForQuery<'_>, fut: F) -> Id<T::Output> {
-		async move {
-			let fut = fut.instrument(span!(trace, "execute query", query = std::any::type_name::<T>()));
-			let query = ctx.curr_query.route;
-			let index = ctx.curr_query.index;
-			let values = self.values.read().await;
-			let mut data = values[index as usize].lock().await;
+	pub fn execute(&self, ctx: &DbForQuery<'_>, f: impl FnOnce() -> T::Output) -> Id<T::Output> {
+		span!(enter trace, "fetch query output", query = std::any::type_name::<T>());
 
-			match data.output {
-				Some(id) => {
-					event!(debug, "query cache hit");
-					let output_generation = ctx.db.get_generation(id.get()).await;
-					event!(debug, "output has generation `{}`", output_generation);
-					let mut max_dep_generation = 0;
-					for &dep in data.dependencies.iter() {
-						let dep_generation = ctx.db.get_generation_erased(dep).await;
-						max_dep_generation = max_dep_generation.max(dep_generation);
-					}
-					if output_generation < max_dep_generation {
-						// TODO: Multiple generation increments
-						event!(
-							debug,
-							"dependencies have generation `{}`, re-executing",
-							max_dep_generation
-						);
-						let ret = fut.await;
-						let dependencies = ctx.dependencies.lock().unwrap().take().unwrap();
-						let output = ctx.db.insert(query, ret, Some(max_dep_generation)).await;
-						*data = QueryData {
-							dependencies,
-							output: Some(OutputId::new(output)),
-						};
-						return output;
-					}
-					id.get()
-				},
-				None => {
-					event!(debug, "first query execution");
-					let ret = fut.await;
-					let dependencies = ctx.dependencies.lock().unwrap().take().unwrap();
-					let mut max_dep_generation = 0;
-					for &dep in data.dependencies.iter() {
-						let dep_generation = ctx.db.get_generation_erased(dep).await;
-						max_dep_generation = max_dep_generation.max(dep_generation);
-					}
-					let output = ctx.db.insert(query, ret, Some(max_dep_generation)).await;
+		let f = || {
+			span!(enter trace, "execute query", query = std::any::type_name::<T>());
+			f()
+		};
+		let query = ctx.curr_query.route;
+		let index = ctx.curr_query.index;
+		let values = self.values.read();
+		let mut data = values[index as usize].lock();
+
+		match data.output {
+			Some(id) => {
+				event!(debug, "query cache hit");
+				let output_generation = ctx.db.get_generation(id.get());
+				event!(debug, "output has generation `{}`", output_generation);
+				let mut max_dep_generation = 0;
+				for &dep in data.dependencies.iter() {
+					let dep_generation = ctx.db.get_generation_erased(dep);
+					max_dep_generation = max_dep_generation.max(dep_generation);
+				}
+				if output_generation < max_dep_generation {
+					// TODO: Multiple generation increments
+					event!(
+						debug,
+						"dependencies have generation `{}`, re-executing",
+						max_dep_generation
+					);
+					let ret = f();
+					let dependencies = ctx.dependencies.borrow_mut().take().unwrap();
+					let output = ctx.db.insert(query, ret, Some(max_dep_generation));
 					*data = QueryData {
 						dependencies,
 						output: Some(OutputId::new(output)),
 					};
-					output
-				},
-			}
+					return output;
+				}
+				id.get()
+			},
+			None => {
+				event!(debug, "first query execution");
+				let ret = f();
+				let dependencies = ctx.dependencies.borrow_mut().take().unwrap();
+				let mut max_dep_generation = 0;
+				for &dep in data.dependencies.iter() {
+					let dep_generation = ctx.db.get_generation_erased(dep);
+					max_dep_generation = max_dep_generation.max(dep_generation);
+				}
+				let output = ctx.db.insert(query, ret, Some(max_dep_generation));
+				*data = QueryData {
+					dependencies,
+					output: Some(OutputId::new(output)),
+				};
+				output
+			},
 		}
-		.instrument(span!(trace, "fetch query output", query = std::any::type_name::<T>()))
-		.await
 	}
 }
 

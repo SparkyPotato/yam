@@ -17,8 +17,8 @@ use syn::{
 use crate::{Error, Result};
 
 pub(crate) fn query(input: ItemFn) -> Result<TokenStream> {
-	if input.sig.asyncness.is_none() {
-		return Err(Error::new(input.sig.fn_token.span(), "query must be `async`"));
+	if input.sig.asyncness.is_some() {
+		return Err(Error::new(input.sig.fn_token.span(), "query must not be `async`"));
 	}
 
 	let ret_ty = match &input.sig.output {
@@ -39,8 +39,6 @@ pub(crate) fn query(input: ItemFn) -> Result<TokenStream> {
 		block,
 	} = generate(&input)?;
 
-	let fn_type_name = format_ident!("__verde_internal_type_of_{}", name);
-	let fut_type_name = format_ident!("__verde_internal_future_type_of_{}", name);
 	let input_type_name = format_ident!("__verde_internal_input_type_of_{}", name);
 
 	let arg_types: Vec<_> = inputs.iter().map(|x| &x.ty).collect();
@@ -68,71 +66,68 @@ pub(crate) fn query(input: ItemFn) -> Result<TokenStream> {
 		quote! {}
 	};
 
+	let fn_ty = quote! { for<'__verde_internal_db_lifetime, #(#lifetimes,)*> fn(&'__verde_internal_db_lifetime (#ctx_dyn_ty + '__verde_internal_db_lifetime), #(#arg_types,)*) -> ::verde::Id<#ret_ty> };
+
 	Ok(quote! {
-		#[allow(non_camel_case_types)]
-		#[derive(Copy, Clone)]
-		#vis struct #name;
-		#[allow(non_camel_case_types)]
-		type #fut_type_name<#(#lifetimes)*> = impl ::std::future::Future<Output = ::verde::Id<#ret_ty>> + ::std::marker::Send + #(#lifetimes)+*;
-		#[allow(non_camel_case_types)]
-		type #fn_type_name = impl for<'__verde_internal_db_lifetime, #(#lifetimes,)*> ::std::ops::Fn(&'__verde_internal_db_lifetime (#ctx_dyn_ty + '__verde_internal_db_lifetime), #(#arg_types,)*) -> #fut_type_name<#(#lifetimes)*>;
+			#[allow(non_camel_case_types)]
+			#[derive(Copy, Clone)]
+			#vis struct #name;
 
-		#[allow(non_camel_case_types)]
-		#[derive(Clone, PartialEq, Eq, Hash)]
-		#serde
-		#vis struct #input_type_name {
-			#(#input_names: #unref_arg_types::Owned,)*
-		}
+			#[allow(non_camel_case_types)]
+			#[derive(Clone, PartialEq, Eq, Hash)]
+			#serde
+			#vis struct #input_type_name {
+				#(#input_names: #unref_arg_types::Owned,)*
+			}
 
-		impl ::std::ops::Deref for #name {
-			type Target = #fn_type_name;
-			fn deref(&self) -> &Self::Target {
-				fn inner<'__verde_internal_db_lifetime, #(#lifetimes)*>(#ctx_name: &'__verde_internal_db_lifetime #ctx_dyn_ty, #(#inputs,)*) -> #fut_type_name<#(#lifetimes)*> {
-					let __verde_internal_parent_ctx_wrapper = ::verde::DbWrapper(unsafe { ::std::mem::transmute(#ctx_name) });
-					async move {
+			impl ::std::ops::Deref for #name {
+				type Target = #fn_ty;
+
+				fn deref(&self) -> &Self::Target {
+					fn inner<'__verde_internal_db_lifetime, #(#lifetimes)*>(#ctx_name: &'__verde_internal_db_lifetime (#ctx_dyn_ty + '__verde_internal_db_lifetime), #(#inputs,)*) -> ::verde::Id<#ret_ty> {
+						// let __verde_internal_parent_ctx_wrapper = ::verde::DbWrapper(unsafe { ::std::mem::transmute(#ctx_name) });
 						let __verde_internal_query_input = #input_type_name {
 							#(#input_names: #unref_arg_types::to_owned(&#input_names),)*
 						};
-						let __verde_internal_parent_ctx = unsafe { __verde_internal_parent_ctx_wrapper.to_ref() };
-						let __verde_internal_ctx = __verde_internal_parent_ctx.start_query::<#name>(__verde_internal_query_input).await;
+	//						let __verde_internal_parent_ctx = unsafe { __verde_internal_parent_ctx_wrapper.to_ref() };
+						let __verde_internal_ctx = #ctx_name.start_query::<#name>(__verde_internal_query_input);
 
-						let out = async {
+						let out = || {
 							let #ctx_name = &__verde_internal_ctx as &dyn ::verde::Db;
 							#block
 						};
 
-						__verde_internal_parent_ctx.end_query::<#name, _>(&__verde_internal_ctx, out).await
+						#ctx_name.end_query::<#name>(&__verde_internal_ctx, out)
 					}
+
+					const F: #fn_ty = inner;
+					&F
+				}
+			}
+
+			impl ::verde::internal::Query for #name {
+				type Input = #input_type_name;
+				type Output = #ret_ty;
+			}
+
+			impl ::verde::internal::Storable for #name {
+				type Storage = ::verde::internal::storage::QueryStorage<Self>;
+
+				const IS_PUSHABLE: bool = false;
+
+				fn tracked_storage(store: &Self::Storage) -> Option<&dyn ::verde::internal::storage::ErasedTrackedStorage> {
+					None
 				}
 
-				&inner
+				fn query_storage(store: &Self::Storage) -> Option<&dyn ::verde::internal::storage::ErasedQueryStorage> {
+					Some(store)
+				}
+
+				fn pushable_storage(store: &Self::Storage) -> Option<&dyn ::verde::internal::storage::ErasedPushableStorage> {
+					None
+				}
 			}
-		}
-
-		impl ::verde::internal::Query for #name {
-			type Input = #input_type_name;
-			type Output = #ret_ty;
-			type Future<#(#lifetimes)*> = #fut_type_name<#(#lifetimes)*>;
-		}
-
-		impl ::verde::internal::Storable for #name {
-			type Storage = ::verde::internal::storage::QueryStorage<Self>;
-
-			const IS_PUSHABLE: bool = false;
-
-			fn tracked_storage(store: &Self::Storage) -> Option<&dyn ::verde::internal::storage::ErasedTrackedStorage> {
-				None
-			}
-
-			fn query_storage(store: &Self::Storage) -> Option<&dyn ::verde::internal::storage::ErasedQueryStorage> {
-				Some(store)
-			}
-
-			fn pushable_storage(store: &Self::Storage) -> Option<&dyn ::verde::internal::storage::ErasedPushableStorage> {
-				None
-			}
-		}
-	})
+		})
 }
 
 #[derive(Hash)]

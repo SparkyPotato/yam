@@ -1,28 +1,28 @@
-use tokio::sync::Mutex;
+use parking_lot::Mutex;
 
 use crate::{
-	internal::storage::{query::ErasedQueryId, stack_future::StackFuture, DashMap, Route},
+	internal::storage::{query::ErasedQueryId, DashMap, Route},
 	Pushable,
 };
 
 pub trait ErasedPushableStorage {
-	fn clear(&self, query: ErasedQueryId) -> StackFuture<'_, ()>;
+	fn clear(&self, query: ErasedQueryId);
 }
 
 impl<'a> dyn ErasedPushableStorage + 'a {
 	/// **Safety**: The type of `self` must be `PushableStorage<T>`.
-	pub async unsafe fn push<T: Pushable>(&self, query: ErasedQueryId, value: T) {
+	pub unsafe fn push<T: Pushable>(&self, query: ErasedQueryId, value: T) {
 		unsafe {
 			let storage = self as *const dyn ErasedPushableStorage as *const PushableStorage<T>;
-			(*storage).push(query, value).await;
+			(*storage).push(query, value);
 		}
 	}
 
 	/// **Safety**: The type of `self` must be `PushableStorage<T>`.
-	pub async unsafe fn get_all<T: Pushable>(&self) -> Vec<T> {
+	pub unsafe fn get_all<T: Pushable>(&self) -> Vec<T> {
 		unsafe {
 			let storage = self as *const dyn ErasedPushableStorage as *const PushableStorage<T>;
-			(*storage).get_all().await
+			(*storage).get_all()
 		}
 	}
 }
@@ -32,12 +32,10 @@ pub struct PushableStorage<T> {
 }
 
 impl<T: Pushable> ErasedPushableStorage for PushableStorage<T> {
-	fn clear(&self, query: ErasedQueryId) -> StackFuture<'_, ()> {
-		StackFuture::new(async move {
-			let mut data = self.map.entry(query.route).or_insert_with(|| Vec::new());
-			Self::expand_to(&mut data, query.index);
-			data[query.index as usize].lock().await.clear();
-		})
+	fn clear(&self, query: ErasedQueryId) {
+		let mut data = self.map.entry(query.route).or_insert_with(|| Vec::new());
+		Self::expand_to(&mut data, query.index);
+		data[query.index as usize].lock().clear();
 	}
 }
 
@@ -48,17 +46,17 @@ impl<T: Pushable> PushableStorage<T> {
 		}
 	}
 
-	pub async fn push(&self, query: ErasedQueryId, value: T) {
+	pub fn push(&self, query: ErasedQueryId, value: T) {
 		let mut data = self.map.entry(query.route).or_insert_with(|| Vec::new());
 		Self::expand_to(&mut data, query.index);
-		data[query.index as usize].lock().await.push(value);
+		data[query.index as usize].lock().push(value);
 	}
 
-	pub async fn get_all(&self) -> Vec<T> {
+	pub fn get_all(&self) -> Vec<T> {
 		let mut result = Vec::new();
 		for data in self.map.iter() {
 			for mutex in data.iter() {
-				let lock = mutex.lock().await;
+				let lock = mutex.lock();
 				result.extend(lock.iter().cloned());
 			}
 		}

@@ -1,46 +1,30 @@
-use std::{marker::PhantomData, pin::Pin, sync::Mutex};
+use std::{cell::RefCell, marker::PhantomData, pin::Pin};
 
 use rustc_hash::FxHashSet;
-use tokio::{
-	runtime::{Builder, Runtime},
-	task::AbortHandle,
-};
 
 use crate::{
 	internal::{
-		storage::{ErasedId, ErasedQueryId, Get, Route, RoutingTable, RoutingTableBuilder},
+		storage::{ErasedId, ErasedQueryId, Route, RoutingTable, RoutingTableBuilder},
 		Storage,
 	},
 	span,
 	Db,
 	Id,
-	Instrument,
 	Tracked,
 };
 
 /// The core of the database runtime. This is stored inside your custom database struct, alongside the type storages.
-pub struct DatabaseCore {
-	pub(crate) rt: Runtime,
-	pub(crate) pending_queries: Mutex<Vec<AbortHandle>>,
-}
+pub struct DatabaseCore {}
 
 impl Default for DatabaseCore {
-	fn default() -> Self {
-		Self {
-			rt: Builder::new_multi_thread().enable_all().build().unwrap(),
-			pending_queries: Mutex::new(Vec::new()),
-		}
-	}
+	fn default() -> Self { Self {} }
 }
 
 impl DatabaseCore {
 	pub(crate) fn cancel_all(&self) {
 		span!(enter debug, "cancelling all queries");
 
-		let mut pending_queries = self.pending_queries.lock().unwrap();
-		for handle in pending_queries.drain(..) {
-			handle.abort();
-		}
+		// TODO: Cancel
 	}
 }
 
@@ -50,77 +34,52 @@ impl Drop for DatabaseCore {
 
 pub struct DbForQuery<'a> {
 	pub db: &'a dyn Db,
-	pub dependencies: Mutex<Option<FxHashSet<ErasedId>>>,
+	pub dependencies: RefCell<Option<FxHashSet<ErasedId>>>,
 	pub curr_query: ErasedQueryId,
 }
 
 impl dyn Db + '_ {
-	pub(crate) async fn get_inner<T: Tracked>(&self, id: Id<T>) -> Get<'_, T> {
-		async move {
-			let storage = self
-				.storage_struct(id.inner.route.storage)
-				.tracked_storage(id.inner.route.index)
-				.unwrap();
-			unsafe { storage.get(id.inner.index).await }
-		}
-		.instrument(span!(
-			trace,
-			"fetching value",
-			ty = std::any::type_name::<T>(),
-			id = id.inner.index
-		))
-		.await
-	}
-
-	pub(crate) async fn insert<T: Tracked>(&self, query: Route, value: T, target_gen: Option<u64>) -> Id<T> {
+	pub(crate) fn insert<T: Tracked>(&self, query: Route, value: T, target_gen: Option<u64>) -> Id<T> {
 		let span = span!(
 			trace,
 			"inserting value",
 			ty = std::any::type_name::<T>(),
 			id = tracing::field::Empty
 		);
-		let (route, storage) = span.in_scope(|| {
-			let route = self.routing_table().route::<T>();
-			let storage = self.storage_struct(route.storage).tracked_storage(route.index).unwrap();
-			(route, storage)
-		});
-		let id = unsafe { storage.insert(value, query, target_gen).await };
+		let _e = span.enter();
+		let route = self.routing_table().route::<T>();
+		let storage = self.storage_struct(route.storage).tracked_storage(route.index).unwrap();
+		let id = unsafe { storage.insert(value, query, target_gen) };
 		span.record("id", id);
 		Id::new(id, route)
 	}
 
-	pub(crate) async fn get_generation<T: Tracked>(&self, id: Id<T>) -> u64 {
-		async move {
-			let storage = self
-				.storage_struct(id.inner.route.storage)
-				.tracked_storage(id.inner.route.index)
-				.unwrap();
-			unsafe { storage.get_generation::<T>(id.inner.index).await }
-		}
-		.instrument(span!(
-			trace,
+	pub(crate) fn get_generation<T: Tracked>(&self, id: Id<T>) -> u64 {
+		span!(
+			enter trace,
 			"fetching generation",
 			ty = std::any::type_name::<T>(),
 			id = id.inner.index
-		))
-		.await
+		);
+		let storage = self
+			.storage_struct(id.inner.route.storage)
+			.tracked_storage(id.inner.route.index)
+			.unwrap();
+		unsafe { storage.get_generation::<T>(id.inner.index) }
 	}
 
-	pub(crate) async fn get_generation_erased(&self, id: ErasedId) -> u64 {
-		async move {
-			let storage = self
-				.storage_struct(id.route.storage)
-				.tracked_storage(id.route.index)
-				.unwrap();
-			storage.get_erased_generation(id.index).await
-		}
-		.instrument(span!(
-			trace,
+	pub(crate) fn get_generation_erased(&self, id: ErasedId) -> u64 {
+		span!(
+			enter trace,
 			"fetching generation",
 			ty = self.routing_table().name(id.route),
 			id = id.index
-		))
-		.await
+		);
+		let storage = self
+			.storage_struct(id.route.storage)
+			.tracked_storage(id.route.index)
+			.unwrap();
+		storage.get_erased_generation(id.index)
 	}
 }
 
@@ -132,7 +91,7 @@ impl Db for DbForQuery<'_> {
 			ty = self.routing_table().name(id.route),
 			id = id.index
 		);
-		self.dependencies.lock().unwrap().as_mut().unwrap().insert(id);
+		self.dependencies.borrow_mut().as_mut().unwrap().insert(id);
 	}
 
 	fn get_current_query_id(&self) -> ErasedQueryId { self.curr_query }
@@ -192,32 +151,18 @@ impl Db for DbForQuery<'_> {
 }
 
 pub struct DbBuilder<T> {
-	builder: Builder,
 	_phantom: PhantomData<T>,
 }
 
 impl<T: Db> DbBuilder<T> {
-	pub fn new() -> Self {
-		let mut builder = Builder::new_multi_thread();
-		builder.thread_name("tango-worker");
-		Self {
-			builder,
-			_phantom: PhantomData,
-		}
-	}
+	pub fn new() -> Self { Self { _phantom: PhantomData } }
 
-	pub fn thread_name(&mut self, name: impl Into<String>) -> &mut Self {
-		self.builder.thread_name(name);
-		self
-	}
+	pub fn thread_name(&mut self, name: impl Into<String>) -> &mut Self { self }
 
 	/// Sets the number of worker threads for the runtime.
 	/// If not set, the number of logical cores on the system will be used.
 	/// If the value is 0, it will panic.
-	pub fn worker_threads(&mut self, threads: usize) -> &mut Self {
-		self.builder.worker_threads(threads);
-		self
-	}
+	pub fn worker_threads(&mut self, threads: usize) -> &mut Self { self }
 
 	pub fn build(&mut self) -> Pin<Box<T>> { T::build_with_core(self.make_core()) }
 
@@ -230,10 +175,7 @@ impl<T: Db> DbBuilder<T> {
 
 	fn make_core(&mut self) -> DatabaseCore {
 		span!(enter trace, "initializing database");
-		DatabaseCore {
-			rt: self.builder.build().unwrap(),
-			pending_queries: Mutex::new(Vec::new()),
-		}
+		DatabaseCore {}
 	}
 }
 
