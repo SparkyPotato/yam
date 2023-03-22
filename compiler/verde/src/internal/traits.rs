@@ -50,7 +50,7 @@ pub trait Query: Storable<Storage = QueryStorage<Self>> {
 
 /// A type that is either a [`Tracked`] struct or a query.
 /// Types that implement this trait can be stored inside `Storage`.
-pub trait Storable: Sized + Send + Sync + 'static {
+pub trait Storable: Sized + Send + 'static {
 	/// The type that should actually be stored inside the `Storage`.
 	/// If the type is a `Tracked` struct, this should be [`TrackedStorage<Self>`].
 	/// If the type is a query, this should be [`QueryStorage<Self>`].

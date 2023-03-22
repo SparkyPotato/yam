@@ -1,18 +1,24 @@
 use proc_macro2::{Ident, TokenStream};
 use quote::{format_ident, quote, ToTokens};
-use syn::{spanned::Spanned, Block, FnArg, ItemFn, Pat, ReturnType, Type, TypeTuple, Visibility};
+use syn::{
+	spanned::Spanned,
+	Block,
+	FnArg,
+	GenericParam,
+	ItemFn,
+	LifetimeParam,
+	Pat,
+	ReturnType,
+	Type,
+	TypeTuple,
+	Visibility,
+};
 
 use crate::{Error, Result};
 
 pub(crate) fn query(input: ItemFn) -> Result<TokenStream> {
 	if input.sig.asyncness.is_none() {
 		return Err(Error::new(input.sig.fn_token.span(), "query must be `async`"));
-	}
-	if !input.sig.generics.params.is_empty() {
-		return Err(Error::new(
-			input.sig.generics.span(),
-			"query functions cannot be generic",
-		));
 	}
 
 	let ret_ty = match &input.sig.output {
@@ -29,6 +35,7 @@ pub(crate) fn query(input: ItemFn) -> Result<TokenStream> {
 		name,
 		ctx,
 		inputs,
+		lifetimes,
 		block,
 	} = generate(&input)?;
 
@@ -36,10 +43,24 @@ pub(crate) fn query(input: ItemFn) -> Result<TokenStream> {
 	let fut_type_name = format_ident!("__verde_internal_future_type_of_{}", name);
 	let input_type_name = format_ident!("__verde_internal_input_type_of_{}", name);
 
-	let arg_types = inputs.iter().map(|x| &x.ty);
+	let arg_types: Vec<_> = inputs.iter().map(|x| &x.ty).collect();
+	let unref_arg_types: Vec<_> = arg_types
+		.iter()
+		.map(|x| {
+			let ty = match x {
+				Type::Reference(r) => r.elem.as_ref(),
+				x => *x,
+			};
+			quote!(<#ty as ::std::borrow::ToOwned>)
+		})
+		.collect();
 
 	let ctx_name = &ctx.name;
-	let input_names = inputs.iter().map(|x| &x.name);
+	let ctx_dyn_ty = match ctx.ty {
+		Type::Reference(r) => r.elem,
+		_ => return Err(Error::new(ctx.ty.span(), "context must be a `&dyn Db`")),
+	};
+	let input_names: Vec<_> = inputs.iter().map(|x| &x.name).collect();
 
 	let serde = if cfg!(feature = "serde") {
 		quote! { #[derive(::verde::serde::Serialize, ::verde::serde::Deserialize)] }
@@ -52,25 +73,25 @@ pub(crate) fn query(input: ItemFn) -> Result<TokenStream> {
 		#[derive(Copy, Clone)]
 		#vis struct #name;
 		#[allow(non_camel_case_types)]
-		type #fut_type_name = impl ::std::future::Future<Output = ::verde::Id<#ret_ty>> + ::std::marker::Send;
+		type #fut_type_name<#(#lifetimes)*> = impl ::std::future::Future<Output = ::verde::Id<#ret_ty>> + ::std::marker::Send + #(#lifetimes)+*;
 		#[allow(non_camel_case_types)]
-		type #fn_type_name = impl for<'a> ::std::ops::Fn(&'a (dyn ::verde::Db + 'a), #(#arg_types,)*) -> #fut_type_name;
+		type #fn_type_name = impl for<'__verde_internal_db_lifetime, #(#lifetimes,)*> ::std::ops::Fn(&'__verde_internal_db_lifetime (#ctx_dyn_ty + '__verde_internal_db_lifetime), #(#arg_types,)*) -> #fut_type_name<#(#lifetimes)*>;
 
 		#[allow(non_camel_case_types)]
 		#[derive(Clone, PartialEq, Eq, Hash)]
 		#serde
-		struct #input_type_name {
-			#(#inputs,)*
+		#vis struct #input_type_name {
+			#(#input_names: #unref_arg_types::Owned,)*
 		}
 
 		impl ::std::ops::Deref for #name {
 			type Target = #fn_type_name;
 			fn deref(&self) -> &Self::Target {
-				fn inner(#ctx, #(#inputs,)*) -> #fut_type_name {
+				fn inner<'__verde_internal_db_lifetime, #(#lifetimes)*>(#ctx_name: &'__verde_internal_db_lifetime #ctx_dyn_ty, #(#inputs,)*) -> #fut_type_name<#(#lifetimes)*> {
 					let __verde_internal_parent_ctx_wrapper = ::verde::DbWrapper(unsafe { ::std::mem::transmute(#ctx_name) });
 					async move {
 						let __verde_internal_query_input = #input_type_name {
-							#(#input_names: ::std::clone::Clone::clone(&#input_names),)*
+							#(#input_names: #unref_arg_types::to_owned(&#input_names),)*
 						};
 						let __verde_internal_parent_ctx = unsafe { __verde_internal_parent_ctx_wrapper.to_ref() };
 						let __verde_internal_ctx = __verde_internal_parent_ctx.start_query::<#name>(__verde_internal_query_input).await;
@@ -91,7 +112,7 @@ pub(crate) fn query(input: ItemFn) -> Result<TokenStream> {
 		impl ::verde::internal::Query for #name {
 			type Input = #input_type_name;
 			type Output = #ret_ty;
-			type Future = #fut_type_name;
+			type Future<#(#lifetimes)*> = #fut_type_name<#(#lifetimes)*>;
 		}
 
 		impl ::verde::internal::Storable for #name {
@@ -132,12 +153,24 @@ struct Query {
 	name: Ident,
 	ctx: Arg,
 	inputs: Vec<Arg>,
+	lifetimes: Vec<LifetimeParam>,
 	block: Box<Block>,
 }
 
 fn generate(input: &ItemFn) -> Result<Query> {
 	let vis = input.vis.clone();
 	let name = input.sig.ident.clone();
+
+	let lifetimes = input
+		.sig
+		.generics
+		.params
+		.iter()
+		.map(|x| match x {
+			GenericParam::Lifetime(l) => Ok(l.clone()),
+			_ => Err(Error::new(x.span(), "query functions cannot be generic")),
+		})
+		.collect::<Result<Vec<_>>>()?;
 
 	let mut args = input.sig.inputs.iter().map(|x| match x {
 		FnArg::Receiver(_) => Err(Error::new(x.span(), "query functions cannot take `self`")),
@@ -164,6 +197,7 @@ fn generate(input: &ItemFn) -> Result<Query> {
 		name,
 		ctx,
 		inputs,
+		lifetimes,
 		block,
 	})
 }

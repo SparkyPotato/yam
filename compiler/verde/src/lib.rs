@@ -1,5 +1,3 @@
-#![feature(type_alias_impl_trait)]
-
 use std::{future::Future, hash::Hash, pin::Pin, sync::Mutex};
 
 #[cfg(feature = "serde")]

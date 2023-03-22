@@ -41,6 +41,20 @@ pub(crate) fn tracked(input: DeriveInput) -> Result<TokenStream> {
 					}
 				}
 
+				impl ::std::cmp::PartialEq for #ty {
+					fn eq(&self, other: &Self) -> bool {
+						self.id() == other.id()
+					}
+				}
+				
+				impl ::std::cmp::Eq for #ty {}
+				
+				impl ::std::hash::Hash for #ty {
+					fn hash<H: ::std::hash::Hasher>(&self, state: &mut H) {
+						self.id().hash(state)
+					}
+				}
+
 				impl ::verde::internal::Storable for #ty {
 					type Storage = ::verde::internal::storage::TrackedStorage<Self>;
 
