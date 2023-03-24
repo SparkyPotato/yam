@@ -45,6 +45,10 @@ pub trait DbWith<S> {
 /// Can be automatically derived using the `#[derive(Tracked)]` attribute. Use `#[id]` on a field to
 /// specify the field that uniquely identifies each tracked instance.
 pub trait Tracked: Eq + Storable<Storage = TrackedStorage<Self>> {
+	#[cfg(feature = "serde")]
+	type Id: Eq + Hash + Clone + Send + Sync + serde::Serialize + for<'de> serde::Deserialize<'de>;
+
+	#[cfg(not(feature = "serde"))]
 	type Id: Eq + Hash + Clone + Send + Sync;
 
 	fn id(&self) -> &Self::Id;
@@ -56,9 +60,12 @@ pub trait Pushable: Clone + Storable<Storage = PushableStorage<Self>> {}
 ///
 /// Can be automatically derived using the `#[query]` attribute on an `async fn`
 pub trait Query: Storable<Storage = QueryStorage<Self>> {
-	/// The inputs to the query. The query is a pure function of these inputs.
+	#[cfg(feature = "serde")]
+	type Input: Clone + Eq + Hash + Send + Sync + serde::Serialize + for<'de> serde::Deserialize<'de>;
+
+	#[cfg(not(feature = "serde"))]
 	type Input: Clone + Eq + Hash + Send + Sync;
-	/// The output of the query.
+
 	type Output: Tracked + Send + Sync;
 }
 

@@ -174,7 +174,7 @@ impl<'a> Ctx<'a> {
 			.storage_struct(id.route.storage)
 			.tracked_storage(id.route.index)
 			.unwrap();
-		storage.get_erased_generation(id.index)
+		storage.get_generation(id.index)
 	}
 }
 

@@ -3,6 +3,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use verde::{db, query, storage, Ctx, Db, Id, Pushable, Tracked};
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Tracked)]
+#[cfg_attr(feature = "serde", derive(::verde::serde::Serialize, ::verde::serde::Deserialize))]
 struct TrackedStruct {
 	#[id]
 	id: u32,
@@ -37,10 +38,10 @@ fn doesnt_execute_twice() {
 	let id = db.set_input(TrackedStruct { id: 0, value: 1 });
 
 	db.execute(|ctx| {
-		let doubled = db.execute(|ctx| double(ctx, id));
+		let doubled = double(ctx, id);
 		assert_eq!(db.get(doubled).value, 2);
 
-		let doubled = db.execute(|ctx| double(ctx, id));
+		let doubled = double(ctx, id);
 		assert_eq!(db.get(doubled).value, 2);
 	});
 }
@@ -48,6 +49,7 @@ fn doesnt_execute_twice() {
 #[test]
 fn correct_result() {
 	#[derive(Clone, Pushable)]
+	#[cfg_attr(feature = "serde", derive(::verde::serde::Serialize, ::verde::serde::Deserialize))]
 	struct Accum;
 
 	#[storage]

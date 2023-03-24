@@ -14,15 +14,17 @@ use crate::{
 };
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ErasedId {
 	pub(crate) route: Route,
 	pub(crate) index: u32,
 }
 
 pub trait ErasedTrackedStorage {
-	fn get_erased_generation(&self, index: u32) -> u64;
+	fn get_generation(&self, index: u32) -> u64;
 }
 
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Id<T> {
 	pub(crate) inner: ErasedId,
 	pub(crate) _phantom: std::marker::PhantomData<T>,
@@ -35,13 +37,18 @@ pub struct Get<'a, T> {
 	values: &'a RwLock<Vec<Slot<T>>>,
 }
 
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct TrackedStorage<T: Tracked> {
 	pub(crate) map: DashMap<TrackedIdent<T>, u32>,
 	pub(crate) values: RwLock<Vec<Slot<T>>>,
 }
 
 impl<T: Tracked> ErasedTrackedStorage for TrackedStorage<T> {
-	fn get_erased_generation(&self, index: u32) -> u64 { self.get_generation(index) }
+	fn get_generation(&self, index: u32) -> u64 {
+		let values = self.values.read();
+		let slot = &values[index as usize];
+		slot.generation.load(Ordering::Acquire)
+	}
 }
 
 impl<T: Tracked> TrackedStorage<T> {
@@ -92,12 +99,6 @@ impl<T: Tracked> TrackedStorage<T> {
 			}
 		}
 	}
-
-	pub fn get_generation(&self, index: u32) -> u64 {
-		let values = self.values.read();
-		let slot = &values[index as usize];
-		slot.generation.load(Ordering::Acquire)
-	}
 }
 
 impl<'a> dyn ErasedTrackedStorage + 'a {
@@ -116,20 +117,15 @@ impl<'a> dyn ErasedTrackedStorage + 'a {
 			(*storage).get(index)
 		}
 	}
-
-	pub unsafe fn get_generation<T: Tracked>(&self, index: u32) -> u64 {
-		unsafe {
-			let storage = self as *const dyn ErasedTrackedStorage as *const TrackedStorage<T>;
-			(*storage).get_generation(index)
-		}
-	}
 }
 
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub(crate) struct Slot<T> {
 	pub(crate) value: RwLock<T>,
 	pub(crate) generation: AtomicU64,
 }
 
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub(crate) struct TrackedIdent<T: Tracked> {
 	pub(crate) id: T::Id,
 	pub(crate) query: Route,

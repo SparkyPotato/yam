@@ -17,6 +17,7 @@ pub(crate) fn storage(input: ItemStruct) -> Result<TokenStream> {
 
 	Ok(quote! {
 		#[derive(Default)]
+		#[cfg_attr(feature = "serde", derive(::verde::serde::Serialize, ::verde::serde::Deserialize))]
 		#vis struct #name {
 			#(#field_names: <#fields as ::verde::internal::Storable>::Storage),*
 		}
@@ -75,17 +76,21 @@ pub(crate) fn database(input: ItemStruct) -> Result<TokenStream> {
 		.map_err(|_| Error::new(name.span(), "how do you have more than 65536 fields?"))?;
 
 	Ok(quote! {
+		fn __verde_internal_generate_routing_table() -> ::verde::internal::storage::RoutingTable {
+			::verde::internal::storage::RoutingTable::generate_for_db::<#name>()
+		}
+
+		#[cfg_attr(feature = "serde", derive(::verde::serde::Serialize, ::verde::serde::Deserialize))]
 		#vis struct #name {
+			#[serde(skip, default = "__verde_internal_generate_routing_table")]
 			__verde_internal_routing_table: ::verde::internal::storage::RoutingTable,
 			#(#field_names: #fields,)*
 		}
 
 		impl ::std::default::Default for #name {
 			fn default() -> Self {
-				let mut table = ::verde::internal::storage::RoutingTableBuilder::default();
-				<Self as ::verde::Db>::init_routing(&mut table);
 				Self {
-					__verde_internal_routing_table: table.finish(),
+					__verde_internal_routing_table: ::verde::internal::storage::RoutingTable::generate_for_db::<#name>(),
 					#(#field_names: #fields::default()),*
 				}
 			}

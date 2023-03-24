@@ -65,10 +65,12 @@ pub(crate) fn query(input: ItemFn) -> Result<TokenStream> {
 	Ok(quote! {
 		#[allow(non_camel_case_types)]
 		#[derive(Copy, Clone)]
+		#[cfg_attr(feature = "serde", derive(::verde::serde::Serialize, ::verde::serde::Deserialize))]
 		#vis struct #name;
 
 		#[allow(non_camel_case_types)]
 		#[derive(Clone, PartialEq, Eq, Hash)]
+		#[cfg_attr(feature = "serde", derive(::verde::serde::Serialize, ::verde::serde::Deserialize))]
 		#vis struct #input_type_name {
 			#(#input_names: #unref_arg_types::Owned,)*
 		}

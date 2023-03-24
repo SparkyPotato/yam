@@ -39,6 +39,7 @@ impl<'a> dyn ErasedQueryStorage + 'a {
 	}
 }
 
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct QueryStorage<T: Query> {
 	pub(crate) map: DashMap<T::Input, u32>,
 	pub(crate) values: RwLock<Vec<Mutex<QueryData<T>>>>,
@@ -122,11 +123,13 @@ impl<T: Query> QueryStorage<T> {
 	}
 }
 
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub(crate) struct QueryData<T: Query> {
 	pub(crate) dependencies: FxHashSet<ErasedId>,
 	pub(crate) output: Option<OutputId<T::Output>>,
 }
 
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub(crate) struct OutputId<T>(NonZeroU64, PhantomData<T>);
 
 impl<T> Copy for OutputId<T> {}

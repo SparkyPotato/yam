@@ -27,6 +27,7 @@ impl<'a> dyn ErasedPushableStorage + 'a {
 	}
 }
 
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct PushableStorage<T> {
 	pub(crate) map: DashMap<Route, Vec<Mutex<Vec<T>>>>,
 }
