@@ -1,6 +1,6 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use verde::{db, query, storage, Db, Id, Pushable, Tracked};
+use verde::{db, query, storage, Ctx, Db, Id, Pushable, Tracked};
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Tracked)]
 struct TrackedStruct {
@@ -20,27 +20,29 @@ fn doesnt_execute_twice() {
 	static EXECUTED: AtomicBool = AtomicBool::new(false);
 
 	#[query]
-	fn double(db: &dyn Db, id: Id<TrackedStruct>) -> TrackedStruct {
+	fn double(ctx: &Ctx, id: Id<TrackedStruct>) -> TrackedStruct {
 		if EXECUTED.load(Ordering::Relaxed) {
 			panic!("double() was executed twice");
 		}
 		EXECUTED.store(true, Ordering::Relaxed);
 
-		let s = db.get(id);
+		let s = ctx.get(id);
 		TrackedStruct {
 			id: s.id,
 			value: s.value * 2,
 		}
 	}
 
-	let mut db = Database::new();
+	let mut db = Database::default();
 	let id = db.set_input(TrackedStruct { id: 0, value: 1 });
 
-	let doubled = double(&db, id);
-	assert_eq!(db.get_ext(doubled).value, 2);
+	db.execute(|ctx| {
+		let doubled = db.execute(|ctx| double(ctx, id));
+		assert_eq!(db.get(doubled).value, 2);
 
-	let doubled = double(&db, id);
-	assert_eq!(db.get_ext(doubled).value, 2);
+		let doubled = db.execute(|ctx| double(ctx, id));
+		assert_eq!(db.get(doubled).value, 2);
+	});
 }
 
 #[test]
@@ -55,7 +57,7 @@ fn correct_result() {
 	struct Database(Storage);
 
 	#[query]
-	fn double(db: &dyn Db, id: Id<TrackedStruct>) -> TrackedStruct {
+	fn double(db: &Ctx, id: Id<TrackedStruct>) -> TrackedStruct {
 		db.push(Accum);
 		let s = db.get(id);
 		TrackedStruct {
@@ -65,7 +67,7 @@ fn correct_result() {
 	}
 
 	#[query]
-	fn sum(db: &dyn Db, id: u32, ids: Vec<Id<TrackedStruct>>) -> TrackedStruct {
+	fn sum(db: &Ctx, id: u32, ids: Vec<Id<TrackedStruct>>) -> TrackedStruct {
 		db.push(Accum);
 		let mut value = 0;
 		for x in ids.into_iter().map(|x| db.get(x)) {
@@ -74,22 +76,24 @@ fn correct_result() {
 		TrackedStruct { id, value }
 	}
 
-	let mut db = Database::new();
+	let mut db = Database::default();
 	let init: Vec<_> = (1..=100)
 		.map(|x| db.set_input(TrackedStruct { id: x, value: x }))
 		.collect();
 
-	let doubled: Vec<_> = init.iter().map(|x| double(&db, *x)).collect();
-	let first_double_then_sum = sum(&db, 0, doubled);
+	db.execute(|ctx| {
+		let doubled: Vec<_> = init.iter().map(|x| double(ctx, *x)).collect();
+		let first_double_then_sum = sum(ctx, 0, doubled);
 
-	let first_sum = sum(&db, 1, init);
-	let first_sum_then_double = double(&db, first_sum);
+		let first_sum = sum(ctx, 1, init);
+		let first_sum_then_double = double(ctx, first_sum);
 
-	let val1 = db.get_ext(first_double_then_sum).value;
-	let val2 = db.get_ext(first_sum_then_double).value;
-	assert_eq!(val1, val2,);
-	assert_eq!(val1, 5050 * 2);
+		let val1 = db.get(first_double_then_sum).value;
+		let val2 = db.get(first_sum_then_double).value;
+		assert_eq!(val1, val2,);
+		assert_eq!(val1, 5050 * 2);
 
-	let accums = db.get_all::<Accum>();
-	assert_eq!(accums.len(), 103);
+		let accums = db.get_all::<Accum>();
+		assert_eq!(accums.len(), 103);
+	});
 }

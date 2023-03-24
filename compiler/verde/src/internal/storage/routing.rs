@@ -11,7 +11,7 @@ use std::any::TypeId;
 
 use rustc_hash::FxHashMap;
 
-use crate::Storable;
+use crate::internal::Storable;
 
 /// A type-erased route through the database storage.
 /// Uniquely identifies the storage for a particular [`Tracked`](crate::Tracked) type.
@@ -30,6 +30,7 @@ impl Route {
 
 /// A static table that maps [`TypeId`]s to [`Route`]s, generated at database initialization.
 /// This is required because `TypeId`s are not guaranteed to be stable across compilations, while `Route`s are.
+#[derive(Default)]
 pub struct RoutingTable {
 	routes: FxHashMap<TypeId, Route>,
 	type_names: FxHashMap<Route, &'static str>,

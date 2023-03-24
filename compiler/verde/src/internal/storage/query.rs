@@ -5,11 +5,13 @@ use rustc_hash::FxHashSet;
 
 use crate::{
 	event,
-	internal::storage::{routing::Route, DashMap, ErasedId},
+	internal::{
+		storage::{routing::Route, DashMap, ErasedId},
+		Ctx,
+		Query,
+	},
 	span,
-	DbForQuery,
 	Id,
-	Query,
 };
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash)]
@@ -29,7 +31,7 @@ impl<'a> dyn ErasedQueryStorage + 'a {
 	}
 
 	/// **Safety**: The type of `self` must be `QueryStorage<T>`.
-	pub unsafe fn execute<T: Query>(&self, ctx: &DbForQuery<'_>, f: impl FnOnce() -> T::Output) -> Id<T::Output> {
+	pub unsafe fn execute<T: Query>(&self, ctx: &Ctx, f: impl FnOnce() -> T::Output) -> Id<T::Output> {
 		unsafe {
 			let storage = self as *const dyn ErasedQueryStorage as *const QueryStorage<T>;
 			(*storage).execute(ctx, f)
@@ -61,7 +63,7 @@ impl<T: Query> QueryStorage<T> {
 		}
 	}
 
-	pub fn execute(&self, ctx: &DbForQuery<'_>, f: impl FnOnce() -> T::Output) -> Id<T::Output> {
+	pub fn execute(&self, ctx: &Ctx, f: impl FnOnce() -> T::Output) -> Id<T::Output> {
 		span!(enter trace, "fetch query output", query = std::any::type_name::<T>());
 
 		let f = || {
@@ -76,23 +78,22 @@ impl<T: Query> QueryStorage<T> {
 		match data.output {
 			Some(id) => {
 				event!(debug, "query cache hit");
-				let output_generation = ctx.db.get_generation(id.get());
+				let output_generation = ctx.get_generation(id.get().inner);
 				event!(debug, "output has generation `{}`", output_generation);
 				let mut max_dep_generation = 0;
 				for &dep in data.dependencies.iter() {
-					let dep_generation = ctx.db.get_generation_erased(dep);
+					let dep_generation = ctx.get_generation(dep);
 					max_dep_generation = max_dep_generation.max(dep_generation);
 				}
 				if output_generation < max_dep_generation {
-					// TODO: Multiple generation increments
 					event!(
 						debug,
 						"dependencies have generation `{}`, re-executing",
 						max_dep_generation
 					);
 					let ret = f();
-					let dependencies = ctx.dependencies.borrow_mut().take().unwrap();
 					let output = ctx.db.insert(query, ret, Some(max_dep_generation));
+					let dependencies = unsafe { ctx.dependencies.borrow_mut().assume_init_read() };
 					*data = QueryData {
 						dependencies,
 						output: Some(OutputId::new(output)),
@@ -104,13 +105,13 @@ impl<T: Query> QueryStorage<T> {
 			None => {
 				event!(debug, "first query execution");
 				let ret = f();
-				let dependencies = ctx.dependencies.borrow_mut().take().unwrap();
 				let mut max_dep_generation = 0;
 				for &dep in data.dependencies.iter() {
-					let dep_generation = ctx.db.get_generation_erased(dep);
+					let dep_generation = ctx.get_generation(dep);
 					max_dep_generation = max_dep_generation.max(dep_generation);
 				}
 				let output = ctx.db.insert(query, ret, Some(max_dep_generation));
+				let dependencies = unsafe { ctx.dependencies.borrow_mut().assume_init_read() };
 				*data = QueryData {
 					dependencies,
 					output: Some(OutputId::new(output)),

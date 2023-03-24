@@ -1,8 +1,13 @@
 use std::hash::Hash;
 
-use crate::{
-	internal::storage::{ErasedPushableStorage, ErasedQueryStorage, ErasedTrackedStorage, QueryStorage, RouteBuilder},
-	Tracked,
+use crate::internal::storage::{
+	ErasedPushableStorage,
+	ErasedQueryStorage,
+	ErasedTrackedStorage,
+	PushableStorage,
+	QueryStorage,
+	RouteBuilder,
+	TrackedStorage,
 };
 
 /// A struct that contains [`TrackedStorage<T>`] or [`QueryStorage<T>`]
@@ -34,6 +39,18 @@ pub trait DbWith<S> {
 	/// The route index of `S` in this database.
 	fn storage_struct_index(&self) -> u16;
 }
+
+/// A type that can be tracked by the database.
+///
+/// Can be automatically derived using the `#[derive(Tracked)]` attribute. Use `#[id]` on a field to
+/// specify the field that uniquely identifies each tracked instance.
+pub trait Tracked: Eq + Storable<Storage = TrackedStorage<Self>> {
+	type Id: Eq + Hash + Clone + Send + Sync;
+
+	fn id(&self) -> &Self::Id;
+}
+
+pub trait Pushable: Clone + Storable<Storage = PushableStorage<Self>> {}
 
 /// A query that can execute on the database.
 ///
