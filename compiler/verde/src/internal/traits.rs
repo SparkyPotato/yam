@@ -54,7 +54,7 @@ pub trait Tracked: Eq + Storable<Storage = TrackedStorage<Self>> {
 	fn id(&self) -> &Self::Id;
 }
 
-pub trait Pushable: Clone + Storable<Storage = PushableStorage<Self>> {}
+pub trait Pushable: Storable<Storage = PushableStorage<Self>> {}
 
 /// A query that can execute on the database.
 ///

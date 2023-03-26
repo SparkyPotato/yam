@@ -82,7 +82,7 @@ pub(crate) fn database(input: ItemStruct) -> Result<TokenStream> {
 
 		#[cfg_attr(feature = "serde", derive(::verde::serde::Serialize, ::verde::serde::Deserialize))]
 		#vis struct #name {
-			#[serde(skip, default = "__verde_internal_generate_routing_table")]
+			#[cfg_attr(feature = "serde", serde(skip, default = "__verde_internal_generate_routing_table"))]
 			__verde_internal_routing_table: ::verde::internal::storage::RoutingTable,
 			#(#field_names: #fields,)*
 		}

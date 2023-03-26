@@ -35,6 +35,7 @@ fn doesnt_execute_twice() {
 	}
 
 	let mut db = Database::default();
+	let db = &mut db as &mut dyn Db;
 	let id = db.set_input(TrackedStruct { id: 0, value: 1 });
 
 	db.execute(|ctx| {
@@ -79,6 +80,7 @@ fn correct_result() {
 	}
 
 	let mut db = Database::default();
+	let db = &mut db as &mut dyn Db;
 	let init: Vec<_> = (1..=100)
 		.map(|x| db.set_input(TrackedStruct { id: x, value: x }))
 		.collect();
@@ -96,6 +98,10 @@ fn correct_result() {
 		assert_eq!(val1, 5050 * 2);
 
 		let accums = db.get_all::<Accum>();
-		assert_eq!(accums.len(), 103);
+		assert_eq!(accums.count(), 103);
+		let double_accums = db.get_query::<double, Accum>();
+		assert_eq!(double_accums.count(), 101);
+		let sum_accums = db.get_query::<sum, Accum>();
+		assert_eq!(sum_accums.count(), 2);
 	});
 }

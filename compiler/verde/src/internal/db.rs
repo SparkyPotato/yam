@@ -16,57 +16,6 @@ use crate::{
 
 /// A database. This trait provides most of the functionality of the concrete database type.
 pub trait Db {
-	/// Set an input value. This will cancel all asynchronously running queries.
-	fn set_input<T: Tracked>(&mut self, value: T) -> Id<T>
-	where
-		Self: Sized,
-	{
-		(self as &dyn Db).insert(Route::input(), value, None)
-	}
-
-	fn get<T: Tracked>(&self, id: Id<T>) -> Get<'_, T>
-	where
-		Self: Sized,
-	{
-		span!(
-			enter trace,
-			"fetching value",
-			ty = std::any::type_name::<T>(),
-			id = id.inner.index
-		);
-		let storage = self
-			.storage_struct(id.inner.route.storage)
-			.tracked_storage(id.inner.route.index)
-			.unwrap();
-		unsafe { storage.get(id.inner.index) }
-	}
-
-	fn get_all<T: Pushable>(&self) -> Vec<T>
-	where
-		Self: Sized,
-	{
-		let route = self.routing_table().route::<T>();
-		let storage = self
-			.storage_struct(route.storage)
-			.pushable_storage(route.index)
-			.unwrap();
-		unsafe { storage.get_all() }
-	}
-
-	fn execute<R>(&self, f: impl FnOnce(&Ctx) -> R) -> R
-	where
-		Self: Sized,
-	{
-		let ctx = Ctx::new(
-			self,
-			ErasedQueryId {
-				route: Route::input(),
-				index: 0,
-			},
-		);
-		f(&ctx)
-	}
-
 	/// Initialize the routing table at database initialization.
 	fn init_routing(table: &mut RoutingTableBuilder)
 	where
@@ -192,5 +141,54 @@ impl dyn Db + '_ {
 		let id = unsafe { storage.insert(value, query, target_gen) };
 		span.record("id", id);
 		Id::new(id, route)
+	}
+}
+
+impl dyn Db + '_ {
+	/// Set an input value. This will cancel all asynchronously running queries.
+	pub fn set_input<T: Tracked>(&mut self, value: T) -> Id<T> { (self as &dyn Db).insert(Route::input(), value, None) }
+
+	pub fn get<T: Tracked>(&self, id: Id<T>) -> Get<'_, T> {
+		span!(
+			enter trace,
+			"fetching value",
+			ty = std::any::type_name::<T>(),
+			id = id.inner.index
+		);
+		let storage = self
+			.storage_struct(id.inner.route.storage)
+			.tracked_storage(id.inner.route.index)
+			.unwrap();
+		unsafe { storage.get(id.inner.index) }
+	}
+
+	pub fn get_all<T: Pushable>(&self) -> impl Iterator<Item = &'_ T> {
+		let route = self.routing_table().route::<T>();
+		let storage = self
+			.storage_struct(route.storage)
+			.pushable_storage(route.index)
+			.unwrap();
+		unsafe { storage.get_all() }
+	}
+
+	pub fn get_query<Q: Query, T: Pushable>(&self) -> impl Iterator<Item = &'_ T> {
+		let route = self.routing_table().route::<T>();
+		let query = self.routing_table().route::<Q>();
+		let storage = self
+			.storage_struct(route.storage)
+			.pushable_storage(route.index)
+			.unwrap();
+		unsafe { storage.get_query(query) }
+	}
+
+	pub fn execute<R>(&self, f: impl FnOnce(&Ctx) -> R) -> R {
+		let ctx = Ctx::new(
+			self,
+			ErasedQueryId {
+				route: Route::input(),
+				index: 0,
+			},
+		);
+		f(&ctx)
 	}
 }
