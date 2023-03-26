@@ -75,14 +75,25 @@ pub(crate) fn database(input: ItemStruct) -> Result<TokenStream> {
 		.collect::<std::result::Result<Vec<u16>, _>>()
 		.map_err(|_| Error::new(name.span(), "how do you have more than 65536 fields?"))?;
 
+	let derive = if cfg!(feature = "serde") {
+		quote! { #[derive(::verde::serde::Serialize, ::verde::serde::Deserialize)] }
+	} else {
+		quote! {}
+	};
+	let skip = if cfg!(feature = "serde") {
+		quote! { #[serde(skip, default = "__verde_internal_generate_routing_table")] }
+	} else {
+		quote! {}
+	};
+
 	Ok(quote! {
 		fn __verde_internal_generate_routing_table() -> ::verde::internal::storage::RoutingTable {
 			::verde::internal::storage::RoutingTable::generate_for_db::<#name>()
 		}
 
-		#[cfg_attr(feature = "serde", derive(::verde::serde::Serialize, ::verde::serde::Deserialize))]
+		#derive
 		#vis struct #name {
-			#[cfg_attr(feature = "serde", serde(skip, default = "__verde_internal_generate_routing_table"))]
+			#skip
 			__verde_internal_routing_table: ::verde::internal::storage::RoutingTable,
 			#(#field_names: #fields,)*
 		}
