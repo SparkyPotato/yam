@@ -42,14 +42,14 @@ pub(crate) fn query(input: ItemFn) -> Result<TokenStream> {
 	let input_type_name = format_ident!("__verde_internal_input_type_of_{}", name);
 
 	let arg_types: Vec<_> = inputs.iter().map(|x| &x.ty).collect();
-	let unref_arg_types: Vec<_> = arg_types
+	let specialization: Vec<_> = arg_types
 		.iter()
 		.map(|x| {
-			let ty = match x {
-				Type::Reference(r) => r.elem.as_ref(),
-				x => *x,
-			};
-			quote!(<#ty as ::std::borrow::ToOwned>)
+			quote! { <#x as ::verde::internal::IsId<{
+				#[allow(unused)]
+				use ::verde::internal::SpecializationDefault as _;
+				::verde::internal::ConstHelper::<#x>::SPECIALIZED
+			}>> }
 		})
 		.collect();
 
@@ -60,19 +60,26 @@ pub(crate) fn query(input: ItemFn) -> Result<TokenStream> {
 	};
 	let input_names: Vec<_> = inputs.iter().map(|x| &x.name).collect();
 
+	let derive = if cfg!(feature = "serde") {
+		quote! {
+			#[derive(::verde::serde::Serialize, ::verde::serde::Deserialize)]
+		}
+	} else {
+		quote! {}
+	};
 	let fn_ty = quote! { for<'__verde_internal_ctx_lifetime, #(#lifetimes,)*> fn(&'__verde_internal_ctx_lifetime #ctx_ty<'__verde_internal_ctx_lifetime>, #(#arg_types,)*) -> ::verde::Id<#ret_ty> };
 
 	Ok(quote! {
 		#[allow(non_camel_case_types)]
 		#[derive(Copy, Clone)]
-		#[cfg_attr(feature = "serde", derive(::verde::serde::Serialize, ::verde::serde::Deserialize))]
+		#derive
 		#vis struct #name;
 
 		#[allow(non_camel_case_types)]
-		#[derive(Clone, PartialEq, Eq, Hash)]
-		#[cfg_attr(feature = "serde", derive(::verde::serde::Serialize, ::verde::serde::Deserialize))]
+		#[derive(Copy, Clone, PartialEq, Eq, Hash)]
+		#derive
 		#vis struct #input_type_name {
-			#(#input_names: #unref_arg_types::Owned,)*
+			#(#input_names: #specialization::Id,)*
 		}
 
 		impl ::std::ops::Deref for #name {
@@ -81,13 +88,11 @@ pub(crate) fn query(input: ItemFn) -> Result<TokenStream> {
 			fn deref(&self) -> &Self::Target {
 				fn inner<'__verde_internal_ctx_lifetime, #(#lifetimes)*>(#ctx_name: &'__verde_internal_ctx_lifetime #ctx_ty<'__verde_internal_ctx_lifetime>, #(#inputs,)*) -> ::verde::Id<#ret_ty> {
 					let __verde_internal_query_input = #input_type_name {
-						#(#input_names: #unref_arg_types::to_owned(&#input_names),)*
+						#(#input_names: #specialization::id(&#input_names),)*
 					};
 					let __verde_internal_ctx = #ctx_name.start_query::<#name>(__verde_internal_query_input);
-
 					let #ctx_name = &__verde_internal_ctx;
-
-					__verde_internal_ctx.end_query::<#name>(|| #block)
+					__verde_internal_ctx.end_query::<#name>(move || #block)
 				}
 
 				const F: #fn_ty = inner;

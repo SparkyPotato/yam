@@ -1,13 +1,16 @@
-use std::hash::Hash;
+use std::{hash::Hash, marker::PhantomData};
 
-use crate::internal::storage::{
-	ErasedPushableStorage,
-	ErasedQueryStorage,
-	ErasedTrackedStorage,
-	PushableStorage,
-	QueryStorage,
-	RouteBuilder,
-	TrackedStorage,
+use crate::{
+	internal::storage::{
+		ErasedPushableStorage,
+		ErasedQueryStorage,
+		ErasedTrackedStorage,
+		PushableStorage,
+		QueryStorage,
+		RouteBuilder,
+		TrackedStorage,
+	},
+	Id,
 };
 
 /// A struct that contains [`TrackedStorage<T>`] or [`QueryStorage<T>`]
@@ -61,12 +64,38 @@ pub trait Pushable: Storable<Storage = PushableStorage<Self>> {}
 /// Can be automatically derived using the `#[query]` attribute on an `async fn`
 pub trait Query: Storable<Storage = QueryStorage<Self>> {
 	#[cfg(feature = "serde")]
-	type Input: Clone + Eq + Hash + Send + Sync + serde::Serialize + for<'de> serde::Deserialize<'de>;
+	type Input: Copy + Clone + Eq + Hash + Send + Sync + serde::Serialize + for<'de> serde::Deserialize<'de>;
 
 	#[cfg(not(feature = "serde"))]
-	type Input: Clone + Eq + Hash + Send + Sync;
+	type Input: Copy + Clone + Eq + Hash + Send + Sync;
 
 	type Output: Tracked + Send + Sync;
+}
+
+pub trait IsId<const B: bool> {
+	type Id;
+
+	fn id(&self) -> Self::Id;
+}
+impl<T> IsId<true> for Id<T> {
+	type Id = Self;
+
+	fn id(&self) -> Self::Id { *self }
+}
+impl<T> IsId<false> for T {
+	type Id = ();
+
+	fn id(&self) -> Self::Id { () }
+}
+pub struct ConstHelper<T>(PhantomData<T>);
+pub trait SpecializationDefault {
+	const SPECIALIZED: bool;
+}
+impl<T> SpecializationDefault for ConstHelper<T> {
+	const SPECIALIZED: bool = false;
+}
+impl<T> ConstHelper<T> {
+	pub const SPECIALIZED: bool = true;
 }
 
 /// A type that is either a [`Tracked`] struct or a query.
