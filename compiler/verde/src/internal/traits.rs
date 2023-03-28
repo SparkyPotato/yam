@@ -94,7 +94,7 @@ pub trait SpecializationDefault {
 impl<T> SpecializationDefault for ConstHelper<T> {
 	const SPECIALIZED: bool = false;
 }
-impl<T> ConstHelper<T> {
+impl<T> ConstHelper<Id<T>> {
 	pub const SPECIALIZED: bool = true;
 }
 

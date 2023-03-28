@@ -42,16 +42,27 @@ pub(crate) fn query(input: ItemFn) -> Result<TokenStream> {
 	let input_type_name = format_ident!("__verde_internal_input_type_of_{}", name);
 
 	let arg_types: Vec<_> = inputs.iter().map(|x| &x.ty).collect();
-	let specialization: Vec<_> = arg_types
-		.iter()
-		.map(|x| {
-			quote! { <#x as ::verde::internal::IsId<{
-				#[allow(unused)]
-				use ::verde::internal::SpecializationDefault as _;
-				::verde::internal::ConstHelper::<#x>::SPECIALIZED
-			}>> }
-		})
-		.collect();
+	let spec_ty = arg_types.iter().map(|x| {
+		let x = match x {
+			Type::Reference(r) => {
+				let to = &r.elem;
+				quote! { &'static #to }
+			},
+			x => quote! { #x },
+		};
+		quote! { <#x as ::verde::internal::IsId<{
+			#[allow(unused)]
+			use ::verde::internal::SpecializationDefault as _;
+			::verde::internal::ConstHelper::<#x>::SPECIALIZED
+		}>>::Id }
+	});
+	let spec_init = arg_types.iter().map(|x| {
+		quote! { <#x as ::verde::internal::IsId<{
+			#[allow(unused)]
+			use ::verde::internal::SpecializationDefault as _;
+			::verde::internal::ConstHelper::<#x>::SPECIALIZED
+		}>>::id }
+	});
 
 	let ctx_name = &ctx.name;
 	let ctx_ty = match ctx.ty {
@@ -67,7 +78,7 @@ pub(crate) fn query(input: ItemFn) -> Result<TokenStream> {
 	} else {
 		quote! {}
 	};
-	let fn_ty = quote! { for<'__verde_internal_ctx_lifetime, #(#lifetimes,)*> fn(&'__verde_internal_ctx_lifetime #ctx_ty<'__verde_internal_ctx_lifetime>, #(#arg_types,)*) -> ::verde::Id<#ret_ty> };
+	let fn_ty = quote! { for<#(#lifetimes,)*> fn(&#ctx_ty, #(#arg_types,)*) -> ::verde::Id<#ret_ty> };
 
 	Ok(quote! {
 		#[allow(non_camel_case_types)]
@@ -79,16 +90,16 @@ pub(crate) fn query(input: ItemFn) -> Result<TokenStream> {
 		#[derive(Copy, Clone, PartialEq, Eq, Hash)]
 		#derive
 		#vis struct #input_type_name {
-			#(#input_names: #specialization::Id,)*
+			#(#input_names: #spec_ty,)*
 		}
 
 		impl ::std::ops::Deref for #name {
 			type Target = #fn_ty;
 
 			fn deref(&self) -> &Self::Target {
-				fn inner<'__verde_internal_ctx_lifetime, #(#lifetimes)*>(#ctx_name: &'__verde_internal_ctx_lifetime #ctx_ty<'__verde_internal_ctx_lifetime>, #(#inputs,)*) -> ::verde::Id<#ret_ty> {
+				fn inner<#(#lifetimes)*>(#ctx_name: &#ctx_ty, #(#inputs,)*) -> ::verde::Id<#ret_ty> {
 					let __verde_internal_query_input = #input_type_name {
-						#(#input_names: #specialization::id(&#input_names),)*
+						#(#input_names: #spec_init(&#input_names),)*
 					};
 					let __verde_internal_ctx = #ctx_name.start_query::<#name>(__verde_internal_query_input);
 					let #ctx_name = &__verde_internal_ctx;
