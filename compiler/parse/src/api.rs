@@ -68,9 +68,15 @@ impl Api<'_, '_> {
 
 	pub fn peek(&self) -> Token { self.peek_n(0) }
 
-	pub fn start_node(&mut self, kind: SyntaxKind) -> Branch { self.builder.start_node(kind) }
+	pub fn start_node(&mut self, kind: SyntaxKind) -> Branch {
+		self.output_trivia();
+		self.builder.start_node(kind)
+	}
 
-	pub fn finish_node(&mut self, branch: Branch) { self.builder.finish_node(branch) }
+	pub fn finish_node(&mut self, branch: Branch) {
+		self.builder.finish_node(branch);
+		self.output_trivia();
+	}
 
 	pub fn checkpoint(&self) -> Checkpoint { self.builder.checkpoint() }
 

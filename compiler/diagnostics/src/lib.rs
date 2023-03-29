@@ -1,10 +1,9 @@
 use std::{
 	collections::HashMap,
 	fmt::{Debug, Display},
-	ops::Range,
 };
 
-use ariadne::{Cache, Report, Source};
+use ariadne::{Cache, Source};
 
 mod diag;
 mod span;
@@ -28,49 +27,14 @@ impl Cache<FilePath> for &FileCache {
 	fn display<'a>(&self, id: &'a FilePath) -> Option<Box<dyn Display + 'a>> { Some(Box::new(id)) }
 }
 
-pub struct DiagSink<F> {
-	inner: Vec<Diagnostic<F>>,
-	had_error: bool,
-}
-
-impl<F> DiagSink<F> {
-	pub fn new() -> Self {
-		Self {
-			inner: Vec::new(),
-			had_error: false,
-		}
-	}
-
-	pub fn push(&mut self, diag: Diagnostic<F>) {
-		if diag.kind == DiagKind::Error {
-			self.had_error = true;
-		}
-		self.inner.push(diag);
-	}
-
-	pub fn had_error(&self) -> bool { self.had_error }
-
-	pub fn into_inner(self) -> Vec<Diagnostic<F>> { self.inner }
-}
-
-pub fn quick_diagnostic(kind: DiagKind, message: impl ToString) {
-	Report::<Range<usize>>::build(kind.into_report_kind(), (), 0)
-		.with_message(message)
-		.finish()
-		.eprint(Source::from(""))
-		.unwrap();
-}
-
 pub mod test {
-	use crate::DiagSink;
+	use crate::Diagnostic;
 
-	impl<F: Clone + PartialEq> DiagSink<F> {
-		pub fn emit_test(self, source: &str) -> String {
-			let mut s = String::new();
-			for diag in self.inner {
-				s += &diag.emit_test(source);
-			}
-			s
+	pub fn emit_test<F: Clone + PartialEq>(source: &str, diags: impl Iterator<Item = Diagnostic<F>>) -> String {
+		let mut s = String::new();
+		for diag in diags {
+			s += &diag.emit_test(source);
 		}
+		s
 	}
 }

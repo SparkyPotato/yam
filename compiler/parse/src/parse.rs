@@ -1,28 +1,28 @@
-use diagnostics::DiagSink;
 use lex::{token::TokenKind, T};
 use syntax::{
 	builder::{TreeBuilder, TreeBuilderContext},
 	SyntaxKind,
 };
+use verde::Ctx;
 
 use crate::{api::Api, helpers::select};
 
 pub struct Parser<'c, 's> {
 	pub api: Api<'c, 's>,
-	pub diags: DiagSink<()>,
+	pub db: &'s Ctx<'s>,
 }
 
 impl<'c, 's> Parser<'c, 's> {
-	pub fn new(source: &'s str, ctx: &'c mut TreeBuilderContext) -> Self {
+	pub fn new(source: &'s str, ctx: &'c mut TreeBuilderContext, db: &'s Ctx<'s>) -> Self {
 		Self {
 			api: Api::new(source, ctx),
-			diags: DiagSink::new(),
+			db,
 		}
 	}
 
-	pub fn parse(mut self) -> (TreeBuilder<'c>, DiagSink<()>) {
+	pub fn parse(mut self) -> TreeBuilder<'c> {
 		self.parse_inner();
-		(self.api.finish(), self.diags)
+		self.api.finish()
 	}
 
 	fn parse_inner(&mut self) {
@@ -83,9 +83,7 @@ impl Parser<'_, '_> {
 		self.expect(T![struct], &toks);
 		self.name(&toks[1..]);
 		self.expect(T!['{'], &toks[2..]);
-		self.comma_sep_list(T!['}'], |this| {
-			this.param();
-		});
+		self.comma_sep_list(T!['}'], |this| this.param());
 		self.expect(T!['}'], &toks[3..]);
 
 		self.api.finish_node(b);
@@ -131,16 +129,14 @@ impl Parser<'_, '_> {
 	fn enum_(&mut self) {
 		let b = self.api.start_node(SyntaxKind::Enum);
 
-		let toks = [T![ident], T!['{'], T!['}']];
+		const TOKS: [TokenKind; 3] = [T![ident], T!['{'], T!['}']];
 
-		self.expect(T![enum], &toks);
-		self.expect(T![ident], &toks[1..]);
-		self.expect(T!['{'], &toks[2..]);
+		self.expect(T![enum], &TOKS);
+		self.expect(T![ident], &TOKS[1..]);
+		self.expect(T!['{'], &TOKS[2..]);
 
 		let v = self.api.start_node(SyntaxKind::VariantList);
-		self.comma_sep_list(T!['}'], |this| {
-			this.name(&toks[2..]);
-		});
+		self.comma_sep_list(T!['}'], |this| this.name(&TOKS[2..]));
 		self.api.finish_node(v);
 
 		self.expect(T!['}'], &[]);
@@ -260,7 +256,7 @@ impl Parser<'_, '_> {
 			let curr = self.api.peek();
 			match curr.kind {
 				T![eof] => {
-					self.diags
+					self.db
 						.push(curr.span.error("unexpected <eof>").label(curr.span.mark()));
 					break;
 				},
@@ -444,7 +440,7 @@ impl Parser<'_, '_> {
 			_ => {
 				let diag = tok.span.error("expected expr");
 
-				self.diags.push(if self.api.is_span_eof(tok.span) {
+				self.db.push(if self.api.is_span_eof(tok.span) {
 					diag
 				} else {
 					diag.label(tok.span.label(format!("found `{}`", SyntaxKind::from(tok.kind))))
@@ -517,9 +513,7 @@ impl Parser<'_, '_> {
 		let b = self.api.start_node(SyntaxKind::ArgList);
 
 		self.api.bump();
-		self.comma_sep_list(T![')'], |this| {
-			this.expr();
-		});
+		self.comma_sep_list(T![')'], |this| this.expr());
 		self.expect(T![')'], &[T![;], T!['}']]);
 
 		self.api.finish_node(b);
@@ -586,7 +580,7 @@ impl Parser<'_, '_> {
 			match curr.kind {
 				T![')'] => break,
 				T![eof] => {
-					self.diags
+					self.db
 						.push(curr.span.error("unexpected <eof>").label(curr.span.mark()));
 					break;
 				},

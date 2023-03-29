@@ -5,5 +5,6 @@ edition = "2021"
 
 [dependencies]
 text = { path = "../text" }
+verde = { path = "../verde" }
 
-ariadne = "0.1"
+ariadne = "0.2.0"

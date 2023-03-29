@@ -1,8 +1,5 @@
 [workspace]
 members = ["compiler/*", "compiler/verde/derive"]
 
-[patch.crates-io]
-tokio = { git = "https://github.com/SparkyPotato/tokio.git", branch = "make-abort-handle-public" }
-
 [profile.release]
 debug = true

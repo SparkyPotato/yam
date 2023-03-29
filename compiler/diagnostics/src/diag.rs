@@ -1,4 +1,5 @@
 use ariadne::{Report, ReportKind};
+use verde::Pushable;
 
 use crate::{FileCache, FilePath, Span};
 
@@ -10,7 +11,7 @@ pub enum DiagKind {
 }
 
 impl DiagKind {
-	pub(crate) fn into_report_kind(self) -> ReportKind {
+	pub(crate) fn into_report_kind(self) -> ReportKind<'static> {
 		match self {
 			DiagKind::Error => ReportKind::Error,
 			DiagKind::Warning => ReportKind::Warning,
@@ -19,6 +20,7 @@ impl DiagKind {
 	}
 }
 
+#[derive(Clone)]
 pub struct Label<F> {
 	pub span: Span<F>,
 	pub message: Option<String>,
@@ -42,6 +44,7 @@ impl<F> Label<F> {
 	}
 }
 
+#[derive(Pushable, Clone)]
 pub struct Diagnostic<F> {
 	pub kind: DiagKind,
 	pub message: String,

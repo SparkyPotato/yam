@@ -13,7 +13,7 @@ impl Parser<'_, '_> {
 		if token.kind != kind {
 			let diag = token.span.error(format!("expected `{}`", SyntaxKind::from(kind)));
 
-			self.diags.push(if self.api.is_span_eof(token.span) {
+			self.db.push(if self.api.is_span_eof(token.span) {
 				diag
 			} else {
 				diag.label(token.span.label(format!("found `{}`", SyntaxKind::from(token.kind))))
@@ -36,7 +36,7 @@ impl Parser<'_, '_> {
 			}
 
 			if !end_comma {
-				self.diags.push(
+				self.db.push(
 					next.span
 						.error(format!("expected `,` or `{}`", SyntaxKind::from(end)))
 						.label(next.span.label(format!("found `{}`", SyntaxKind::from(next.kind)))),
@@ -171,7 +171,7 @@ macro_rules! select {
 		match tok.kind {
 			$(T!$kind => $value,)*
 			_ => {
-				$self.diags.push(
+				$self.db.push(
 					tok.span
 						.error(format!("expected one of: {}", Self::fmt_kinds(&expected)))
 						.label(tok.span.label(format!("found `{}`", SyntaxKind::from(tok.kind)))),
