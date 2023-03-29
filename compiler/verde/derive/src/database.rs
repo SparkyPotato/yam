@@ -20,7 +20,7 @@ pub(crate) fn storage(input: ItemStruct) -> Result<TokenStream> {
 		#[derive(Default)]
 		#[cfg_attr(feature = "serde", derive(::verde::serde::Serialize, ::verde::serde::Deserialize))]
 		#vis struct #name(
-			#(<#fields as ::verde::internal::Storable>::Storage),*
+			#(<#fields as ::verde::internal::Storable>::Storage,)*
 		);
 
 		impl ::verde::internal::Storage for #name {
@@ -30,21 +30,28 @@ pub(crate) fn storage(input: ItemStruct) -> Result<TokenStream> {
 
 			fn tracked_storage(&self, index: u16) -> Option<&dyn ::verde::internal::storage::ErasedTrackedStorage> {
 				match index {
-					#(#field_indices => <#fields as ::verde::internal::Storable>::tracked_storage(&self.#field_indices)),*,
+					#(#field_indices => <#fields as ::verde::internal::Storable>::tracked_storage(&self.#field_indices),)*
 					_ => panic!("invalid route index"),
 				}
 			}
 
 			fn query_storage(&self, index: u16) -> Option<&dyn ::verde::internal::storage::ErasedQueryStorage> {
 				match index {
-					#(#field_indices => <#fields as ::verde::internal::Storable>::query_storage(&self.#field_indices)),*,
+					#(#field_indices => <#fields as ::verde::internal::Storable>::query_storage(&self.#field_indices),)*
 					_ => panic!("invalid route index"),
 				}
 			}
 
 			fn pushable_storage(&self, index: u16) -> Option<&dyn ::verde::internal::storage::ErasedPushableStorage> {
 				match index {
-					#(#field_indices => <#fields as ::verde::internal::Storable>::pushable_storage(&self.#field_indices)),*,
+					#(#field_indices => <#fields as ::verde::internal::Storable>::pushable_storage(&self.#field_indices),)*
+					_ => panic!("invalid route index"),
+				}
+			}
+
+			fn interned_storage(&self, index: u16) -> Option<&dyn ::verde::internal::storage::ErasedInternedStorage> {
+				match index {
+					#(#field_indices => <#fields as ::verde::internal::Storable>::interned_storage(&self.#field_indices),)*
 					_ => panic!("invalid route index"),
 				}
 			}

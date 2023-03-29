@@ -43,6 +43,10 @@ pub(crate) fn pushable(input: DeriveInput) -> Result<TokenStream> {
 			fn pushable_storage(store: &Self::Storage) -> Option<&dyn ::verde::internal::storage::ErasedPushableStorage> {
 				Some(store)
 			}
+
+			fn interned_storage(store: &Self::Storage) -> Option<&dyn ::verde::internal::storage::ErasedInternedStorage> {
+				None
+			}
 		}
 
 		impl #impl_ ::verde::Pushable for #name #ty where #(#bounds)*  {}

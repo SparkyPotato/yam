@@ -1,8 +1,8 @@
 #[cfg(feature = "serde")]
 pub use serde;
-pub use verde_derive::{db, query, storage, Pushable, Tracked};
+pub use verde_derive::{db, query, storage, Interned, Pushable, Tracked};
 
-pub use crate::internal::{storage::Id, Ctx, Db, Pushable, Tracked};
+pub use crate::internal::{storage::Id, Ctx, Db, Interned, Pushable, Tracked};
 
 pub mod internal;
 #[cfg(feature = "test")]

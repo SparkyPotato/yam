@@ -114,6 +114,10 @@ pub(crate) fn query(input: ItemFn) -> Result<TokenStream> {
 			fn pushable_storage(store: &Self::Storage) -> Option<&dyn ::verde::internal::storage::ErasedPushableStorage> {
 				None
 			}
+
+			fn interned_storage(store: &Self::Storage) -> Option<&dyn ::verde::internal::storage::ErasedInternedStorage> {
+				None
+			}
 		}
 	})
 }

@@ -5,9 +5,11 @@ use rustc_hash::FxHashMap;
 use crate::{
 	internal::{
 		storage::{
+			ErasedInternedStorage,
 			ErasedPushableStorage,
 			ErasedQueryStorage,
 			ErasedTrackedStorage,
+			InternedStorage,
 			PushableStorage,
 			QueryStorage,
 			RouteBuilder,
@@ -19,6 +21,7 @@ use crate::{
 		Storage,
 	},
 	Db,
+	Interned,
 	Pushable,
 	Tracked,
 };
@@ -27,6 +30,7 @@ pub enum StorageType {
 	Tracked(Box<dyn ErasedTrackedStorage>),
 	Query(Box<dyn ErasedQueryStorage>),
 	Pushable(Box<dyn ErasedPushableStorage>),
+	Interned(Box<dyn ErasedInternedStorage>),
 }
 
 impl<T: Tracked> From<TrackedStorage<T>> for StorageType {
@@ -39,6 +43,10 @@ impl<Q: Query> From<QueryStorage<Q>> for StorageType {
 
 impl<T: Pushable> From<PushableStorage<T>> for StorageType {
 	fn from(storage: PushableStorage<T>) -> Self { Self::Pushable(Box::new(storage)) }
+}
+
+impl<T: Interned> From<InternedStorage<T>> for StorageType {
+	fn from(storage: InternedStorage<T>) -> Self { Self::Interned(Box::new(storage)) }
 }
 
 pub struct TestDatabase {
@@ -105,6 +113,14 @@ impl Storage for TestDatabase {
 		self.make();
 		match self.storage.borrow().get(&index) {
 			Some(StorageType::Pushable(storage)) => Some(unsafe { std::mem::transmute(storage.as_ref()) }),
+			_ => None,
+		}
+	}
+
+	fn interned_storage(&self, index: u16) -> Option<&dyn ErasedInternedStorage> {
+		self.make();
+		match self.storage.borrow().get(&index) {
+			Some(StorageType::Interned(storage)) => Some(unsafe { std::mem::transmute(storage.as_ref()) }),
 			_ => None,
 		}
 	}

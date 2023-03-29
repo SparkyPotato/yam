@@ -1,9 +1,11 @@
 use std::hash::Hash;
 
 use crate::internal::storage::{
+	ErasedInternedStorage,
 	ErasedPushableStorage,
 	ErasedQueryStorage,
 	ErasedTrackedStorage,
+	InternedStorage,
 	PushableStorage,
 	QueryStorage,
 	RouteBuilder,
@@ -29,8 +31,11 @@ pub trait Storage {
 	/// Get a `&dyn QueryStorage<T>` if the route with `index` is a query.
 	fn query_storage(&self, index: u16) -> Option<&dyn ErasedQueryStorage>;
 
-	/// Get a `&dyn PushableStorage<T>` if the route with `index` is a storage struct.
+	/// Get a `&dyn PushableStorage<T>` if the route with `index` is a pushable.
 	fn pushable_storage(&self, index: u16) -> Option<&dyn ErasedPushableStorage>;
+
+	/// Get a `&dyn InternedStorage<T>` if the route with `index` is interned.
+	fn interned_storage(&self, index: u16) -> Option<&dyn ErasedInternedStorage>;
 }
 
 /// A database that contains a storage struct `S`,
@@ -69,6 +74,9 @@ pub trait Query: Storable<Storage = QueryStorage<Self>> {
 	type Output: Tracked + Send + Sync;
 }
 
+/// A type that is interned inside the database.
+pub trait Interned: Clone + Eq + Hash + Storable<Storage = InternedStorage<Self>> {}
+
 /// A type that is either a [`Tracked`] struct or a query.
 /// Types that implement this trait can be stored inside `Storage`.
 pub trait Storable: Sized + Send + 'static {
@@ -85,8 +93,11 @@ pub trait Storable: Sized + Send + 'static {
 	/// Cast to a `&dyn QueryStorage<Self>` if `Self` is a query.
 	fn query_storage(store: &Self::Storage) -> Option<&dyn ErasedQueryStorage>;
 
-	/// Get a `&dyn PushableStorage<T>` if the route with `index` is a storage struct.
+	/// Cast to a `&dyn PushableStorage<Self>` if `Self` is a pushable.
 	fn pushable_storage(store: &Self::Storage) -> Option<&dyn ErasedPushableStorage>;
+
+	/// Cast to a `&dyn InternedStorage<Self>` if `Self` is interned.
+	fn interned_storage(store: &Self::Storage) -> Option<&dyn ErasedInternedStorage>;
 }
 
 #[cfg(feature = "test")]

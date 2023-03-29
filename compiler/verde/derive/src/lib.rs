@@ -39,6 +39,39 @@ pub fn tracked(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
 	.into()
 }
 
+#[proc_macro_derive(Interned)]
+pub fn interned(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
+	let input = parse_macro_input!(item as DeriveInput);
+	let ty = input.ident;
+	let (i, t, w) = input.generics.split_for_impl();
+	(quote! {
+		impl #i ::verde::Interned for #ty #t #w {}
+
+		impl #i ::verde::internal::Storable for #ty #t #w {
+			type Storage = ::verde::internal::storage::InternedStorage<Self>;
+
+			const IS_PUSHABLE: bool = false;
+
+			fn tracked_storage(store: &Self::Storage) -> Option<&dyn ::verde::internal::storage::ErasedTrackedStorage> {
+				None
+			}
+
+			fn query_storage(store: &Self::Storage) -> Option<&dyn ::verde::internal::storage::ErasedQueryStorage> {
+				None
+			}
+
+			fn pushable_storage(store: &Self::Storage) -> Option<&dyn ::verde::internal::storage::ErasedPushableStorage> {
+				None
+			}
+
+			fn interned_storage(store: &Self::Storage) -> Option<&dyn ::verde::internal::storage::ErasedInternedStorage> {
+				Some(store)
+			}
+		}
+	})
+	.into()
+}
+
 #[proc_macro_derive(Pushable)]
 pub fn pushable(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
 	let input = parse_macro_input!(item as DeriveInput);

@@ -4,12 +4,13 @@ use rustc_hash::FxHashSet;
 
 use crate::{
 	internal::{
-		storage::{ErasedId, ErasedQueryId, Get, Route, RoutingTable, RoutingTableBuilder},
+		storage::{interned, tracked, ErasedId, ErasedQueryId, Route, RoutingTable, RoutingTableBuilder},
 		Query,
 		Storage,
 	},
 	span,
 	Id,
+	Interned,
 	Pushable,
 	Tracked,
 };
@@ -42,7 +43,7 @@ impl<'a> Ctx<'a> {
 		}
 	}
 
-	pub fn get<T: Tracked>(&self, id: Id<T>) -> Get<'_, T> {
+	pub fn get<T: Tracked>(&self, id: Id<T>) -> tracked::Get<'_, T> {
 		span!(
 			enter trace,
 			"fetching value",
@@ -63,6 +64,40 @@ impl<'a> Ctx<'a> {
 			.tracked_storage(id.inner.route.index)
 			.unwrap();
 		unsafe { storage.get(id.inner.index) }
+	}
+
+	pub fn geti<T: Interned>(&self, id: Id<T>) -> interned::Get<'_, T> {
+		span!(
+			enter trace,
+			"fetching value",
+			ty = std::any::type_name::<T>(),
+			id = id.inner.index
+		);
+		let storage = self
+			.db
+			.storage_struct(id.inner.route.storage)
+			.interned_storage(id.inner.route.index)
+			.unwrap();
+		unsafe { storage.get(id.inner.index) }
+	}
+
+	pub fn add<T: Interned>(&self, value: T) -> Id<T> {
+		let span = span!(
+			trace,
+			"inserting value",
+			ty = std::any::type_name::<T>(),
+			id = tracing::field::Empty
+		);
+		let _e = span.enter();
+		let route = self.db.routing_table().route::<T>();
+		let storage = self
+			.db
+			.storage_struct(route.storage)
+			.interned_storage(route.index)
+			.unwrap();
+		let id = unsafe { storage.insert(value) };
+		span.record("id", id);
+		Id::new(id, route)
 	}
 
 	pub fn push<T: Pushable>(&self, value: T) {
@@ -133,27 +168,10 @@ impl<'a> Ctx<'a> {
 }
 
 impl dyn Db + '_ {
-	pub(crate) fn insert<T: Tracked>(&self, query: Route, value: T) -> Id<T> {
-		let span = span!(
-			trace,
-			"inserting value",
-			ty = std::any::type_name::<T>(),
-			id = tracing::field::Empty
-		);
-		let _e = span.enter();
-		let route = self.routing_table().route::<T>();
-		let storage = self.storage_struct(route.storage).tracked_storage(route.index).unwrap();
-		let id = unsafe { storage.insert(value, query) };
-		span.record("id", id);
-		Id::new(id, route)
-	}
-}
-
-impl dyn Db + '_ {
 	/// Set an input value. This will cancel all asynchronously running queries.
 	pub fn set_input<T: Tracked>(&mut self, value: T) -> Id<T> { (self as &dyn Db).insert(Route::input(), value) }
 
-	pub fn get<T: Tracked>(&self, id: Id<T>) -> Get<'_, T> {
+	pub fn get<T: Tracked>(&self, id: Id<T>) -> tracked::Get<'_, T> {
 		span!(
 			enter trace,
 			"fetching value",
@@ -165,6 +183,38 @@ impl dyn Db + '_ {
 			.tracked_storage(id.inner.route.index)
 			.unwrap();
 		unsafe { storage.get(id.inner.index) }
+	}
+
+	pub fn geti<T: Interned>(&self, id: Id<T>) -> interned::Get<'_, T> {
+		span!(
+			enter trace,
+			"fetching value",
+			ty = std::any::type_name::<T>(),
+			id = id.inner.index
+		);
+		let storage = self
+			.storage_struct(id.inner.route.storage)
+			.interned_storage(id.inner.route.index)
+			.unwrap();
+		unsafe { storage.get(id.inner.index) }
+	}
+
+	pub fn add<T: Interned>(&self, value: T) -> Id<T> {
+		let span = span!(
+			trace,
+			"inserting value",
+			ty = std::any::type_name::<T>(),
+			id = tracing::field::Empty
+		);
+		let _e = span.enter();
+		let route = self.routing_table().route::<T>();
+		let storage = self
+			.storage_struct(route.storage)
+			.interned_storage(route.index)
+			.unwrap();
+		let id = unsafe { storage.insert(value) };
+		span.record("id", id);
+		Id::new(id, route)
 	}
 
 	pub fn get_all<T: Pushable>(&self) -> impl Iterator<Item = &'_ T> {
@@ -195,5 +245,22 @@ impl dyn Db + '_ {
 			},
 		);
 		f(&ctx)
+	}
+}
+
+impl dyn Db + '_ {
+	pub(crate) fn insert<T: Tracked>(&self, query: Route, value: T) -> Id<T> {
+		let span = span!(
+			trace,
+			"inserting value",
+			ty = std::any::type_name::<T>(),
+			id = tracing::field::Empty
+		);
+		let _e = span.enter();
+		let route = self.routing_table().route::<T>();
+		let storage = self.storage_struct(route.storage).tracked_storage(route.index).unwrap();
+		let id = unsafe { storage.insert(value, query) };
+		span.record("id", id);
+		Id::new(id, route)
 	}
 }
