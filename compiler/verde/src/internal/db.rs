@@ -29,7 +29,7 @@ pub trait Db {
 
 pub struct Ctx<'a> {
 	pub db: &'a dyn Db,
-	pub dependencies: RefCell<MaybeUninit<FxHashSet<ErasedId>>>,
+	pub dependencies: RefCell<MaybeUninit<FxHashSet<(ErasedId, u64)>>>,
 	pub curr_query: ErasedQueryId,
 }
 
@@ -50,11 +50,12 @@ impl<'a> Ctx<'a> {
 			id = id.inner.index
 		);
 		unsafe {
+			let gen = self.get_generation(id.inner);
 			self.dependencies
 				.try_borrow_mut()
 				.expect("Cannot call `get` within a `map` scope")
 				.assume_init_mut()
-				.insert(id.inner);
+				.insert((id.inner, gen));
 		}
 		let storage = self
 			.db
@@ -132,7 +133,7 @@ impl<'a> Ctx<'a> {
 }
 
 impl dyn Db + '_ {
-	pub(crate) fn insert<T: Tracked>(&self, query: Route, value: T, target_gen: Option<u64>) -> Id<T> {
+	pub(crate) fn insert<T: Tracked>(&self, query: Route, value: T) -> Id<T> {
 		let span = span!(
 			trace,
 			"inserting value",
@@ -142,7 +143,7 @@ impl dyn Db + '_ {
 		let _e = span.enter();
 		let route = self.routing_table().route::<T>();
 		let storage = self.storage_struct(route.storage).tracked_storage(route.index).unwrap();
-		let id = unsafe { storage.insert(value, query, target_gen) };
+		let id = unsafe { storage.insert(value, query) };
 		span.record("id", id);
 		Id::new(id, route)
 	}
@@ -150,7 +151,7 @@ impl dyn Db + '_ {
 
 impl dyn Db + '_ {
 	/// Set an input value. This will cancel all asynchronously running queries.
-	pub fn set_input<T: Tracked>(&mut self, value: T) -> Id<T> { (self as &dyn Db).insert(Route::input(), value, None) }
+	pub fn set_input<T: Tracked>(&mut self, value: T) -> Id<T> { (self as &dyn Db).insert(Route::input(), value) }
 
 	pub fn get<T: Tracked>(&self, id: Id<T>) -> Get<'_, T> {
 		span!(

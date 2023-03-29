@@ -79,39 +79,27 @@ impl<T: Query> QueryStorage<T> {
 		match data.output {
 			Some(id) => {
 				event!(debug, "query cache hit");
-				let output_generation = ctx.get_generation(id.get().inner);
-				event!(debug, "output has generation `{}`", output_generation);
-				let mut max_dep_generation = 0;
-				for &dep in data.dependencies.iter() {
+				for &(dep, gen) in data.dependencies.iter() {
 					let dep_generation = ctx.get_generation(dep);
-					max_dep_generation = max_dep_generation.max(dep_generation);
+					if dep_generation > gen {
+						event!(debug, "dependencies have changed, re-executing",);
+						let ret = f();
+						let output = ctx.db.insert(query, ret);
+						let dependencies = unsafe { ctx.dependencies.borrow_mut().assume_init_read() };
+						*data = QueryData {
+							dependencies,
+							output: Some(OutputId::new(output)),
+						};
+						return output;
+					}
 				}
-				if output_generation < max_dep_generation {
-					event!(
-						debug,
-						"dependencies have generation `{}`, re-executing",
-						max_dep_generation
-					);
-					let ret = f();
-					let output = ctx.db.insert(query, ret, Some(max_dep_generation));
-					let dependencies = unsafe { ctx.dependencies.borrow_mut().assume_init_read() };
-					*data = QueryData {
-						dependencies,
-						output: Some(OutputId::new(output)),
-					};
-					return output;
-				}
+				let _ = unsafe { ctx.dependencies.borrow_mut().assume_init_read() };
 				id.get()
 			},
 			None => {
 				event!(debug, "first query execution");
 				let ret = f();
-				let mut max_dep_generation = 0;
-				for &dep in data.dependencies.iter() {
-					let dep_generation = ctx.get_generation(dep);
-					max_dep_generation = max_dep_generation.max(dep_generation);
-				}
-				let output = ctx.db.insert(query, ret, Some(max_dep_generation));
+				let output = ctx.db.insert(query, ret);
 				let dependencies = unsafe { ctx.dependencies.borrow_mut().assume_init_read() };
 				*data = QueryData {
 					dependencies,
@@ -125,7 +113,7 @@ impl<T: Query> QueryStorage<T> {
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub(crate) struct QueryData<T: Query> {
-	pub(crate) dependencies: FxHashSet<ErasedId>,
+	pub(crate) dependencies: FxHashSet<(ErasedId, u64)>,
 	pub(crate) output: Option<OutputId<T::Output>>,
 }
 
