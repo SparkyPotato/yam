@@ -1,4 +1,5 @@
 use std::{
+	fmt::Debug,
 	ops::Deref,
 	sync::atomic::{AtomicU64, Ordering},
 };
@@ -31,6 +32,9 @@ pub struct Id<T> {
 }
 unsafe impl<T> Send for Id<T> {}
 unsafe impl<T> Sync for Id<T> {}
+impl<T> Debug for Id<T> {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { write!(f, "Id({})", self.inner.index) }
+}
 
 pub struct Get<'a, T> {
 	slot: &'a RwLock<T>,
