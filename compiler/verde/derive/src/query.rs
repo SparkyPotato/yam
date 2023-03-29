@@ -7,6 +7,7 @@ use syn::{
 	GenericParam,
 	ItemFn,
 	LifetimeParam,
+	Meta,
 	Pat,
 	ReturnType,
 	Type,
@@ -42,34 +43,15 @@ pub(crate) fn query(input: ItemFn) -> Result<TokenStream> {
 	let input_type_name = format_ident!("__verde_internal_input_type_of_{}", name);
 
 	let arg_types: Vec<_> = inputs.iter().map(|x| &x.ty).collect();
-	let spec_ty = arg_types.iter().map(|x| {
-		let x = match x {
-			Type::Reference(r) => {
-				let to = &r.elem;
-				quote! { &'static #to }
-			},
-			x => quote! { #x },
-		};
-		quote! { <#x as ::verde::internal::IsId<{
-			#[allow(unused)]
-			use ::verde::internal::SpecializationDefault as _;
-			::verde::internal::ConstHelper::<#x>::SPECIALIZED
-		}>>::Id }
-	});
-	let spec_init = arg_types.iter().map(|x| {
-		quote! { <#x as ::verde::internal::IsId<{
-			#[allow(unused)]
-			use ::verde::internal::SpecializationDefault as _;
-			::verde::internal::ConstHelper::<#x>::SPECIALIZED
-		}>>::id }
-	});
+	let query_inputs: Vec<_> = inputs.iter().filter(|x| !x.ignore).collect();
+	let query_input_names: Vec<_> = query_inputs.iter().map(|x| &x.name).collect();
+	let query_input_types: Vec<_> = query_inputs.iter().map(|x| &x.ty).collect();
 
 	let ctx_name = &ctx.name;
 	let ctx_ty = match ctx.ty {
 		Type::Reference(r) => r.elem,
 		_ => return Err(Error::new(ctx.ty.span(), "context must be a `&Ctx`")),
 	};
-	let input_names: Vec<_> = inputs.iter().map(|x| &x.name).collect();
 
 	let derive = if cfg!(feature = "serde") {
 		quote! {
@@ -87,10 +69,10 @@ pub(crate) fn query(input: ItemFn) -> Result<TokenStream> {
 		#vis struct #name;
 
 		#[allow(non_camel_case_types)]
-		#[derive(Copy, Clone, PartialEq, Eq, Hash)]
+		#[derive(Clone, PartialEq, Eq, Hash)]
 		#derive
 		#vis struct #input_type_name {
-			#(#input_names: #spec_ty,)*
+			#(#query_input_names: #query_input_types,)*
 		}
 
 		impl ::std::ops::Deref for #name {
@@ -99,7 +81,7 @@ pub(crate) fn query(input: ItemFn) -> Result<TokenStream> {
 			fn deref(&self) -> &Self::Target {
 				fn inner<#(#lifetimes)*>(#ctx_name: &#ctx_ty, #(#inputs,)*) -> ::verde::Id<#ret_ty> {
 					let __verde_internal_query_input = #input_type_name {
-						#(#input_names: #spec_init(&#input_names),)*
+						#(#query_input_names: ::std::clone::Clone::clone(&#query_input_names),)*
 					};
 					let __verde_internal_ctx = #ctx_name.start_query::<#name>(__verde_internal_query_input);
 					let #ctx_name = &__verde_internal_ctx;
@@ -140,11 +122,12 @@ pub(crate) fn query(input: ItemFn) -> Result<TokenStream> {
 struct Arg {
 	name: Ident,
 	ty: Type,
+	ignore: bool,
 }
 
 impl ToTokens for Arg {
 	fn to_tokens(&self, tokens: &mut TokenStream) {
-		let Arg { name, ty } = self;
+		let Arg { name, ty, .. } = self;
 		tokens.extend(quote!(#name: #ty));
 	}
 }
@@ -179,6 +162,17 @@ fn generate(input: &ItemFn) -> Result<Query> {
 			Pat::Ident(ref ident) => Ok(Arg {
 				name: ident.ident.clone(),
 				ty: *pat.ty.clone(),
+				ignore: {
+					let mut iter = pat.attrs.iter();
+					let x = iter
+						.next()
+						.map(|x| matches!(&x.meta, Meta::Path(p) if p.is_ident("ignore")))
+						.unwrap_or(false);
+					if iter.next().is_some() {
+						return Err(Error::new(x.span(), "query arguments must have at most one attribute"));
+					}
+					x
+				},
 			}),
 			_ => Err(Error::new(pat.pat.span(), "query arguments must be `ident` patterns")),
 		},

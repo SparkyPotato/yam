@@ -5,6 +5,8 @@ pub use verde_derive::{db, query, storage, Pushable, Tracked};
 pub use crate::internal::{storage::Id, Ctx, Db, Pushable, Tracked};
 
 pub mod internal;
+#[cfg(feature = "test")]
+pub mod test;
 
 #[cfg(feature = "tracing")]
 macro_rules! span {

@@ -1,26 +1,27 @@
+use std::num::TryFromIntError;
+
 use proc_macro2::{Ident, TokenStream};
 use quote::{format_ident, quote};
-use syn::{spanned::Spanned, GenericArgument, ItemStruct, PathArguments, Type, Visibility};
+use syn::{spanned::Spanned, GenericArgument, Index, ItemStruct, PathArguments, Type, Visibility};
 
 use crate::{Error, Result};
 
 pub(crate) fn storage(input: ItemStruct) -> Result<TokenStream> {
 	let Storage { vis, name, fields } = generate(input)?;
-	let field_names = fields
-		.iter()
-		.map(|x| Ok(format_ident!("__verde_internal_storage_{}", ty_to_ident(x)?)))
-		.collect::<Result<Vec<_>>>()?;
 	let field_indices = (0..fields.len())
-		.map(|x| x.try_into())
-		.collect::<std::result::Result<Vec<u16>, _>>()
-		.map_err(|_| Error::new(name.span(), "how do you have more than 65536 fields?"))?;
+		.map(|x| {
+			let x: u16 = x.try_into()?;
+			Ok(Index::from(x as usize))
+		})
+		.collect::<std::result::Result<Vec<_>, _>>()
+		.map_err(|_: TryFromIntError| Error::new(name.span(), "how do you have more than 65536 fields?"))?;
 
 	Ok(quote! {
 		#[derive(Default)]
 		#[cfg_attr(feature = "serde", derive(::verde::serde::Serialize, ::verde::serde::Deserialize))]
-		#vis struct #name {
-			#(#field_names: <#fields as ::verde::internal::Storable>::Storage),*
-		}
+		#vis struct #name(
+			#(<#fields as ::verde::internal::Storable>::Storage),*
+		);
 
 		impl ::verde::internal::Storage for #name {
 			fn init_routing(table: &mut ::verde::internal::storage::RouteBuilder) {
@@ -29,21 +30,21 @@ pub(crate) fn storage(input: ItemStruct) -> Result<TokenStream> {
 
 			fn tracked_storage(&self, index: u16) -> Option<&dyn ::verde::internal::storage::ErasedTrackedStorage> {
 				match index {
-					#(#field_indices => <#fields as ::verde::internal::Storable>::tracked_storage(&self.#field_names)),*,
+					#(#field_indices => <#fields as ::verde::internal::Storable>::tracked_storage(&self.#field_indices)),*,
 					_ => panic!("invalid route index"),
 				}
 			}
 
 			fn query_storage(&self, index: u16) -> Option<&dyn ::verde::internal::storage::ErasedQueryStorage> {
 				match index {
-					#(#field_indices => <#fields as ::verde::internal::Storable>::query_storage(&self.#field_names)),*,
+					#(#field_indices => <#fields as ::verde::internal::Storable>::query_storage(&self.#field_indices)),*,
 					_ => panic!("invalid route index"),
 				}
 			}
 
 			fn pushable_storage(&self, index: u16) -> Option<&dyn ::verde::internal::storage::ErasedPushableStorage> {
 				match index {
-					#(#field_indices => <#fields as ::verde::internal::Storable>::pushable_storage(&self.#field_names)),*,
+					#(#field_indices => <#fields as ::verde::internal::Storable>::pushable_storage(&self.#field_indices)),*,
 					_ => panic!("invalid route index"),
 				}
 			}
@@ -184,18 +185,18 @@ fn ty_to_ident(x: &Type) -> Result<String> {
 						.iter()
 						.map(|x| match x {
 							GenericArgument::Type(x) => ty_to_ident(x),
-							_ => Err(Error::new(x.span(), "`storage` does not non-type generics")),
+							_ => Err(Error::new(x.span(), "`database` does not non-type generics")),
 						})
 						.collect::<Result<Vec<_>>>()?
 						.join("_")),
 					PathArguments::Parenthesized(_) => {
-						Err(Error::new(x.span(), "`storage` does not support function traits"))
+						Err(Error::new(x.span(), "`database` does not support function traits"))
 					},
 				}
 			})
 			.collect::<Result<Vec<_>>>()?
 			.join("_"),
-		_ => return Err(Error::new(x.span(), "`storage` does not support non-path types")),
+		_ => return Err(Error::new(x.span(), "`database` does not support non-path types")),
 	};
 	Ok(ret)
 }

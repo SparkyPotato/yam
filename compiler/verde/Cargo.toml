@@ -8,6 +8,7 @@ all-features = true
 
 [features]
 serde = ["dep:serde", "dashmap/serde", "verde-derive/serde", "parking_lot/serde"]
+test = []
 tracing = ["dep:tracing"]
 
 [dependencies]

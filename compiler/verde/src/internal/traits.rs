@@ -1,16 +1,13 @@
-use std::{hash::Hash, marker::PhantomData};
+use std::hash::Hash;
 
-use crate::{
-	internal::storage::{
-		ErasedPushableStorage,
-		ErasedQueryStorage,
-		ErasedTrackedStorage,
-		PushableStorage,
-		QueryStorage,
-		RouteBuilder,
-		TrackedStorage,
-	},
-	Id,
+use crate::internal::storage::{
+	ErasedPushableStorage,
+	ErasedQueryStorage,
+	ErasedTrackedStorage,
+	PushableStorage,
+	QueryStorage,
+	RouteBuilder,
+	TrackedStorage,
 };
 
 /// A struct that contains [`TrackedStorage<T>`] or [`QueryStorage<T>`]
@@ -64,38 +61,12 @@ pub trait Pushable: Storable<Storage = PushableStorage<Self>> {}
 /// Can be automatically derived using the `#[query]` attribute on an `async fn`
 pub trait Query: Storable<Storage = QueryStorage<Self>> {
 	#[cfg(feature = "serde")]
-	type Input: Copy + Clone + Eq + Hash + Send + Sync + serde::Serialize + for<'de> serde::Deserialize<'de>;
+	type Input: Eq + Hash + Send + Sync + serde::Serialize + for<'de> serde::Deserialize<'de>;
 
 	#[cfg(not(feature = "serde"))]
-	type Input: Copy + Clone + Eq + Hash + Send + Sync;
+	type Input: Eq + Hash + Send + Sync;
 
 	type Output: Tracked + Send + Sync;
-}
-
-pub trait IsId<const B: bool> {
-	type Id;
-
-	fn id(&self) -> Self::Id;
-}
-impl<T> IsId<true> for Id<T> {
-	type Id = Self;
-
-	fn id(&self) -> Self::Id { *self }
-}
-impl<T> IsId<false> for T {
-	type Id = ();
-
-	fn id(&self) -> Self::Id { () }
-}
-pub struct ConstHelper<T>(PhantomData<T>);
-pub trait SpecializationDefault {
-	const SPECIALIZED: bool;
-}
-impl<T> SpecializationDefault for ConstHelper<T> {
-	const SPECIALIZED: bool = false;
-}
-impl<T> ConstHelper<Id<T>> {
-	pub const SPECIALIZED: bool = true;
 }
 
 /// A type that is either a [`Tracked`] struct or a query.
@@ -104,7 +75,7 @@ pub trait Storable: Sized + Send + 'static {
 	/// The type that should actually be stored inside the `Storage`.
 	/// If the type is a `Tracked` struct, this should be [`TrackedStorage<Self>`].
 	/// If the type is a query, this should be [`QueryStorage<Self>`].
-	type Storage: Default;
+	type Storage: Default + extra::ExtraBound;
 
 	const IS_PUSHABLE: bool;
 
@@ -116,4 +87,20 @@ pub trait Storable: Sized + Send + 'static {
 
 	/// Get a `&dyn PushableStorage<T>` if the route with `index` is a storage struct.
 	fn pushable_storage(store: &Self::Storage) -> Option<&dyn ErasedPushableStorage>;
+}
+
+#[cfg(feature = "test")]
+mod extra {
+	use crate::test::StorageType;
+
+	pub trait ExtraBound: Into<StorageType> {}
+
+	impl<T: Into<StorageType>> ExtraBound for T {}
+}
+
+#[cfg(not(feature = "test"))]
+mod extra {
+	pub trait ExtraBound {}
+
+	impl<T> ExtraBound for T {}
 }

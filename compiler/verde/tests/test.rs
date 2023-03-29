@@ -94,7 +94,7 @@ fn correct_result() {
 
 		let val1 = db.get(first_double_then_sum).value;
 		let val2 = db.get(first_sum_then_double).value;
-		assert_eq!(val1, val2,);
+		assert_eq!(val1, val2);
 		assert_eq!(val1, 5050 * 2);
 
 		let accums = db.get_all::<Accum>();

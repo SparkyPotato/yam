@@ -50,7 +50,11 @@ impl<'a> Ctx<'a> {
 			id = id.inner.index
 		);
 		unsafe {
-			self.dependencies.borrow_mut().assume_init_mut().insert(id.inner);
+			self.dependencies
+				.try_borrow_mut()
+				.expect("Cannot call `get` within a `map` scope")
+				.assume_init_mut()
+				.insert(id.inner);
 		}
 		let storage = self
 			.db

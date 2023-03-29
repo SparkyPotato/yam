@@ -7,12 +7,6 @@
 //! This allows for multi-crate compilation, where each crate exposes a storage struct, with only the main driver crate
 //! using the database.
 
-use std::any::TypeId;
-
-use rustc_hash::FxHashMap;
-
-use crate::{internal::Storable, Db};
-
 /// A type-erased route through the database storage.
 /// Uniquely identifies the storage for a particular [`Tracked`](crate::Tracked) type.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -29,82 +23,261 @@ impl Route {
 	pub(crate) fn input() -> Self { Self { storage: 0, index: 0 } }
 }
 
-/// A static table that maps [`TypeId`]s to [`Route`]s, generated at database initialization.
-/// This is required because `TypeId`s are not guaranteed to be stable across compilations, while `Route`s are.
-#[derive(Default)]
-pub struct RoutingTable {
-	routes: FxHashMap<TypeId, Route>,
-	type_names: FxHashMap<Route, &'static str>,
-	pushables: Vec<Route>,
-}
+#[cfg(not(feature = "test"))]
+mod normal {
+	use std::any::TypeId;
 
-impl RoutingTable {
-	pub fn route<T: Storable>(&self) -> Route {
-		match self.routes.get(&TypeId::of::<T>()) {
-			Some(route) => *route,
-			None => panic!("Database does not contain `{}`", std::any::type_name::<T>()),
+	use rustc_hash::FxHashMap;
+
+	use crate::{
+		internal::{storage::Route, Storable},
+		Db,
+	};
+
+	/// A static table that maps [`TypeId`]s to [`Route`]s, generated at database initialization.
+	/// This is required because `TypeId`s are not guaranteed to be stable across compilations, while `Route`s are.
+	#[derive(Default)]
+	pub struct RoutingTable {
+		routes: FxHashMap<TypeId, Route>,
+		type_names: FxHashMap<Route, &'static str>,
+		pushables: Vec<Route>,
+	}
+
+	impl RoutingTable {
+		pub fn route<T: Storable>(&self) -> Route {
+			match self.routes.get(&TypeId::of::<T>()) {
+				Some(route) => *route,
+				None => panic!("Database does not contain `{}`", std::any::type_name::<T>()),
+			}
+		}
+
+		pub fn name(&self, route: Route) -> &str { self.type_names.get(&route).unwrap() }
+
+		pub fn pushables(&self) -> impl Iterator<Item = Route> + '_ { self.pushables.iter().copied() }
+
+		pub fn generate_for_db<T: Db>() -> Self {
+			let mut builder = RoutingTableBuilder::default();
+			T::init_routing(&mut builder);
+			builder.finish()
 		}
 	}
 
-	pub fn name(&self, route: Route) -> &str { self.type_names.get(&route).unwrap() }
-
-	pub fn pushables(&self) -> &[Route] { &self.pushables }
-
-	pub fn generate_for_db<T: Db>() -> Self {
-		let mut builder = RoutingTableBuilder::default();
-		T::init_routing(&mut builder);
-		builder.finish()
+	#[derive(Default)]
+	pub struct RoutingTableBuilder {
+		routes: FxHashMap<TypeId, Route>,
+		type_names: FxHashMap<Route, &'static str>,
+		pushables: Vec<Route>,
 	}
-}
 
-#[derive(Default)]
-pub struct RoutingTableBuilder {
-	routes: FxHashMap<TypeId, Route>,
-	type_names: FxHashMap<Route, &'static str>,
-	pushables: Vec<Route>,
-}
+	impl RoutingTableBuilder {
+		pub fn start_route(&mut self, storage: u16) -> RouteBuilder {
+			RouteBuilder {
+				routes: &mut self.routes,
+				type_names: &mut self.type_names,
+				pushables: &mut self.pushables,
+				storage,
+			}
+		}
 
-impl RoutingTableBuilder {
-	pub fn start_route(&mut self, storage: u16) -> RouteBuilder {
-		RouteBuilder {
-			routes: &mut self.routes,
-			type_names: &mut self.type_names,
-			pushables: &mut self.pushables,
-			storage,
+		pub fn finish(self) -> RoutingTable {
+			RoutingTable {
+				routes: self.routes,
+				type_names: self.type_names,
+				pushables: self.pushables,
+			}
 		}
 	}
 
-	pub fn finish(self) -> RoutingTable {
-		RoutingTable {
-			routes: self.routes,
-			type_names: self.type_names,
-			pushables: self.pushables,
+	pub struct RouteBuilder<'a> {
+		routes: &'a mut FxHashMap<TypeId, Route>,
+		type_names: &'a mut FxHashMap<Route, &'static str>,
+		pushables: &'a mut Vec<Route>,
+		storage: u16,
+	}
+
+	impl RouteBuilder<'_> {
+		pub fn add<T: Storable>(&mut self, index: u16) {
+			let route = Route {
+				storage: self.storage,
+				index,
+			};
+			let id = TypeId::of::<T>();
+
+			if T::IS_PUSHABLE {
+				self.pushables.push(route);
+			}
+
+			if self.routes.insert(id, route).is_some() {
+				panic!("Duplicate route for type `{}`", std::any::type_name::<T>());
+			}
+			self.type_names.insert(route, std::any::type_name::<T>());
 		}
 	}
 }
 
-pub struct RouteBuilder<'a> {
-	routes: &'a mut FxHashMap<TypeId, Route>,
-	type_names: &'a mut FxHashMap<Route, &'static str>,
-	pushables: &'a mut Vec<Route>,
-	storage: u16,
-}
+#[cfg(feature = "test")]
+mod test {
+	use std::{
+		any::TypeId,
+		cell::RefCell,
+		sync::atomic::{AtomicU16, Ordering},
+	};
 
-impl RouteBuilder<'_> {
-	pub fn add<T: Storable>(&mut self, index: u16) {
-		let route = Route {
-			storage: self.storage,
-			index,
-		};
-		let id = TypeId::of::<T>();
+	use parking_lot::{
+		lock_api::{RawMutex, RawMutexFair},
+		Mutex,
+	};
+	use rustc_hash::FxHashMap;
 
-		if T::IS_PUSHABLE {
-			self.pushables.push(route);
+	use crate::{
+		internal::{storage::Route, Storable},
+		test::StorageType,
+		Db,
+	};
+
+	struct RouteIter<'a> {
+		mutex: &'a Mutex<Vec<Route>>,
+		iter: std::slice::Iter<'a, Route>,
+	}
+
+	impl Iterator for RouteIter<'_> {
+		type Item = Route;
+
+		fn next(&mut self) -> Option<Self::Item> { self.iter.next().copied() }
+	}
+
+	impl Drop for RouteIter<'_> {
+		fn drop(&mut self) {
+			unsafe {
+				self.mutex.raw().unlock_fair();
+			}
+		}
+	}
+
+	/// A static table that maps [`TypeId`]s to [`Route`]s, generated at database initialization.
+	/// This is required because `TypeId`s are not guaranteed to be stable across compilations, while `Route`s are.
+	#[derive(Default)]
+	pub struct RoutingTable {
+		routes: RefCell<FxHashMap<TypeId, Route>>,
+		type_names: RefCell<FxHashMap<Route, &'static str>>,
+		dynamic_storage_index: u16,
+		next_route_index: AtomicU16,
+		pushables: Mutex<Vec<Route>>,
+		make: Mutex<Vec<Box<dyn FnOnce() -> (StorageType, u16)>>>,
+	}
+
+	impl RoutingTable {
+		pub fn route<T: Storable>(&self) -> Route {
+			*self.routes.borrow_mut().entry(TypeId::of::<T>()).or_insert_with(|| {
+				let route = Route {
+					storage: self.dynamic_storage_index,
+					index: self.next_route_index.load(Ordering::Relaxed),
+				};
+				self.make
+					.lock()
+					.push(Box::new(move || (T::Storage::default().into(), route.index)));
+				self.next_route_index.fetch_add(1, Ordering::Relaxed);
+				self.type_names.borrow_mut().insert(route, std::any::type_name::<T>());
+				if T::IS_PUSHABLE {
+					self.pushables.lock().push(route);
+				}
+				route
+			})
 		}
 
-		if self.routes.insert(id, route).is_some() {
-			panic!("Duplicate route for type `{}`", std::any::type_name::<T>());
+		pub fn name(&self, route: Route) -> &str { self.type_names.borrow().get(&route).unwrap() }
+
+		pub fn make(&self) -> Vec<Box<dyn FnOnce() -> (StorageType, u16)>> {
+			let mut m = self.make.lock();
+			std::mem::take(&mut *m)
 		}
-		self.type_names.insert(route, std::any::type_name::<T>());
+
+		pub fn pushables(&self) -> impl Iterator<Item = Route> + '_ {
+			unsafe {
+				self.pushables.raw().lock();
+				RouteIter {
+					mutex: &self.pushables,
+					iter: (*self.pushables.data_ptr()).iter(),
+				}
+			}
+		}
+
+		pub fn generate_for_db<T: Db>() -> Self {
+			let mut builder = RoutingTableBuilder::default();
+			T::init_routing(&mut builder);
+			builder.finish()
+		}
+	}
+
+	pub struct RoutingTableBuilder {
+		routes: FxHashMap<TypeId, Route>,
+		type_names: FxHashMap<Route, &'static str>,
+		dynamic_storage_index: u16,
+		pushables: Vec<Route>,
+	}
+
+	impl Default for RoutingTableBuilder {
+		fn default() -> Self {
+			Self {
+				routes: FxHashMap::default(),
+				type_names: FxHashMap::default(),
+				dynamic_storage_index: 1,
+				pushables: Vec::new(),
+			}
+		}
+	}
+
+	impl RoutingTableBuilder {
+		pub fn start_route(&mut self, storage: u16) -> RouteBuilder {
+			self.dynamic_storage_index = self.dynamic_storage_index.max(storage + 1);
+			RouteBuilder {
+				routes: &mut self.routes,
+				type_names: &mut self.type_names,
+				pushables: &mut self.pushables,
+				storage,
+			}
+		}
+
+		pub fn finish(self) -> RoutingTable {
+			RoutingTable {
+				routes: RefCell::new(self.routes),
+				type_names: RefCell::new(self.type_names),
+				dynamic_storage_index: self.dynamic_storage_index,
+				next_route_index: AtomicU16::new(0),
+				pushables: Mutex::new(self.pushables),
+				make: Mutex::new(Vec::new()),
+			}
+		}
+	}
+
+	pub struct RouteBuilder<'a> {
+		routes: &'a mut FxHashMap<TypeId, Route>,
+		type_names: &'a mut FxHashMap<Route, &'static str>,
+		pushables: &'a mut Vec<Route>,
+		storage: u16,
+	}
+
+	impl RouteBuilder<'_> {
+		pub fn add<T: Storable>(&mut self, index: u16) {
+			let route = Route {
+				storage: self.storage,
+				index,
+			};
+			let id = TypeId::of::<T>();
+
+			if T::IS_PUSHABLE {
+				self.pushables.push(route);
+			}
+
+			if self.routes.insert(id, route).is_some() {
+				panic!("Duplicate route for type `{}`", std::any::type_name::<T>());
+			}
+			self.type_names.insert(route, std::any::type_name::<T>());
+		}
 	}
 }
+
+#[cfg(not(feature = "test"))]
+pub use normal::*;
+#[cfg(feature = "test")]
+pub use test::*;
