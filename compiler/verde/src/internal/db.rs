@@ -43,6 +43,7 @@ impl<'a> Ctx<'a> {
 		}
 	}
 
+	/// Get a reference to the value `id` points to.
 	pub fn get<T: Tracked>(&self, id: Id<T>) -> tracked::Get<'_, T> {
 		span!(
 			enter trace,
@@ -66,6 +67,7 @@ impl<'a> Ctx<'a> {
 		unsafe { storage.get(id.inner.index) }
 	}
 
+	/// Get a reference to the value `id` points to.
 	pub fn geti<T: Interned>(&self, id: Id<T>) -> interned::Get<'_, T> {
 		span!(
 			enter trace,
@@ -81,6 +83,7 @@ impl<'a> Ctx<'a> {
 		unsafe { storage.get(id.inner.index) }
 	}
 
+	/// Intern a value.
 	pub fn add<T: Interned>(&self, value: T) -> Id<T> {
 		let span = span!(
 			trace,
@@ -100,6 +103,7 @@ impl<'a> Ctx<'a> {
 		Id::new(id, route)
 	}
 
+	/// Push a value to the database from this query.
 	pub fn push<T: Pushable>(&self, value: T) {
 		span!(enter debug, "push", ty = std::any::type_name::<T>());
 		let route = self.db.routing_table().route::<T>();
@@ -168,9 +172,10 @@ impl<'a> Ctx<'a> {
 }
 
 impl dyn Db + '_ {
-	/// Set an input value. This will cancel all asynchronously running queries.
+	/// Set an input value.
 	pub fn set_input<T: Tracked>(&mut self, value: T) -> Id<T> { (self as &dyn Db).insert(Route::input(), value) }
 
+	/// Get a reference to the value `id` points to.
 	pub fn get<T: Tracked>(&self, id: Id<T>) -> tracked::Get<'_, T> {
 		span!(
 			enter trace,
@@ -185,6 +190,7 @@ impl dyn Db + '_ {
 		unsafe { storage.get(id.inner.index) }
 	}
 
+	/// Get a reference to the value `id` points to.
 	pub fn geti<T: Interned>(&self, id: Id<T>) -> interned::Get<'_, T> {
 		span!(
 			enter trace,
@@ -199,6 +205,7 @@ impl dyn Db + '_ {
 		unsafe { storage.get(id.inner.index) }
 	}
 
+	/// Intern a value.
 	pub fn add<T: Interned>(&self, value: T) -> Id<T> {
 		let span = span!(
 			trace,

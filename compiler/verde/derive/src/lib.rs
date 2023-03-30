@@ -29,6 +29,13 @@ impl ToTokens for Error {
 	}
 }
 
+/// Allow a type to be tracked by the database.
+///
+/// This type must also implement `Eq`, and by extension, `PartialEq`.
+///
+/// A single field must be marked with `#[id]`, which will uniquely identify an instance of this type output
+/// by a query. Different query functions may output equal IDs, but they will not interfere with each other. The ID must
+/// implement `Eq`, `Hash`, and `Clone`.
 #[proc_macro_derive(Tracked, attributes(id))]
 pub fn tracked(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
 	let input = parse_macro_input!(item as DeriveInput);
@@ -39,6 +46,9 @@ pub fn tracked(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
 	.into()
 }
 
+/// Allow a type to be interned in the database.
+///
+/// This type must implement `Clone`, `Eq`, and `Hash`.
 #[proc_macro_derive(Interned)]
 pub fn interned(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
 	let input = parse_macro_input!(item as DeriveInput);
@@ -72,6 +82,7 @@ pub fn interned(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
 	.into()
 }
 
+/// Allow a type to be pushed into the database from queries.
 #[proc_macro_derive(Pushable)]
 pub fn pushable(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
 	let input = parse_macro_input!(item as DeriveInput);
@@ -82,6 +93,11 @@ pub fn pushable(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
 	.into()
 }
 
+/// Generate a query.
+///
+/// The first argument of the function must be of type `&verde::Ctx`, and they must return a `Tracked` struct.
+///
+/// Arguments can be marked with `#[ignore]` to not be used to identify an execution of the query.
 #[proc_macro_attribute]
 pub fn query(attr: proc_macro::TokenStream, item: proc_macro::TokenStream) -> proc_macro::TokenStream {
 	let attr = TokenStream::from(attr);
@@ -97,6 +113,10 @@ pub fn query(attr: proc_macro::TokenStream, item: proc_macro::TokenStream) -> pr
 	.into()
 }
 
+/// Generate a storage struct.
+///
+/// Storage structs must be a tuple struct that contain the `Tracked`, `Pushable`, and `Interned` types, as well the
+/// queries that to be stored into the database.
 #[proc_macro_attribute]
 pub fn storage(attr: proc_macro::TokenStream, item: proc_macro::TokenStream) -> proc_macro::TokenStream {
 	let attr = TokenStream::from(attr);
@@ -112,6 +132,9 @@ pub fn storage(attr: proc_macro::TokenStream, item: proc_macro::TokenStream) -> 
 	.into()
 }
 
+/// Generate a database.
+///
+/// Databases must be a tuple struct that contain the `Storage` types.
 #[proc_macro_attribute]
 pub fn db(attr: proc_macro::TokenStream, item: proc_macro::TokenStream) -> proc_macro::TokenStream {
 	let attr = TokenStream::from(attr);

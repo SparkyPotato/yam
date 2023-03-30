@@ -25,6 +25,7 @@ pub trait ErasedTrackedStorage {
 	fn get_generation(&self, index: u32) -> u64;
 }
 
+/// An instance of `T` stored in the database.
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Id<T> {
 	pub(crate) inner: ErasedId,
