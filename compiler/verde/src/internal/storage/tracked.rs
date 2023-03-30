@@ -70,9 +70,9 @@ impl<T: Tracked> TrackedStorage<T> {
 				let mut out = slot.value.write();
 
 				if *out != value {
-					*out = value;
 					slot.generation.fetch_add(1, Ordering::Release);
 				}
+				*out = value;
 
 				index
 			},

@@ -63,7 +63,7 @@ pub trait Pushable: Storable<Storage = PushableStorage<Self>> {}
 
 /// A query that can execute on the database.
 ///
-/// Can be automatically derived using the `#[query]` attribute on an `async fn`
+/// Can be automatically derived using the `#[query]` attribute on a `fn`.
 pub trait Query: Storable<Storage = QueryStorage<Self>> {
 	#[cfg(feature = "serde")]
 	type Input: Eq + Hash + Send + Sync + serde::Serialize + for<'de> serde::Deserialize<'de>;
