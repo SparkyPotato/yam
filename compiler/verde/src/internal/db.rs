@@ -45,42 +45,44 @@ impl<'a> Ctx<'a> {
 
 	/// Get a reference to the value `id` points to.
 	pub fn get<T: Tracked>(&self, id: Id<T>) -> tracked::Get<'_, T> {
+		let id = id.get();
 		span!(
 			enter trace,
 			"fetching value",
 			ty = std::any::type_name::<T>(),
-			id = id.inner.index
+			id = id.index
 		);
 		unsafe {
-			let gen = self.get_generation(id.inner);
+			let gen = self.get_generation(id);
 			self.dependencies
 				.try_borrow_mut()
 				.expect("Cannot call `get` within a `map` scope")
 				.assume_init_mut()
-				.insert((id.inner, gen));
+				.insert((id, gen));
 		}
 		let storage = self
 			.db
-			.storage_struct(id.inner.route.storage)
-			.tracked_storage(id.inner.route.index)
+			.storage_struct(id.route.storage)
+			.tracked_storage(id.route.index)
 			.unwrap();
-		unsafe { storage.get(id.inner.index) }
+		unsafe { storage.get(id.index) }
 	}
 
 	/// Get a reference to the value `id` points to.
 	pub fn geti<T: Interned>(&self, id: Id<T>) -> interned::Get<'_, T> {
+		let id = id.get();
 		span!(
 			enter trace,
 			"fetching value",
 			ty = std::any::type_name::<T>(),
-			id = id.inner.index
+			id = id.index
 		);
 		let storage = self
 			.db
-			.storage_struct(id.inner.route.storage)
-			.interned_storage(id.inner.route.index)
+			.storage_struct(id.route.storage)
+			.interned_storage(id.route.index)
 			.unwrap();
-		unsafe { storage.get(id.inner.index) }
+		unsafe { storage.get(id.index) }
 	}
 
 	/// Intern a value.
@@ -177,32 +179,34 @@ impl dyn Db + '_ {
 
 	/// Get a reference to the value `id` points to.
 	pub fn get<T: Tracked>(&self, id: Id<T>) -> tracked::Get<'_, T> {
+		let id = id.get();
 		span!(
 			enter trace,
 			"fetching value",
 			ty = std::any::type_name::<T>(),
-			id = id.inner.index
+			id = id.index
 		);
 		let storage = self
-			.storage_struct(id.inner.route.storage)
-			.tracked_storage(id.inner.route.index)
+			.storage_struct(id.route.storage)
+			.tracked_storage(id.route.index)
 			.unwrap();
-		unsafe { storage.get(id.inner.index) }
+		unsafe { storage.get(id.index) }
 	}
 
 	/// Get a reference to the value `id` points to.
 	pub fn geti<T: Interned>(&self, id: Id<T>) -> interned::Get<'_, T> {
+		let id = id.get();
 		span!(
 			enter trace,
 			"fetching value",
 			ty = std::any::type_name::<T>(),
-			id = id.inner.index
+			id = id.index
 		);
 		let storage = self
-			.storage_struct(id.inner.route.storage)
-			.interned_storage(id.inner.route.index)
+			.storage_struct(id.route.storage)
+			.interned_storage(id.route.index)
 			.unwrap();
-		unsafe { storage.get(id.inner.index) }
+		unsafe { storage.get(id.index) }
 	}
 
 	/// Intern a value.

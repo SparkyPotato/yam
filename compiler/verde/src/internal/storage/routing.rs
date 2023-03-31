@@ -20,7 +20,7 @@ pub struct Route {
 }
 
 impl Route {
-	pub(crate) fn input() -> Self { Self { storage: 0, index: 0 } }
+	pub(crate) fn input() -> Self { Self { storage: 0, index: 1 } }
 }
 
 #[cfg(not(feature = "test"))]

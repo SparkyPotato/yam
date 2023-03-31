@@ -1,5 +1,3 @@
-use std::{marker::PhantomData, num::NonZeroU64};
-
 use parking_lot::{Mutex, RwLock};
 use rustc_hash::FxHashSet;
 
@@ -88,13 +86,13 @@ impl<T: Query> QueryStorage<T> {
 						let dependencies = unsafe { ctx.dependencies.borrow_mut().assume_init_read() };
 						*data = QueryData {
 							dependencies,
-							output: Some(OutputId::new(output)),
+							output: Some(output),
 						};
 						return output;
 					}
 				}
 				let _ = unsafe { ctx.dependencies.borrow_mut().assume_init_read() };
-				id.get()
+				id
 			},
 			None => {
 				event!(debug, "first query execution");
@@ -103,7 +101,7 @@ impl<T: Query> QueryStorage<T> {
 				let dependencies = unsafe { ctx.dependencies.borrow_mut().assume_init_read() };
 				*data = QueryData {
 					dependencies,
-					output: Some(OutputId::new(output)),
+					output: Some(output),
 				};
 				output
 			},
@@ -114,43 +112,7 @@ impl<T: Query> QueryStorage<T> {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub(crate) struct QueryData<T: Query> {
 	pub(crate) dependencies: FxHashSet<(ErasedId, u64)>,
-	pub(crate) output: Option<OutputId<T::Output>>,
-}
-
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub(crate) struct OutputId<T>(NonZeroU64, PhantomData<T>);
-
-impl<T> Copy for OutputId<T> {}
-impl<T> Clone for OutputId<T> {
-	fn clone(&self) -> Self { *self }
-}
-
-impl<T> OutputId<T> {
-	pub fn new(id: Id<T>) -> Self {
-		let index = id.inner.index;
-		let route_storage = id.inner.route.storage;
-		let route_index = id.inner.route.index;
-		Self(
-			NonZeroU64::new((index as u64) | ((route_index as u64) << 32) | ((route_storage as u64) << 48)).unwrap(),
-			PhantomData,
-		)
-	}
-
-	pub fn get(self) -> Id<T> {
-		let index = self.0.get() as u32;
-		let route_storage = (self.0.get() >> 48) as u16;
-		let route_index = (self.0.get() >> 32) as u16;
-		Id {
-			inner: ErasedId {
-				index,
-				route: Route {
-					storage: route_storage,
-					index: route_index,
-				},
-			},
-			_phantom: PhantomData,
-		}
-	}
+	pub(crate) output: Option<Id<T::Output>>,
 }
 
 impl<T: Query> Default for QueryStorage<T> {
@@ -159,31 +121,5 @@ impl<T: Query> Default for QueryStorage<T> {
 			map: DashMap::default(),
 			values: Default::default(),
 		}
-	}
-}
-
-#[cfg(test)]
-mod tests {
-	use std::marker::PhantomData;
-
-	use crate::internal::storage::{ErasedId, Route};
-
-	#[test]
-	fn output_id() {
-		use super::OutputId;
-		use crate::Id;
-
-		let id = Id::<i32> {
-			inner: ErasedId {
-				index: 1,
-				route: Route { storage: 2, index: 3 },
-			},
-			_phantom: PhantomData,
-		};
-		let output_id = OutputId::new(id);
-		let ret = output_id.get();
-		assert_eq!(ret.inner.index, 1);
-		assert_eq!(ret.inner.route.storage, 2);
-		assert_eq!(ret.inner.route.index, 3);
 	}
 }

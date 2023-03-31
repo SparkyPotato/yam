@@ -1,5 +1,7 @@
 use std::{
 	fmt::Debug,
+	marker::PhantomData,
+	num::NonZeroU64,
 	ops::Deref,
 	sync::atomic::{AtomicU64, Ordering},
 };
@@ -27,14 +29,13 @@ pub trait ErasedTrackedStorage {
 
 /// An instance of `T` stored in the database.
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct Id<T> {
-	pub(crate) inner: ErasedId,
-	pub(crate) _phantom: std::marker::PhantomData<T>,
-}
+pub struct Id<T>(NonZeroU64, PhantomData<T>);
 unsafe impl<T> Send for Id<T> {}
 unsafe impl<T> Sync for Id<T> {}
 impl<T> Debug for Id<T> {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { write!(f, "Id({})", self.inner.index) }
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		write!(f, "{}({})", std::any::type_name::<T>(), self.get().index)
+	}
 }
 
 pub struct Get<'a, T> {
@@ -166,17 +167,32 @@ impl<T> Clone for Id<T> {
 }
 impl<T> Copy for Id<T> {}
 impl<T> PartialEq for Id<T> {
-	fn eq(&self, other: &Self) -> bool { self.inner == other.inner }
+	fn eq(&self, other: &Self) -> bool { self.0 == other.0 }
 }
 impl<T> Eq for Id<T> {}
 impl<T> std::hash::Hash for Id<T> {
-	fn hash<H: std::hash::Hasher>(&self, state: &mut H) { self.inner.hash(state); }
+	fn hash<H: std::hash::Hasher>(&self, state: &mut H) { self.0.hash(state); }
 }
 impl<T> Id<T> {
 	pub(crate) fn new(index: u32, route: Route) -> Self {
-		Self {
-			inner: ErasedId { index, route },
-			_phantom: std::marker::PhantomData,
+		let route_storage = route.storage;
+		let route_index = route.index;
+		Self(
+			NonZeroU64::new((index as u64) | ((route_index as u64) << 32) | ((route_storage as u64) << 48)).unwrap(),
+			PhantomData,
+		)
+	}
+
+	pub(crate) fn get(self) -> ErasedId {
+		let index = self.0.get() as u32;
+		let route_storage = (self.0.get() >> 48) as u16;
+		let route_index = (self.0.get() >> 32) as u16;
+		ErasedId {
+			index,
+			route: Route {
+				storage: route_storage,
+				index: route_index,
+			},
 		}
 	}
 }
@@ -193,5 +209,21 @@ impl<T> Drop for Get<'_, T> {
 			self.slot.raw().unlock_shared_fair();
 			self.values.raw().unlock_shared_fair();
 		}
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use crate::internal::storage::Route;
+
+	#[test]
+	fn id() {
+		use crate::Id;
+
+		let id = Id::<i32>::new(1, Route { storage: 2, index: 3 });
+		let ret = id.get();
+		assert_eq!(ret.index, 1);
+		assert_eq!(ret.route.storage, 2);
+		assert_eq!(ret.route.index, 3);
 	}
 }
