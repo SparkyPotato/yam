@@ -1,7 +1,13 @@
 [package]
 name = "verde-derive"
-version = "0.0.0"
+version = "0.1.0"
+authors = ["SparkyPotato"]
+license = "MIT"
 edition = "2021"
+
+repository = "https://github.com/SparkyPotato/yam"
+documentation = "https://docs.rs/verde-derive"
+description = "Derive macros for verde"
 
 [package.metadata.docs.rs]
 all-features = true
