@@ -119,3 +119,25 @@ mod extra {
 
 	impl<T> ExtraBound for T {}
 }
+
+macro_rules! intern {
+	($t:ty) => {
+		impl Interned for $t {}
+
+		impl Storable for $t {
+			type Storage = InternedStorage<Self>;
+
+			const IS_PUSHABLE: bool = false;
+
+			fn tracked_storage(_store: &Self::Storage) -> Option<&dyn ErasedTrackedStorage> { None }
+
+			fn query_storage(_store: &Self::Storage) -> Option<&dyn ErasedQueryStorage> { None }
+
+			fn pushable_storage(_store: &Self::Storage) -> Option<&dyn ErasedPushableStorage> { None }
+
+			fn interned_storage(store: &Self::Storage) -> Option<&dyn ErasedInternedStorage> { Some(store) }
+		}
+	};
+}
+
+intern!(String);

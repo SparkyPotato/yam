@@ -166,3 +166,18 @@ fn executes_after_old_dependency() {
 	let trip = db.execute(|ctx| sum(ctx, 0, vec![doubled, input2]));
 	assert_eq!(db.get(trip).value, 21);
 }
+
+#[test]
+fn interning() {
+	let mut db = TestDatabase::new();
+	let db = &mut db as &mut dyn Db;
+
+	let id = db.add("string".to_string());
+	let id2 = db.add("string".to_string());
+	let id3 = db.add("string2".to_string());
+	let id4 = db.add_ref("string");
+
+	assert_eq!(id, id2);
+	assert_eq!(id, id4);
+	assert_ne!(id, id3);
+}

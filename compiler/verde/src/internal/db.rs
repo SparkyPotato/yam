@@ -1,4 +1,4 @@
-use std::{cell::RefCell, mem::MaybeUninit};
+use std::{borrow::Borrow, cell::RefCell, hash::Hash, mem::MaybeUninit};
 
 use rustc_hash::FxHashSet;
 
@@ -71,40 +71,18 @@ impl<'a> Ctx<'a> {
 	}
 
 	/// Get a reference to the value `id` points to.
-	pub fn geti<T: Interned>(&self, id: Id<T>) -> interned::Get<'_, T> {
-		let id = id.get();
-		span!(
-			enter trace,
-			"fetching value",
-			ty = std::any::type_name::<T>(),
-			id = id.index
-		);
-		let storage = self
-			.db
-			.storage_struct(id.route.storage)
-			.interned_storage(id.route.index)
-			.unwrap();
-		unsafe { storage.get(id.index) }
-	}
+	pub fn geti<T: Interned>(&self, id: Id<T>) -> interned::Get<'_, T> { self.db.geti(id) }
 
 	/// Intern a value.
-	pub fn add<T: Interned>(&self, value: T) -> Id<T> {
-		let span = span!(
-			trace,
-			"inserting value",
-			ty = std::any::type_name::<T>(),
-			id = tracing::field::Empty
-		);
-		let _e = span.enter();
-		let route = self.db.routing_table().route::<T>();
-		let storage = self
-			.db
-			.storage_struct(route.storage)
-			.interned_storage(route.index)
-			.unwrap();
-		let id = unsafe { storage.insert(value) };
-		span.record("id", id);
-		Id::new(id, route)
+	pub fn add<T: Interned>(&self, value: T) -> Id<T> { self.db.add(value) }
+
+	/// Intern a value through a reference.
+	pub fn add_ref<T, U>(&self, value: &U) -> Id<T>
+	where
+		U: ToOwned<Owned = T> + Hash + Eq + ?Sized,
+		T: Borrow<U> + Interned,
+	{
+		self.db.add_ref(value)
 	}
 
 	/// Push a value to the database from this query.
@@ -228,6 +206,29 @@ impl dyn Db + '_ {
 			.interned_storage(route.index)
 			.unwrap();
 		let id = unsafe { storage.insert(value) };
+		span.record("id", id);
+		Id::new(id, route)
+	}
+
+	/// Intern a value through a reference.
+	pub fn add_ref<T, U>(&self, value: &U) -> Id<T>
+	where
+		U: ToOwned<Owned = T> + Hash + Eq + ?Sized,
+		T: Borrow<U> + Interned,
+	{
+		let span = span!(
+			trace,
+			"inserting value",
+			ty = std::any::type_name::<T>(),
+			id = tracing::field::Empty
+		);
+		let _e = span.enter();
+		let route = self.routing_table().route::<T>();
+		let storage = self
+			.storage_struct(route.storage)
+			.interned_storage(route.index)
+			.unwrap();
+		let id = unsafe { storage.insert_ref(value) };
 		span.record("id", id);
 		Id::new(id, route)
 	}
