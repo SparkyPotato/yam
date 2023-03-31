@@ -1,3 +1,5 @@
+#![doc = include_str!("../README.md")]
+
 #[cfg(feature = "serde")]
 pub use serde;
 pub use verde_derive::{db, query, storage, Interned, Pushable, Tracked};
