@@ -1,6 +1,6 @@
 [package]
 name = "verde"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["SparkyPotato"]
 license = "MIT"
 edition = "2021"
