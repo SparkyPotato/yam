@@ -59,6 +59,10 @@ pub trait Tracked: Eq + Storable<Storage = TrackedStorage<Self>> {
 	fn id(&self) -> &Self::Id;
 }
 
+/// A type that can be 'pushed' into the database. Pushed values are stored globally and can be used for diagnostics or
+/// similar tracking.
+///
+/// Can be automatically derived using the `#[derive(Pushable)]` attribute.
 pub trait Pushable: Storable<Storage = PushableStorage<Self>> {}
 
 /// A query that can execute on the database.

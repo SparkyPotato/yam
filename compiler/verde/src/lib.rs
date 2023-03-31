@@ -4,6 +4,7 @@ pub use verde_derive::{db, query, storage, Interned, Pushable, Tracked};
 
 pub use crate::internal::{storage::Id, Ctx, Db, Interned, Pushable, Tracked};
 
+#[doc(hidden)]
 pub mod internal;
 #[cfg(feature = "test")]
 pub mod test;

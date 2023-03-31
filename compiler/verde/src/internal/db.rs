@@ -17,17 +17,19 @@ use crate::{
 
 /// A database. This trait provides most of the functionality of the concrete database type.
 pub trait Db {
-	/// Initialize the routing table at database initialization.
+	#[doc(hidden)]
 	fn init_routing(table: &mut RoutingTableBuilder)
 	where
 		Self: Sized;
 
+	#[doc(hidden)]
 	fn routing_table(&self) -> &RoutingTable;
 
-	/// Get the storage struct with route index `storage`.
+	#[doc(hidden)]
 	fn storage_struct(&self, storage: u16) -> &dyn Storage;
 }
 
+/// A context into the database. Used by query functions to access the database.
 pub struct Ctx<'a> {
 	pub db: &'a dyn Db,
 	pub dependencies: RefCell<MaybeUninit<FxHashSet<(ErasedId, u64)>>>,
@@ -119,6 +121,7 @@ impl<'a> Ctx<'a> {
 		}
 	}
 
+	#[doc(hidden)]
 	pub fn start_query<T: Query>(&self, input: T::Input) -> Ctx<'_> {
 		span!(enter trace, "initialize query", query = std::any::type_name::<T>());
 
@@ -147,6 +150,7 @@ impl<'a> Ctx<'a> {
 		}
 	}
 
+	#[doc(hidden)]
 	pub fn end_query<T: Query>(&self, f: impl FnOnce() -> T::Output) -> Id<T::Output> {
 		let query = self.db.routing_table().route::<T>();
 		let storage = self
@@ -228,6 +232,7 @@ impl dyn Db + '_ {
 		Id::new(id, route)
 	}
 
+	/// Get all pushed `T`s.
 	pub fn get_all<T: Pushable>(&self) -> impl Iterator<Item = &'_ T> {
 		let route = self.routing_table().route::<T>();
 		let storage = self
@@ -237,6 +242,7 @@ impl dyn Db + '_ {
 		unsafe { storage.get_all() }
 	}
 
+	/// Get all pushed `T`s from the query `Q`.
 	pub fn get_query<Q: Query, T: Pushable>(&self) -> impl Iterator<Item = &'_ T> {
 		let route = self.routing_table().route::<T>();
 		let query = self.routing_table().route::<Q>();
@@ -247,6 +253,7 @@ impl dyn Db + '_ {
 		unsafe { storage.get_query(query) }
 	}
 
+	#[doc(hidden)]
 	pub fn execute<R>(&self, f: impl FnOnce(&Ctx) -> R) -> R {
 		let ctx = Ctx::new(
 			self,
