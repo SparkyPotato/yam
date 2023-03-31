@@ -22,7 +22,7 @@ Finally, the database also allows for a query-safe 'side-channel' so that diagno
 ### Getting started
 
 First, we must define the structs that verde will track. This can be done as so:
-```rust
+```rust ignore
 #[derive(verde::Tracked, Eq, PartialEq)]
 struct MyTrackedStruct {
     #[id]
@@ -35,7 +35,7 @@ It must be unique in every query (a query function must not produce a struct wit
 Note that the `Eq` trait is required for `Tracked` to be implemented, and the ID must implement `Clone`, `Eq`, and `Hash`.
 
 Next, we must define any pushable types.
-```rust
+```rust ignore
 #[derive(verde::Pushable)]
 struct MyPushableStruct {
     value: u32,
@@ -44,7 +44,7 @@ struct MyPushableStruct {
 No other traits are required for `Pushable` to be implemented.
 
 Interning is provided as a convenience feature:
-```rust
+```rust ignore
 #[derive(verde::Interned, Eq, PartialEq, Hash)]
 struct MyInternedStruct {
     value: u32,
@@ -53,7 +53,7 @@ struct MyInternedStruct {
 `Clone`, `Eq`, and `Hash` are required to be implemented.
 
 Finally, we must define the query functions.
-```rust
+```rust ignore
 #[verde::query]
 fn double(ctx: &verde::Ctx, input: verde::Id<MyTrackedStruct>) -> MyTrackedStruct {
     let interned = ctx.add(MyInternedStruct { value: 5 });
@@ -70,7 +70,7 @@ Queries are normal functions that must take a `&Ctx` as the first parameter.
 They can simply be called as normal functions, with verde handling all the incremental logical transparently.
 
 However, before we can call our queries, we must first create our database:
-```rust
+```rust ignore
 #[verde::storage]
 struct Storage(MyTrackedStruct, MyInternedStruct, MyPushableStruct, double);
 
@@ -82,7 +82,7 @@ Several storage structs composed together form a database. This multi-tiered app
 where each crate can define a storage struct, with the driver crate only having to include them.
 
 Finally, we can run our queries:
-```rust
+```rust ignore
 fn main() {
     let mut db = Database::default();
     let db = &mut db as &mut dyn verde::Db;

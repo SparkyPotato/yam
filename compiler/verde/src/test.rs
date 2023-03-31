@@ -1,3 +1,8 @@
+//! Utilities for testing with verde.
+//!
+//! This module provides a [`TestDatabase`] which can be used to test queries, without the boilerplate of creating the
+//! appropriate storage and database types
+
 use std::cell::RefCell;
 
 use rustc_hash::FxHashMap;
@@ -26,6 +31,7 @@ use crate::{
 	Tracked,
 };
 
+#[doc(hidden)]
 pub enum StorageType {
 	Tracked(Box<dyn ErasedTrackedStorage>),
 	Query(Box<dyn ErasedQueryStorage>),
@@ -49,6 +55,7 @@ impl<T: Interned> From<InternedStorage<T>> for StorageType {
 	fn from(storage: InternedStorage<T>) -> Self { Self::Interned(Box::new(storage)) }
 }
 
+/// A database for easy testing.
 pub struct TestDatabase {
 	table: RoutingTable,
 	storage: RefCell<FxHashMap<u16, StorageType>>,
