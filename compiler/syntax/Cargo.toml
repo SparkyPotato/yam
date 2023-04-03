@@ -8,6 +8,7 @@ ungrammar = "1.16.1"
 quote = "1.0.23"
 
 [dependencies]
+diagnostics = { path = "../diagnostics" }
 lex = { path = "../lex" }
 text = { path = "../text" }
 

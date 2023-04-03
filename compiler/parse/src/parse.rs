@@ -1,28 +1,28 @@
+use diagnostics::{FileDiagnostic, Span};
 use lex::{token::TokenKind, T};
 use syntax::{
 	builder::{TreeBuilder, TreeBuilderContext},
 	SyntaxKind,
 };
-use verde::Ctx;
 
 use crate::{api::Api, helpers::select};
 
 pub struct Parser<'c, 's> {
 	pub api: Api<'c, 's>,
-	pub db: &'s Ctx<'s>,
+	pub diags: Vec<FileDiagnostic>,
 }
 
 impl<'c, 's> Parser<'c, 's> {
-	pub fn new(source: &'s str, ctx: &'c mut TreeBuilderContext, db: &'s Ctx<'s>) -> Self {
+	pub fn new(source: &'s str, ctx: &'c mut TreeBuilderContext) -> Self {
 		Self {
 			api: Api::new(source, ctx),
-			db,
+			diags: Vec::new(),
 		}
 	}
 
-	pub fn parse(mut self) -> TreeBuilder<'c> {
+	pub fn parse(mut self) -> (TreeBuilder<'c>, Vec<FileDiagnostic>) {
 		self.parse_inner();
-		self.api.finish()
+		(self.api.finish(), self.diags)
 	}
 
 	fn parse_inner(&mut self) {
@@ -256,7 +256,7 @@ impl Parser<'_, '_> {
 			let curr = self.api.peek();
 			match curr.kind {
 				T![eof] => {
-					self.db
+					self.diags
 						.push(curr.span.error("unexpected <eof>").label(curr.span.mark()));
 					break;
 				},
@@ -440,7 +440,7 @@ impl Parser<'_, '_> {
 			_ => {
 				let diag = tok.span.error("expected expr");
 
-				self.db.push(if self.api.is_span_eof(tok.span) {
+				self.diags.push(if self.api.is_span_eof(tok.span) {
 					diag
 				} else {
 					diag.label(tok.span.label(format!("found `{}`", SyntaxKind::from(tok.kind))))
@@ -580,7 +580,7 @@ impl Parser<'_, '_> {
 			match curr.kind {
 				T![')'] => break,
 				T![eof] => {
-					self.db
+					self.diags
 						.push(curr.span.error("unexpected <eof>").label(curr.span.mark()));
 					break;
 				},

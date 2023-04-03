@@ -154,6 +154,8 @@ mod test {
 		}
 	}
 
+	type GenFunc = Box<dyn FnOnce() -> (StorageType, u16)>;
+
 	/// A static table that maps [`TypeId`]s to [`Route`]s, generated at database initialization.
 	/// This is required because `TypeId`s are not guaranteed to be stable across compilations, while `Route`s are.
 	#[derive(Default)]
@@ -163,7 +165,7 @@ mod test {
 		dynamic_storage_index: u16,
 		next_route_index: AtomicU16,
 		pushables: Mutex<Vec<Route>>,
-		make: Mutex<Vec<Box<dyn FnOnce() -> (StorageType, u16)>>>,
+		make: Mutex<Vec<GenFunc>>,
 	}
 
 	impl RoutingTable {

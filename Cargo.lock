@@ -14,6 +14,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "arena"
+version = "0.0.0"
+dependencies = [
+ "rustc-hash",
+]
+
+[[package]]
 name = "ariadne"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -183,6 +190,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "hir"
+version = "0.0.0"
+dependencies = [
+ "arena",
+ "diagnostics",
+ "rustc-hash",
+ "syntax",
+ "text",
+ "verde",
+]
+
+[[package]]
 name = "instant"
 version = "0.1.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -333,7 +352,6 @@ dependencies = [
  "pretty_assertions",
  "syntax",
  "text",
- "verde",
 ]
 
 [[package]]
@@ -474,6 +492,7 @@ name = "syntax"
 version = "0.0.0"
 dependencies = [
  "cstree",
+ "diagnostics",
  "lex",
  "quote",
  "text",
@@ -556,7 +575,7 @@ checksum = "c0edd1e5b14653f783770bce4a4dabb4a5108a5370a5f5d8cfe8710c361f6c8b"
 
 [[package]]
 name = "verde"
-version = "0.0.0"
+version = "0.2.0"
 dependencies = [
  "dashmap 5.4.0",
  "parking_lot 0.12.1",
@@ -568,7 +587,7 @@ dependencies = [
 
 [[package]]
 name = "verde-derive"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "proc-macro2",
  "quote",

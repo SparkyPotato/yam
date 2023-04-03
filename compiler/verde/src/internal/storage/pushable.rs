@@ -53,7 +53,7 @@ pub struct PushableStorage<T> {
 
 impl<T: Pushable> ErasedPushableStorage for PushableStorage<T> {
 	fn clear(&self, query: ErasedQueryId) {
-		let mut data = self.map.entry(query.route).or_insert_with(|| Vec::new());
+		let mut data = self.map.entry(query.route).or_insert_with(Vec::new);
 		Self::expand_to(&mut data, query.index);
 		data[query.index as usize].lock().clear();
 	}
@@ -67,7 +67,7 @@ impl<T: Pushable> PushableStorage<T> {
 	}
 
 	pub fn push(&self, query: ErasedQueryId, value: T) {
-		let mut data = self.map.entry(query.route).or_insert_with(|| Vec::new());
+		let mut data = self.map.entry(query.route).or_insert_with(Vec::new);
 		Self::expand_to(&mut data, query.index);
 		data[query.index as usize].lock().push(value);
 	}
@@ -163,7 +163,7 @@ impl<'a, T> VecIter<'a, T> {
 	fn new(vec: &'a Mutex<Vec<T>>) -> Self {
 		let iter = unsafe {
 			vec.raw().lock();
-			(&*vec.data_ptr()).iter()
+			(*vec.data_ptr()).iter()
 		};
 		Self { vec, iter }
 	}

@@ -141,6 +141,7 @@ Expr =
 | ParenExpr
 | PathExpr
 | PrefixExpr
+| RefExpr
 | ReturnExpr
 | WhileExpr
 | LetExpr

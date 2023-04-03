@@ -199,6 +199,7 @@ impl dyn Db + '_ {
 			ty = std::any::type_name::<T>(),
 			id = tracing::field::Empty
 		);
+		#[allow(clippy::let_unit_value)]
 		let _e = span.enter();
 		let route = self.routing_table().route::<T>();
 		let storage = self
@@ -222,6 +223,7 @@ impl dyn Db + '_ {
 			ty = std::any::type_name::<T>(),
 			id = tracing::field::Empty
 		);
+		#[allow(clippy::let_unit_value)]
 		let _e = span.enter();
 		let route = self.routing_table().route::<T>();
 		let storage = self
@@ -275,6 +277,7 @@ impl dyn Db + '_ {
 			ty = std::any::type_name::<T>(),
 			id = tracing::field::Empty
 		);
+		#[allow(clippy::let_unit_value)]
 		let _e = span.enter();
 		let route = self.routing_table().route::<T>();
 		let storage = self.storage_struct(route.storage).tracked_storage(route.index).unwrap();

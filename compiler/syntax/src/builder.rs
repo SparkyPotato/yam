@@ -17,6 +17,10 @@ impl TreeBuilderContext {
 	}
 }
 
+impl Default for TreeBuilderContext {
+	fn default() -> Self { Self::new() }
+}
+
 #[repr(transparent)]
 pub struct TreeBuilder<'c> {
 	builder: GreenNodeBuilder<'c, 'static, &'static text::Interner>,

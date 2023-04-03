@@ -1,6 +1,6 @@
 pub use cstree::{GreenNode, GreenToken, NodeOrToken, TextRange, TextSize};
 
-pub use crate::generated::{ast, kind::SyntaxKind, token, AstNode, AstToken};
+pub use crate::generated::{ast, kind::SyntaxKind, token, AstElement, AstNode, AstToken};
 pub mod builder;
 mod generated;
 

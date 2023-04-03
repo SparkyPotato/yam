@@ -1,7 +1,6 @@
-use diagnostics::{Diagnostic, FilePath};
+use diagnostics::FileDiagnostic;
 pub use syntax;
 use syntax::{ast::File, builder::TreeBuilderContext, AstNode, SyntaxNode};
-use verde::{query, storage, Ctx, Id, Tracked};
 
 use crate::parse::Parser;
 
@@ -11,49 +10,18 @@ mod parse;
 #[cfg(test)]
 mod tests;
 
-#[storage]
-pub struct Storage(FileData, ParseResult, Diagnostic<()>, parse_file);
-
-#[derive(Tracked, Clone)]
-pub struct FileData {
-	#[id]
-	pub path: FilePath,
-	pub source: String,
-}
-
-impl PartialEq for FileData {
-	fn eq(&self, _: &Self) -> bool { false }
-}
-
-impl Eq for FileData {}
-
-#[derive(Tracked, PartialEq, Eq, Hash)]
-pub struct ParseResult {
-	#[id]
-	pub path: FilePath,
-	pub file: File,
-}
-
+#[derive(Default)]
 pub struct ParseContext {
 	ctx: TreeBuilderContext,
 }
 
 impl ParseContext {
-	pub fn new() -> Self {
-		Self {
-			ctx: TreeBuilderContext::new(),
-		}
-	}
-}
+	pub fn new() -> Self { Self::default() }
 
-#[query]
-pub fn parse_file(db: &Ctx, #[ignore] ctx: &mut ParseContext, source: Id<FileData>) -> ParseResult {
-	let source = db.get(source);
-	let builder = Parser::new(&source.source, &mut ctx.ctx, db).parse();
-	let root = builder.finish();
-	let file = File::cast(SyntaxNode::new_root(root)).unwrap();
-	ParseResult {
-		path: source.path,
-		file,
+	pub fn parse_file(&mut self, source: &str) -> (File, Vec<FileDiagnostic>) {
+		let (builder, diagnostics) = Parser::new(source, &mut self.ctx).parse();
+		let root = builder.finish();
+		let file = File::cast(SyntaxNode::new_root(root)).unwrap();
+		(file, diagnostics)
 	}
 }

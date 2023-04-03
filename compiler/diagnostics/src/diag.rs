@@ -1,7 +1,7 @@
 use ariadne::{Report, ReportKind};
 use verde::Pushable;
 
-use crate::{FileCache, FilePath, Span};
+use crate::{FileCache, FilePath, FileSpan, FullSpan, Span};
 
 #[derive(Copy, Clone, Eq, PartialEq)]
 pub enum DiagKind {
@@ -21,22 +21,22 @@ impl DiagKind {
 }
 
 #[derive(Clone)]
-pub struct Label<F> {
-	pub span: Span<F>,
+pub struct Label<S> {
+	pub span: S,
 	pub message: Option<String>,
 }
 
-impl<F> Label<F> {
-	pub fn new(span: Span<F>, message: impl ToString) -> Self {
+impl<S> Label<S> {
+	pub fn new(span: S, message: impl ToString) -> Self {
 		Self {
 			span,
 			message: Some(message.to_string()),
 		}
 	}
 
-	pub fn no_message(span: Span<F>) -> Self { Self { span, message: None } }
+	pub fn no_message(span: S) -> Self { Self { span, message: None } }
 
-	pub fn map_span<T>(self, f: impl FnOnce(Span<F>) -> Span<T>) -> Label<T> {
+	pub fn map_span<T>(self, f: impl FnOnce(S) -> T) -> Label<T> {
 		Label {
 			span: f(self.span),
 			message: self.message,
@@ -45,15 +45,15 @@ impl<F> Label<F> {
 }
 
 #[derive(Pushable, Clone)]
-pub struct Diagnostic<F> {
+pub struct Diagnostic<S> {
 	pub kind: DiagKind,
 	pub message: String,
-	pub span: Span<F>,
-	pub labels: Vec<Label<F>>,
+	pub span: S,
+	pub labels: Vec<Label<S>>,
 }
 
-impl<F> Diagnostic<F> {
-	pub fn new(kind: DiagKind, message: impl ToString, span: Span<F>) -> Self {
+impl<S> Diagnostic<S> {
+	pub fn new(kind: DiagKind, message: impl ToString, span: S) -> Self {
 		Self {
 			kind,
 			message: message.to_string(),
@@ -62,12 +62,12 @@ impl<F> Diagnostic<F> {
 		}
 	}
 
-	pub fn label(mut self, label: Label<F>) -> Self {
+	pub fn label(mut self, label: Label<S>) -> Self {
 		self.labels.push(label);
 		self
 	}
 
-	pub fn map_span<T>(self, mut f: impl FnMut(Span<F>) -> Span<T>) -> Diagnostic<T> {
+	pub fn map_span<T>(self, mut f: impl FnMut(S) -> T) -> Diagnostic<T> {
 		Diagnostic {
 			kind: self.kind,
 			message: self.message,
@@ -77,15 +77,19 @@ impl<F> Diagnostic<F> {
 	}
 }
 
-impl Diagnostic<FilePath> {
-	pub fn emit(&self, cache: &FileCache) {
-		let mut builder = Report::build(self.kind.into_report_kind(), self.span.relative, self.span.start as _);
+impl<S> Diagnostic<S>
+where
+	S: Span<Relative = FilePath>,
+{
+	pub fn emit(self, cache: &FileCache, ctx: &S::Ctx) {
+		let span = self.span.to_raw(ctx);
+		let mut builder = Report::build(self.kind.into_report_kind(), span.relative, span.start as _);
 		builder.set_message(&self.message);
-		for label in self.labels.iter() {
+		for label in self.labels {
 			builder.add_label(if let Some(message) = &label.message {
-				ariadne::Label::new(label.span).with_message(message)
+				ariadne::Label::new(label.span.to_raw(ctx)).with_message(message)
 			} else {
-				ariadne::Label::new(label.span)
+				ariadne::Label::new(label.span.to_raw(ctx))
 			});
 		}
 
@@ -93,8 +97,8 @@ impl Diagnostic<FilePath> {
 	}
 }
 
-pub type FullDiagnostic = Diagnostic<FilePath>;
-pub type FileDiagnostic = Diagnostic<()>;
+pub type FullDiagnostic = Diagnostic<FullSpan>;
+pub type FileDiagnostic = Diagnostic<FileSpan>;
 
 pub mod test {
 	use std::fmt::{Debug, Display};
@@ -103,21 +107,26 @@ pub mod test {
 
 	use super::*;
 
-	impl<F: Clone + PartialEq> Diagnostic<F> {
-		pub fn emit_test(self, source: &str) -> String {
+	impl<S> Diagnostic<S>
+	where
+		S: Span,
+		S::Relative: Clone + PartialEq,
+	{
+		pub fn emit_test(self, source: &str, ctx: &S::Ctx) -> String {
 			let cache = Cache {
 				source: Source::from(source),
 			};
 			let mut s = Vec::new();
 
-			let mut builder = Report::build(self.kind.into_report_kind(), self.span.relative, self.span.start as _)
+			let span = self.span.to_raw(ctx);
+			let mut builder = Report::build(self.kind.into_report_kind(), span.relative, span.start as _)
 				.with_config(Config::default().with_color(false).with_char_set(CharSet::Ascii));
 			builder.set_message(self.message);
 			for label in self.labels {
 				builder.add_label(if let Some(message) = label.message {
-					ariadne::Label::new(label.span).with_message(message)
+					ariadne::Label::new(label.span.to_raw(ctx)).with_message(message)
 				} else {
-					ariadne::Label::new(label.span)
+					ariadne::Label::new(label.span.to_raw(ctx))
 				});
 			}
 

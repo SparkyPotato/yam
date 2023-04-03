@@ -9,6 +9,23 @@ use text::Text;
 
 use crate::{DiagKind, Diagnostic, Label};
 
+pub trait Span: Sized {
+	type Ctx;
+	type Relative;
+
+	fn to_raw(self, ctx: &Self::Ctx) -> RawSpan<Self::Relative>;
+
+	fn error(self, message: impl ToString) -> Diagnostic<Self> { Diagnostic::new(DiagKind::Error, message, self) }
+
+	fn warning(self, message: impl ToString) -> Diagnostic<Self> { Diagnostic::new(DiagKind::Warning, message, self) }
+
+	fn advice(self, message: impl ToString) -> Diagnostic<Self> { Diagnostic::new(DiagKind::Advice, message, self) }
+
+	fn label(self, message: impl ToString) -> Label<Self> { Label::new(self, message) }
+
+	fn mark(self) -> Label<Self> { Label::no_message(self) }
+}
+
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 pub struct FilePath(Text);
 
@@ -23,29 +40,29 @@ impl FilePath {
 }
 
 #[derive(Debug, Default, Copy, Clone)]
-pub struct Span<F> {
+pub struct RawSpan<F> {
 	pub start: u32,
 	pub end: u32,
 	pub relative: F,
 }
 
-impl<F> PartialEq for Span<F> {
+impl<F> PartialEq for RawSpan<F> {
 	fn eq(&self, _: &Self) -> bool { true }
 }
 
-impl<F> Eq for Span<F> {}
+impl<F> Eq for RawSpan<F> {}
 
-impl<F> Hash for Span<F> {
+impl<F> Hash for RawSpan<F> {
 	fn hash<H: Hasher>(&self, _: &mut H) {}
 }
 
-impl<F: Debug + PartialEq> Add for Span<F> {
+impl<F: Debug + PartialEq> Add for RawSpan<F> {
 	type Output = Self;
 
 	fn add(self, other: Self) -> Self {
 		debug_assert_eq!(self.relative, other.relative, "Cannot merge unrelated spans");
 
-		Span {
+		RawSpan {
 			start: self.start.min(other.start),
 			end: self.end.max(other.end),
 			relative: self.relative,
@@ -53,13 +70,13 @@ impl<F: Debug + PartialEq> Add for Span<F> {
 	}
 }
 
-impl<F> Index<Span<F>> for str {
+impl<F> Index<RawSpan<F>> for str {
 	type Output = str;
 
-	fn index(&self, span: Span<F>) -> &Self::Output { &self[span.start as usize..span.end as usize] }
+	fn index(&self, span: RawSpan<F>) -> &Self::Output { &self[span.start as usize..span.end as usize] }
 }
 
-impl<F: Clone + PartialEq> ariadne::Span for Span<F> {
+impl<F: Clone + PartialEq> ariadne::Span for RawSpan<F> {
 	type SourceId = F;
 
 	fn source(&self) -> &Self::SourceId { &self.relative }
@@ -69,17 +86,22 @@ impl<F: Clone + PartialEq> ariadne::Span for Span<F> {
 	fn end(&self) -> usize { self.end as _ }
 }
 
-impl<F> Span<F> {
-	pub fn error(self, message: impl ToString) -> Diagnostic<F> { Diagnostic::new(DiagKind::Error, message, self) }
+impl<F> Span for RawSpan<F> {
+	type Ctx = ();
+	type Relative = F;
 
-	pub fn warning(self, message: impl ToString) -> Diagnostic<F> { Diagnostic::new(DiagKind::Warning, message, self) }
-
-	pub fn advice(self, message: impl ToString) -> Diagnostic<F> { Diagnostic::new(DiagKind::Advice, message, self) }
-
-	pub fn label(self, message: impl ToString) -> Label<F> { Label::new(self, message) }
-
-	pub fn mark(self) -> Label<F> { Label::no_message(self) }
+	fn to_raw(self, _: &Self::Ctx) -> Self { self }
 }
 
-pub type FullSpan = Span<FilePath>;
-pub type FileSpan = Span<()>;
+pub type FullSpan = RawSpan<FilePath>;
+pub type FileSpan = RawSpan<()>;
+
+impl FileSpan {
+	pub fn with<T>(self, span: T) -> RawSpan<T> {
+		RawSpan {
+			start: self.start,
+			end: self.end,
+			relative: span,
+		}
+	}
+}

@@ -113,8 +113,7 @@ fn generate(input: &DataStruct) -> Result<TrackedStruct> {
 		.map(|(i, f)| {
 			if f.attrs
 				.iter()
-				.find(|x| matches!(&x.meta, Meta::Path(p) if p.is_ident("id")))
-				.is_some()
+				.any(|x| matches!(&x.meta, Meta::Path(p) if p.is_ident("id")))
 			{
 				if id.is_some() {
 					return Err(Error::new(f.span(), "Only a single field can be marked with `#[id]`"));

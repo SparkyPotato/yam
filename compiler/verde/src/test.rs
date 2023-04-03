@@ -92,6 +92,10 @@ impl Db for TestDatabase {
 	}
 }
 
+impl Default for TestDatabase {
+	fn default() -> Self { Self::new() }
+}
+
 impl Storage for TestDatabase {
 	fn init_routing(_: &mut RouteBuilder)
 	where

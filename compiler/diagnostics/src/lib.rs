@@ -28,12 +28,16 @@ impl Cache<FilePath> for &FileCache {
 }
 
 pub mod test {
-	use crate::Diagnostic;
+	use crate::{Diagnostic, Span};
 
-	pub fn emit_test<F: Clone + PartialEq>(source: &str, diags: impl Iterator<Item = Diagnostic<F>>) -> String {
+	pub fn emit_test<S>(source: &str, diags: impl IntoIterator<Item = Diagnostic<S>>, ctx: &S::Ctx) -> String
+	where
+		S: Span,
+		S::Relative: Clone + PartialEq,
+	{
 		let mut s = String::new();
 		for diag in diags {
-			s += &diag.emit_test(source);
+			s += &diag.emit_test(source, ctx);
 		}
 		s
 	}

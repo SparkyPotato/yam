@@ -69,10 +69,7 @@ pub(crate) fn storage(input: ItemStruct) -> Result<TokenStream> {
 
 pub(crate) fn database(input: ItemStruct) -> Result<TokenStream> {
 	let Storage { vis, name, fields } = generate(input)?;
-	let ty_idents = fields
-		.iter()
-		.map(|field| ty_to_ident(field))
-		.collect::<Result<Vec<_>>>()?;
+	let ty_idents = fields.iter().map(ty_to_ident).collect::<Result<Vec<_>>>()?;
 	let field_names = ty_idents
 		.iter()
 		.map(|field| format_ident!("__verde_internal_storage_{}", field))

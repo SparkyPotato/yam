@@ -1,8 +1,7 @@
-use diagnostics::{test::emit_test, Diagnostic};
+use diagnostics::test::emit_test;
 use expect_test::{expect, Expect};
 use pretty_assertions::assert_eq;
 use syntax::{builder::TreeBuilderContext, ResolvedNode};
-use verde::{test::TestDatabase, Db};
 
 use crate::Parser;
 
@@ -888,10 +887,8 @@ fn match_() {
 }
 
 fn harness(source: &str, ast: Expect, diagnostics: Expect) {
-	let mut db = TestDatabase::new();
-	let db = &mut db as &mut dyn Db;
 	let mut ctx = TreeBuilderContext::new();
-	let builder = db.execute(|db| Parser::new(source, &mut ctx, db).parse());
+	let (builder, out) = Parser::new(source, &mut ctx).parse();
 	let node = builder.finish();
 
 	let resolved = ResolvedNode::new_root_with_resolver(node, text::get_interner());
@@ -902,8 +899,7 @@ fn harness(source: &str, ast: Expect, diagnostics: Expect) {
 	let debug = fmt(&resolved);
 	ast.assert_eq(&debug);
 
-	let diags = db.get_all::<Diagnostic<()>>();
-	let diags = emit_test(source, diags.cloned());
+	let diags = emit_test(source, out);
 	diagnostics.assert_eq(&diags);
 }
 
