@@ -20,4 +20,8 @@ impl Text {
 	pub fn as_str(&self) -> &'static str { INTERNER.resolve(&self.0) }
 }
 
+impl From<lasso::Spur> for Text {
+	fn from(spur: lasso::Spur) -> Self { Self(spur) }
+}
+
 pub fn get_interner() -> &'static Interner { &INTERNER }

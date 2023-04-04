@@ -3,7 +3,7 @@ use std::{hash::Hash, marker::PhantomData};
 use diagnostics::{FilePath, RawSpan, Span};
 use rustc_hash::FxHashMap;
 use syntax::{ast::Item, AstElement, SyntaxElement};
-use verde::{Id, Tracked};
+use verde::Id;
 
 use crate::RawPath;
 
@@ -57,32 +57,6 @@ impl AstMap {
 impl Default for AstMap {
 	fn default() -> Self { Self::new() }
 }
-
-#[derive(Tracked)]
-pub struct FileAstMap {
-	#[id]
-	file: FilePath,
-	map: FxHashMap<Id<RawPath>, FileItemData>,
-}
-
-struct FileItemData {
-	node: Item,
-	sub: Vec<SyntaxElement>,
-}
-
-impl FileAstMap {
-	pub fn new(file: FilePath) -> Self {
-		Self {
-			file,
-			map: FxHashMap::default(),
-		}
-	}
-}
-
-impl PartialEq for FileAstMap {
-	fn eq(&self, _: &Self) -> bool { false }
-}
-impl Eq for FileAstMap {}
 
 impl<T> Clone for AstId<T> {
 	fn clone(&self) -> Self { *self }

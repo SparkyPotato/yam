@@ -84,16 +84,15 @@ fn ty() {
           Whitespace@11..12 " "
           PathType@12..24
             Path@12..24
-              PathSegment@12..17
-                Name@12..16
-                  Ident@12..16 "core"
-                Dot@16..17 "."
-              PathSegment@17..21
-                Name@17..20
+              Path@12..21
+                Path@12..20
+                  Path@12..17
+                    Path@12..16
+                      Ident@12..16 "core"
+                    Dot@16..17 "."
                   Ident@17..20 "vec"
                 Dot@20..21 "."
-              Name@21..24
-                Ident@21..24 "Vec"
+              Ident@21..24 "Vec"
           Semi@24..25 ";"
         Whitespace@25..28 "\n\t\t"
       Item@28..43
@@ -109,8 +108,7 @@ fn ty() {
             Star@37..38 "*"
             PathType@38..39
               Path@38..39
-                Name@38..39
-                  Ident@38..39 "T"
+                Ident@38..39 "T"
           Semi@39..40 ";"
         Whitespace@40..43 "\n\t\t"
       Item@43..63
@@ -126,8 +124,7 @@ fn ty() {
             LBracket@52..53 "["
             PathType@53..54
               Path@53..54
-                Name@53..54
-                  Ident@53..54 "T"
+                Ident@53..54 "T"
             Semi@54..55 ";"
             Whitespace@55..56 " "
             IntLit@56..58 "10"
@@ -180,8 +177,7 @@ fn struct_() {
             Whitespace@22..23 " "
             PathType@23..24
               Path@23..24
-                Name@23..24
-                  Ident@23..24 "T"
+                Ident@23..24 "T"
           Comma@24..25 ","
           Whitespace@25..26 " "
           RBrace@26..27 "}"
@@ -219,8 +215,7 @@ fn fn_() {
               Whitespace@18..19 " "
               PathType@19..20
                 Path@19..20
-                  Name@19..20
-                    Ident@19..20 "T"
+                  Ident@19..20 "T"
             RParen@20..21 ")"
           Whitespace@21..22 " "
           Block@22..24
@@ -242,8 +237,7 @@ fn fn_() {
               Whitespace@40..41 " "
               PathType@41..44
                 Path@41..44
-                  Name@41..44
-                    Ident@41..44 "i32"
+                  Ident@41..44 "i32"
             Comma@44..45 ","
             Whitespace@45..46 " "
             Param@46..52
@@ -253,8 +247,7 @@ fn fn_() {
               Whitespace@48..49 " "
               PathType@49..52
                 Path@49..52
-                  Name@49..52
-                    Ident@49..52 "i32"
+                  Ident@49..52 "i32"
             Comma@52..53 ","
             Whitespace@53..54 " "
             Param@54..60
@@ -264,18 +257,16 @@ fn fn_() {
               Whitespace@56..57 " "
               PathType@57..60
                 Path@57..60
-                  Name@57..60
-                    Ident@57..60 "i32"
+                  Ident@57..60 "i32"
             RParen@60..61 ")"
           Whitespace@61..62 " "
           RetTy@62..69
             Arrow@62..64 "->"
             Whitespace@64..65 " "
             PathType@65..69
-              Path@65..69
-                Name@65..68
-                  Ident@65..68 "i32"
-                Whitespace@68..69 " "
+              Path@65..68
+                Ident@65..68 "i32"
+              Whitespace@68..69 " "
           Block@69..75
             LBrace@69..70 "{"
             Whitespace@70..71 " "
@@ -329,8 +320,7 @@ fn atom() {
                 LParen@18..19 "("
                 PathExpr@19..20
                   Path@19..20
-                    Name@19..20
-                      Ident@19..20 "x"
+                    Ident@19..20 "x"
                 RParen@20..21 ")"
               Semi@21..22 ";"
             Whitespace@22..26 "\n\t\t\t"
@@ -391,8 +381,7 @@ fn atom() {
                     Whitespace@119..120 " "
                     PathExpr@120..125
                       Path@120..125
-                        Name@120..125
-                          Ident@120..125 "hello"
+                        Ident@120..125 "hello"
                     Semi@125..126 ";"
                   Whitespace@126..127 " "
                   RBrace@127..128 "}"
@@ -413,8 +402,7 @@ fn atom() {
                   Whitespace@157..158 " "
                   PathExpr@158..163
                     Path@158..163
-                      Name@158..163
-                        Ident@158..163 "hello"
+                      Ident@158..163 "hello"
                   Semi@163..164 ";"
                 Whitespace@164..165 " "
                 RBrace@165..166 "}"
@@ -428,18 +416,16 @@ fn atom() {
               InKw@176..178 "in"
               Whitespace@178..179 " "
               PathExpr@179..181
-                Path@179..181
-                  Name@179..180
-                    Ident@179..180 "y"
-                  Whitespace@180..181 " "
+                Path@179..180
+                  Ident@179..180 "y"
+                Whitespace@180..181 " "
               Block@181..191
                 LBrace@181..182 "{"
                 SemiExpr@182..189
                   Whitespace@182..183 " "
                   PathExpr@183..188
                     Path@183..188
-                      Name@183..188
-                        Ident@183..188 "hello"
+                      Ident@183..188 "hello"
                   Semi@188..189 ";"
                 Whitespace@189..190 " "
                 RBrace@190..191 "}"
@@ -455,8 +441,7 @@ fn atom() {
                   Whitespace@204..205 " "
                   PathExpr@205..210
                     Path@205..210
-                      Name@205..210
-                        Ident@205..210 "hello"
+                      Ident@205..210 "hello"
                   Semi@210..211 ";"
                 Whitespace@211..212 " "
                 RBrace@212..213 "}"
@@ -474,8 +459,7 @@ fn atom() {
                     Whitespace@229..230 " "
                     PathExpr@230..235
                       Path@230..235
-                        Name@230..235
-                          Ident@230..235 "hello"
+                        Ident@230..235 "hello"
                     Semi@235..236 ";"
                   Whitespace@236..237 " "
                   RBrace@237..238 "}"
@@ -488,8 +472,7 @@ fn atom() {
                     Whitespace@245..246 " "
                     PathExpr@246..251
                       Path@246..251
-                        Name@246..251
-                          Ident@246..251 "hello"
+                        Ident@246..251 "hello"
                     Semi@251..252 ";"
                   Whitespace@252..253 " "
                   RBrace@253..254 "}"
@@ -550,8 +533,7 @@ fn prefix() {
                 Star@36..37 "*"
                 PathExpr@37..40
                   Path@37..40
-                    Name@37..40
-                      Ident@37..40 "ptr"
+                    Ident@37..40 "ptr"
               Semi@40..41 ";"
             Whitespace@41..45 "\n\t\t\t"
             SemiExpr@45..50
@@ -559,8 +541,7 @@ fn prefix() {
                 Amp@45..46 "&"
                 PathExpr@46..49
                   Path@46..49
-                    Name@46..49
-                      Ident@46..49 "ptr"
+                    Ident@46..49 "ptr"
               Semi@49..50 ";"
             Whitespace@50..54 "\n\t\t\t"
             SemiExpr@54..63
@@ -570,8 +551,7 @@ fn prefix() {
                 Whitespace@58..59 " "
                 PathExpr@59..62
                   Path@59..62
-                    Name@59..62
-                      Ident@59..62 "ptr"
+                    Ident@59..62 "ptr"
               Semi@62..63 ";"
             Whitespace@63..67 "\n\t\t\t"
             SemiExpr@67..81
@@ -585,8 +565,7 @@ fn prefix() {
                       Amp@70..71 "&"
                       PathExpr@71..80
                         Path@71..80
-                          Name@71..80
-                            Ident@71..80 "something"
+                          Ident@71..80 "something"
               Semi@80..81 ";"
             Whitespace@81..84 "\n\t\t"
             RBrace@84..85 "}"
@@ -681,10 +660,9 @@ fn infix() {
                 InfixExpr@75..84
                   InfixExpr@75..80
                     PathExpr@75..77
-                      Path@75..77
-                        Name@75..76
-                          Ident@75..76 "a"
-                        Whitespace@76..77 " "
+                      Path@75..76
+                        Ident@75..76 "a"
+                      Whitespace@76..77 " "
                     Eq@77..78 "="
                     Whitespace@78..79 " "
                     Ident@79..80 "b"
@@ -740,8 +718,7 @@ fn postfix() {
                 Whitespace@14..18 "\n\t\t\t"
                 PathExpr@18..19
                   Path@18..19
-                    Name@18..19
-                      Ident@18..19 "x"
+                    Ident@18..19 "x"
                 ArgList@19..21
                   LParen@19..20 "("
                   RParen@20..21 ")"
@@ -751,8 +728,7 @@ fn postfix() {
               IndexExpr@26..31
                 PathExpr@26..27
                   Path@26..27
-                    Name@26..27
-                      Ident@26..27 "x"
+                    Ident@26..27 "x"
                 LBracket@27..28 "["
                 IntLit@28..30 "10"
                 RBracket@30..31 "]"
@@ -761,12 +737,11 @@ fn postfix() {
             SemiExpr@36..40
               PathExpr@36..39
                 Path@36..39
-                  PathSegment@36..38
-                    Name@36..37
+                  Path@36..38
+                    Path@36..37
                       Ident@36..37 "y"
                     Dot@37..38 "."
-                  Name@38..39
-                    Ident@38..39 "a"
+                  Ident@38..39 "a"
               Semi@39..40 ";"
             Whitespace@40..44 "\n\t\t\t"
             SemiExpr@44..59
@@ -776,8 +751,7 @@ fn postfix() {
                     CallExpr@44..51
                       PathExpr@44..49
                         Path@44..49
-                          Name@44..49
-                            Ident@44..49 "hello"
+                          Ident@44..49 "hello"
                       ArgList@49..51
                         LParen@49..50 "("
                         RParen@50..51 ")"
@@ -800,8 +774,7 @@ fn postfix() {
                 Whitespace@68..69 " "
                 PathType@69..72
                   Path@69..72
-                    Name@69..72
-                      Ident@69..72 "f32"
+                    Ident@69..72 "f32"
               Semi@72..73 ";"
             Whitespace@73..76 "\n\t\t"
             RBrace@76..77 "}"
@@ -845,19 +818,18 @@ fn match_() {
               MatchKw@18..23 "match"
               Whitespace@23..24 " "
               PathExpr@24..32
-                Path@24..32
-                  Name@24..31
-                    Ident@24..31 "my_enum"
-                  Whitespace@31..32 " "
+                Path@24..31
+                  Ident@24..31 "my_enum"
+                Whitespace@31..32 " "
               LBrace@32..33 "{"
               Whitespace@33..38 "\n\t\t\t\t"
               MatchArm@38..47
                 PathExpr@38..41
-                  Path@38..41
-                    Dot@38..39 "."
-                    Name@39..40
-                      Ident@39..40 "X"
-                    Whitespace@40..41 " "
+                  Path@38..40
+                    Path@38..39
+                      Dot@38..39 "."
+                    Ident@39..40 "X"
+                  Whitespace@40..41 " "
                 FatArrow@41..43 "=>"
                 Whitespace@43..44 " "
                 StringLit@44..47 "\"X\""
@@ -865,11 +837,11 @@ fn match_() {
               Whitespace@48..53 "\n\t\t\t\t"
               MatchArm@53..62
                 PathExpr@53..56
-                  Path@53..56
-                    Dot@53..54 "."
-                    Name@54..55
-                      Ident@54..55 "Y"
-                    Whitespace@55..56 " "
+                  Path@53..55
+                    Path@53..54
+                      Dot@53..54 "."
+                    Ident@54..55 "Y"
+                  Whitespace@55..56 " "
                 FatArrow@56..58 "=>"
                 Whitespace@58..59 " "
                 StringLit@59..62 "\"Y\""
@@ -879,6 +851,117 @@ fn match_() {
             Whitespace@68..71 "\n\t\t"
             RBrace@71..72 "}"
           Whitespace@72..74 "\n\t""#]]
+	};
+
+	let diags = expect![""];
+
+	harness(source, ast, diags);
+}
+
+#[test]
+fn import() {
+	let source = r#"
+		import hello;
+		import hello.hello;
+		import .;
+		import .hello;
+		import hello.{
+			hello,
+			hello.{
+				hello,
+				hello.hello,
+			}
+		};
+	"#;
+
+	let ast = {
+		expect![[r#"
+    File@0..145
+      Whitespace@0..3 "\n\t\t"
+      Item@3..19
+        Import@3..16
+          ImportKw@3..9 "import"
+          RenameImport@9..15
+            Path@9..15
+              Whitespace@9..10 " "
+              Ident@10..15 "hello"
+          Semi@15..16 ";"
+        Whitespace@16..19 "\n\t\t"
+      Item@19..41
+        Import@19..38
+          ImportKw@19..25 "import"
+          RenameImport@25..37
+            Path@25..37
+              Path@25..32
+                Path@25..31
+                  Whitespace@25..26 " "
+                  Ident@26..31 "hello"
+                Dot@31..32 "."
+              Ident@32..37 "hello"
+          Semi@37..38 ";"
+        Whitespace@38..41 "\n\t\t"
+      Item@41..53
+        Import@41..50
+          ImportKw@41..47 "import"
+          RenameImport@47..49
+            Path@47..49
+              Whitespace@47..48 " "
+              Dot@48..49 "."
+          Semi@49..50 ";"
+        Whitespace@50..53 "\n\t\t"
+      Item@53..70
+        Import@53..67
+          ImportKw@53..59 "import"
+          RenameImport@59..66
+            Path@59..66
+              Path@59..61
+                Whitespace@59..60 " "
+                Dot@60..61 "."
+              Ident@61..66 "hello"
+          Semi@66..67 ";"
+        Whitespace@67..70 "\n\t\t"
+      Item@70..145
+        Import@70..143
+          ImportKw@70..76 "import"
+          ListImport@76..142
+            Path@76..82
+              Whitespace@76..77 " "
+              Ident@77..82 "hello"
+            Dot@82..83 "."
+            ImportTreeList@83..142
+              LBrace@83..84 "{"
+              RenameImport@84..93
+                Path@84..93
+                  Whitespace@84..88 "\n\t\t\t"
+                  Ident@88..93 "hello"
+              Comma@93..94 ","
+              ListImport@94..141
+                Path@94..103
+                  Whitespace@94..98 "\n\t\t\t"
+                  Ident@98..103 "hello"
+                Dot@103..104 "."
+                ImportTreeList@104..138
+                  LBrace@104..105 "{"
+                  RenameImport@105..115
+                    Path@105..115
+                      Whitespace@105..110 "\n\t\t\t\t"
+                      Ident@110..115 "hello"
+                  Comma@115..116 ","
+                  RenameImport@116..132
+                    Path@116..132
+                      Path@116..127
+                        Path@116..126
+                          Whitespace@116..121 "\n\t\t\t\t"
+                          Ident@121..126 "hello"
+                        Dot@126..127 "."
+                      Ident@127..132 "hello"
+                  Comma@132..133 ","
+                  Whitespace@133..137 "\n\t\t\t"
+                  RBrace@137..138 "}"
+                Whitespace@138..141 "\n\t\t"
+              RBrace@141..142 "}"
+          Semi@142..143 ";"
+        Whitespace@143..145 "\n\t""#]]
 	};
 
 	let diags = expect![""];
@@ -899,7 +982,7 @@ fn harness(source: &str, ast: Expect, diagnostics: Expect) {
 	let debug = fmt(&resolved);
 	ast.assert_eq(&debug);
 
-	let diags = emit_test(source, out);
+	let diags = emit_test(source, out, &());
 	diagnostics.assert_eq(&diags);
 }
 

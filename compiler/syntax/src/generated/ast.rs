@@ -8,23 +8,18 @@ use diagnostics::FileSpan;
 use crate::{generated::*, token::*, *};
 
 #[derive(Clone, PartialEq, Eq, Hash)]
-pub struct File(SyntaxNode);
-impl std::fmt::Debug for File {
+pub struct Path(SyntaxNode);
+impl std::fmt::Debug for Path {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
-impl AstNode for File {
-	fn cast(node: SyntaxNode) -> Option<Self> {
-		if Self::can_cast(node.kind()) {
-			Some(Self(node))
-		} else {
-			None
-		}
-	}
-}
-impl AstElement for File {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::File }
+impl AstNode for Path {}
+impl AstElement for Path {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Path }
 
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstNode::cast(elem.into_node()?) }
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let node = elem.into_node()?;
+		Self::can_cast(node.kind()).then(|| Self(node))
+	}
 
 	fn span(&self) -> FileSpan {
 		let range = self.0.text_range();
@@ -34,81 +29,52 @@ impl AstElement for File {
 			relative: (),
 		}
 	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
 }
-impl File {
-	pub fn items(&self) -> impl Iterator<Item = Item> + '_ { node_children(&self.0) }
+impl Path {
+	pub fn qualifier(&self) -> Option<Path> { children(&self.0).nth(0usize) }
+
+	pub fn segment(&self) -> Option<PathSegment> { children(&self.0).nth(0usize) }
 }
 
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct Item(SyntaxNode);
-impl std::fmt::Debug for Item {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+pub enum PathSegment {
+	Dot(Dot),
+	Name(Name),
 }
-impl AstNode for Item {
-	fn cast(node: SyntaxNode) -> Option<Self> {
-		if Self::can_cast(node.kind()) {
-			Some(Self(node))
-		} else {
-			None
+impl std::fmt::Debug for PathSegment {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		match self {
+			Self::Dot(x) => std::fmt::Debug::fmt(x, f),
+			Self::Name(x) => std::fmt::Debug::fmt(x, f),
 		}
 	}
 }
-impl AstElement for Item {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Item }
+impl AstNode for PathSegment {}
+impl AstElement for PathSegment {
+	fn can_cast(kind: SyntaxKind) -> bool { matches!(kind, |SyntaxKind::Dot| SyntaxKind::Name) }
 
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstNode::cast(elem.into_node()?) }
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		match elem.kind() {
+			SyntaxKind::Name => AstElement::cast(elem.clone()).map(Self::Name),
+			SyntaxKind::Dot => AstElement::cast(elem.clone()).map(Self::Dot),
+			_ => None,
+		}
+	}
 
 	fn span(&self) -> FileSpan {
-		let range = self.0.text_range();
-		FileSpan {
-			start: range.start().into(),
-			end: range.end().into(),
-			relative: (),
+		match self {
+			Self::Dot(x) => x.span(),
+			Self::Name(x) => x.span(),
 		}
 	}
-}
-impl Item {
-	pub fn attributes(&self) -> impl Iterator<Item = Attribute> + '_ { node_children(&self.0) }
 
-	pub fn visibility(&self) -> Option<Visibility> { node_children(&self.0).nth(0usize) }
-
-	pub fn item_kind(&self) -> Option<ItemKind> { node_children(&self.0).nth(0usize) }
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct Attribute(SyntaxNode);
-impl std::fmt::Debug for Attribute {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstNode for Attribute {
-	fn cast(node: SyntaxNode) -> Option<Self> {
-		if Self::can_cast(node.kind()) {
-			Some(Self(node))
-		} else {
-			None
+	fn inner(self) -> SyntaxElement {
+		match self {
+			Self::Dot(x) => x.inner(),
+			Self::Name(x) => x.inner(),
 		}
 	}
-}
-impl AstElement for Attribute {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Attribute }
-
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstNode::cast(elem.into_node()?) }
-
-	fn span(&self) -> FileSpan {
-		let range = self.0.text_range();
-		FileSpan {
-			start: range.start().into(),
-			end: range.end().into(),
-			relative: (),
-		}
-	}
-}
-impl Attribute {
-	pub fn at(&self) -> Option<At> { token_children(&self.0).nth(0usize) }
-
-	pub fn name(&self) -> Option<Name> { node_children(&self.0).nth(0usize) }
-
-	pub fn token_tree(&self) -> Option<TokenTree> { node_children(&self.0).nth(0usize) }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -116,19 +82,14 @@ pub struct Name(SyntaxNode);
 impl std::fmt::Debug for Name {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
-impl AstNode for Name {
-	fn cast(node: SyntaxNode) -> Option<Self> {
-		if Self::can_cast(node.kind()) {
-			Some(Self(node))
-		} else {
-			None
-		}
-	}
-}
+impl AstNode for Name {}
 impl AstElement for Name {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Name }
 
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstNode::cast(elem.into_node()?) }
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let node = elem.into_node()?;
+		Self::can_cast(node.kind()).then(|| Self(node))
+	}
 
 	fn span(&self) -> FileSpan {
 		let range = self.0.text_range();
@@ -138,9 +99,106 @@ impl AstElement for Name {
 			relative: (),
 		}
 	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
 }
 impl Name {
-	pub fn ident(&self) -> Option<Ident> { token_children(&self.0).nth(0usize) }
+	pub fn ident(&self) -> Option<Ident> { children(&self.0).nth(0usize) }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct File(SyntaxNode);
+impl std::fmt::Debug for File {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstNode for File {}
+impl AstElement for File {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::File }
+
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let node = elem.into_node()?;
+		Self::can_cast(node.kind()).then(|| Self(node))
+	}
+
+	fn span(&self) -> FileSpan {
+		let range = self.0.text_range();
+		FileSpan {
+			start: range.start().into(),
+			end: range.end().into(),
+			relative: (),
+		}
+	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
+}
+impl File {
+	pub fn items(&self) -> impl Iterator<Item = Item> + '_ { children(&self.0) }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct Item(SyntaxNode);
+impl std::fmt::Debug for Item {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstNode for Item {}
+impl AstElement for Item {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Item }
+
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let node = elem.into_node()?;
+		Self::can_cast(node.kind()).then(|| Self(node))
+	}
+
+	fn span(&self) -> FileSpan {
+		let range = self.0.text_range();
+		FileSpan {
+			start: range.start().into(),
+			end: range.end().into(),
+			relative: (),
+		}
+	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
+}
+impl Item {
+	pub fn attributes(&self) -> impl Iterator<Item = Attribute> + '_ { children(&self.0) }
+
+	pub fn visibility(&self) -> Option<Visibility> { children(&self.0).nth(0usize) }
+
+	pub fn item_kind(&self) -> Option<ItemKind> { children(&self.0).nth(0usize) }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct Attribute(SyntaxNode);
+impl std::fmt::Debug for Attribute {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstNode for Attribute {}
+impl AstElement for Attribute {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Attribute }
+
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let node = elem.into_node()?;
+		Self::can_cast(node.kind()).then(|| Self(node))
+	}
+
+	fn span(&self) -> FileSpan {
+		let range = self.0.text_range();
+		FileSpan {
+			start: range.start().into(),
+			end: range.end().into(),
+			relative: (),
+		}
+	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
+}
+impl Attribute {
+	pub fn at(&self) -> Option<At> { children(&self.0).nth(0usize) }
+
+	pub fn name(&self) -> Option<Name> { children(&self.0).nth(0usize) }
+
+	pub fn token_tree(&self) -> Option<TokenTree> { children(&self.0).nth(0usize) }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -148,19 +206,14 @@ pub struct Visibility(SyntaxNode);
 impl std::fmt::Debug for Visibility {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
-impl AstNode for Visibility {
-	fn cast(node: SyntaxNode) -> Option<Self> {
-		if Self::can_cast(node.kind()) {
-			Some(Self(node))
-		} else {
-			None
-		}
-	}
-}
+impl AstNode for Visibility {}
 impl AstElement for Visibility {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Visibility }
 
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstNode::cast(elem.into_node()?) }
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let node = elem.into_node()?;
+		Self::can_cast(node.kind()).then(|| Self(node))
+	}
 
 	fn span(&self) -> FileSpan {
 		let range = self.0.text_range();
@@ -170,9 +223,11 @@ impl AstElement for Visibility {
 			relative: (),
 		}
 	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
 }
 impl Visibility {
-	pub fn pub_kw(&self) -> Option<PubKw> { token_children(&self.0).nth(0usize) }
+	pub fn pub_kw(&self) -> Option<PubKw> { children(&self.0).nth(0usize) }
 }
 
 pub enum ItemKind {
@@ -195,24 +250,7 @@ impl std::fmt::Debug for ItemKind {
 		}
 	}
 }
-impl AstNode for ItemKind {
-	fn cast(node: SyntaxNode) -> Option<Self> {
-		node.children_with_tokens().find_map(|x| match x {
-			SyntaxElementRef::Node(node) => match node.kind() {
-				SyntaxKind::Fn => AstNode::cast(node.clone()).map(Self::Fn),
-				SyntaxKind::Struct => AstNode::cast(node.clone()).map(Self::Struct),
-				SyntaxKind::Enum => AstNode::cast(node.clone()).map(Self::Enum),
-				SyntaxKind::TypeAlias => AstNode::cast(node.clone()).map(Self::TypeAlias),
-				SyntaxKind::Static => AstNode::cast(node.clone()).map(Self::Static),
-				SyntaxKind::Import => AstNode::cast(node.clone()).map(Self::Import),
-				_ => None,
-			},
-			SyntaxElementRef::Token(tok) => match tok.kind() {
-				_ => None,
-			},
-		})
-	}
-}
+impl AstNode for ItemKind {}
 impl AstElement for ItemKind {
 	fn can_cast(kind: SyntaxKind) -> bool {
 		matches!(kind, |SyntaxKind::Fn| SyntaxKind::Struct
@@ -222,7 +260,17 @@ impl AstElement for ItemKind {
 			| SyntaxKind::Import)
 	}
 
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstNode::cast(elem.into_node()?) }
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		match elem.kind() {
+			SyntaxKind::Fn => AstElement::cast(elem.clone()).map(Self::Fn),
+			SyntaxKind::Struct => AstElement::cast(elem.clone()).map(Self::Struct),
+			SyntaxKind::Enum => AstElement::cast(elem.clone()).map(Self::Enum),
+			SyntaxKind::TypeAlias => AstElement::cast(elem.clone()).map(Self::TypeAlias),
+			SyntaxKind::Static => AstElement::cast(elem.clone()).map(Self::Static),
+			SyntaxKind::Import => AstElement::cast(elem.clone()).map(Self::Import),
+			_ => None,
+		}
+	}
 
 	fn span(&self) -> FileSpan {
 		match self {
@@ -234,6 +282,17 @@ impl AstElement for ItemKind {
 			Self::Import(x) => x.span(),
 		}
 	}
+
+	fn inner(self) -> SyntaxElement {
+		match self {
+			Self::Fn(x) => x.inner(),
+			Self::Struct(x) => x.inner(),
+			Self::Enum(x) => x.inner(),
+			Self::TypeAlias(x) => x.inner(),
+			Self::Static(x) => x.inner(),
+			Self::Import(x) => x.inner(),
+		}
+	}
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -241,19 +300,14 @@ pub struct Fn(SyntaxNode);
 impl std::fmt::Debug for Fn {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
-impl AstNode for Fn {
-	fn cast(node: SyntaxNode) -> Option<Self> {
-		if Self::can_cast(node.kind()) {
-			Some(Self(node))
-		} else {
-			None
-		}
-	}
-}
+impl AstNode for Fn {}
 impl AstElement for Fn {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Fn }
 
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstNode::cast(elem.into_node()?) }
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let node = elem.into_node()?;
+		Self::can_cast(node.kind()).then(|| Self(node))
+	}
 
 	fn span(&self) -> FileSpan {
 		let range = self.0.text_range();
@@ -263,19 +317,21 @@ impl AstElement for Fn {
 			relative: (),
 		}
 	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
 }
 impl Fn {
-	pub fn abi(&self) -> Option<Abi> { node_children(&self.0).nth(0usize) }
+	pub fn abi(&self) -> Option<Abi> { children(&self.0).nth(0usize) }
 
-	pub fn fn_kw(&self) -> Option<FnKw> { token_children(&self.0).nth(0usize) }
+	pub fn fn_kw(&self) -> Option<FnKw> { children(&self.0).nth(0usize) }
 
-	pub fn name(&self) -> Option<Name> { node_children(&self.0).nth(0usize) }
+	pub fn name(&self) -> Option<Name> { children(&self.0).nth(0usize) }
 
-	pub fn param_list(&self) -> Option<ParamList> { node_children(&self.0).nth(0usize) }
+	pub fn param_list(&self) -> Option<ParamList> { children(&self.0).nth(0usize) }
 
-	pub fn ret_ty(&self) -> Option<RetTy> { node_children(&self.0).nth(0usize) }
+	pub fn ret_ty(&self) -> Option<RetTy> { children(&self.0).nth(0usize) }
 
-	pub fn fn_body(&self) -> Option<FnBody> { node_children(&self.0).nth(0usize) }
+	pub fn fn_body(&self) -> Option<FnBody> { children(&self.0).nth(0usize) }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -283,19 +339,14 @@ pub struct Struct(SyntaxNode);
 impl std::fmt::Debug for Struct {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
-impl AstNode for Struct {
-	fn cast(node: SyntaxNode) -> Option<Self> {
-		if Self::can_cast(node.kind()) {
-			Some(Self(node))
-		} else {
-			None
-		}
-	}
-}
+impl AstNode for Struct {}
 impl AstElement for Struct {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Struct }
 
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstNode::cast(elem.into_node()?) }
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let node = elem.into_node()?;
+		Self::can_cast(node.kind()).then(|| Self(node))
+	}
 
 	fn span(&self) -> FileSpan {
 		let range = self.0.text_range();
@@ -305,17 +356,19 @@ impl AstElement for Struct {
 			relative: (),
 		}
 	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
 }
 impl Struct {
-	pub fn struct_kw(&self) -> Option<StructKw> { token_children(&self.0).nth(0usize) }
+	pub fn struct_kw(&self) -> Option<StructKw> { children(&self.0).nth(0usize) }
 
-	pub fn name(&self) -> Option<Name> { node_children(&self.0).nth(0usize) }
+	pub fn name(&self) -> Option<Name> { children(&self.0).nth(0usize) }
 
-	pub fn l_brace(&self) -> Option<LBrace> { token_children(&self.0).nth(0usize) }
+	pub fn l_brace(&self) -> Option<LBrace> { children(&self.0).nth(0usize) }
 
-	pub fn fields(&self) -> impl Iterator<Item = Param> + '_ { node_children(&self.0) }
+	pub fn fields(&self) -> impl Iterator<Item = Param> + '_ { children(&self.0) }
 
-	pub fn r_brace(&self) -> Option<RBrace> { token_children(&self.0).nth(0usize) }
+	pub fn r_brace(&self) -> Option<RBrace> { children(&self.0).nth(0usize) }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -323,19 +376,14 @@ pub struct Enum(SyntaxNode);
 impl std::fmt::Debug for Enum {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
-impl AstNode for Enum {
-	fn cast(node: SyntaxNode) -> Option<Self> {
-		if Self::can_cast(node.kind()) {
-			Some(Self(node))
-		} else {
-			None
-		}
-	}
-}
+impl AstNode for Enum {}
 impl AstElement for Enum {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Enum }
 
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstNode::cast(elem.into_node()?) }
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let node = elem.into_node()?;
+		Self::can_cast(node.kind()).then(|| Self(node))
+	}
 
 	fn span(&self) -> FileSpan {
 		let range = self.0.text_range();
@@ -345,13 +393,15 @@ impl AstElement for Enum {
 			relative: (),
 		}
 	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
 }
 impl Enum {
-	pub fn enum_kw(&self) -> Option<EnumKw> { token_children(&self.0).nth(0usize) }
+	pub fn enum_kw(&self) -> Option<EnumKw> { children(&self.0).nth(0usize) }
 
-	pub fn name(&self) -> Option<Name> { node_children(&self.0).nth(0usize) }
+	pub fn name(&self) -> Option<Name> { children(&self.0).nth(0usize) }
 
-	pub fn variant_list(&self) -> Option<VariantList> { node_children(&self.0).nth(0usize) }
+	pub fn variant_list(&self) -> Option<VariantList> { children(&self.0).nth(0usize) }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -359,19 +409,14 @@ pub struct TypeAlias(SyntaxNode);
 impl std::fmt::Debug for TypeAlias {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
-impl AstNode for TypeAlias {
-	fn cast(node: SyntaxNode) -> Option<Self> {
-		if Self::can_cast(node.kind()) {
-			Some(Self(node))
-		} else {
-			None
-		}
-	}
-}
+impl AstNode for TypeAlias {}
 impl AstElement for TypeAlias {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::TypeAlias }
 
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstNode::cast(elem.into_node()?) }
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let node = elem.into_node()?;
+		Self::can_cast(node.kind()).then(|| Self(node))
+	}
 
 	fn span(&self) -> FileSpan {
 		let range = self.0.text_range();
@@ -381,17 +426,19 @@ impl AstElement for TypeAlias {
 			relative: (),
 		}
 	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
 }
 impl TypeAlias {
-	pub fn type_kw(&self) -> Option<TypeKw> { token_children(&self.0).nth(0usize) }
+	pub fn type_kw(&self) -> Option<TypeKw> { children(&self.0).nth(0usize) }
 
-	pub fn name(&self) -> Option<Name> { node_children(&self.0).nth(0usize) }
+	pub fn name(&self) -> Option<Name> { children(&self.0).nth(0usize) }
 
-	pub fn eq(&self) -> Option<Eq> { token_children(&self.0).nth(0usize) }
+	pub fn eq(&self) -> Option<Eq> { children(&self.0).nth(0usize) }
 
-	pub fn type_(&self) -> Option<Type> { node_children(&self.0).nth(0usize) }
+	pub fn type_(&self) -> Option<Type> { children(&self.0).nth(0usize) }
 
-	pub fn semi(&self) -> Option<Semi> { token_children(&self.0).nth(0usize) }
+	pub fn semi(&self) -> Option<Semi> { children(&self.0).nth(0usize) }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -399,19 +446,14 @@ pub struct Static(SyntaxNode);
 impl std::fmt::Debug for Static {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
-impl AstNode for Static {
-	fn cast(node: SyntaxNode) -> Option<Self> {
-		if Self::can_cast(node.kind()) {
-			Some(Self(node))
-		} else {
-			None
-		}
-	}
-}
+impl AstNode for Static {}
 impl AstElement for Static {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Static }
 
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstNode::cast(elem.into_node()?) }
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let node = elem.into_node()?;
+		Self::can_cast(node.kind()).then(|| Self(node))
+	}
 
 	fn span(&self) -> FileSpan {
 		let range = self.0.text_range();
@@ -421,21 +463,23 @@ impl AstElement for Static {
 			relative: (),
 		}
 	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
 }
 impl Static {
-	pub fn static_kw(&self) -> Option<StaticKw> { token_children(&self.0).nth(0usize) }
+	pub fn static_kw(&self) -> Option<StaticKw> { children(&self.0).nth(0usize) }
 
-	pub fn name(&self) -> Option<Name> { node_children(&self.0).nth(0usize) }
+	pub fn name(&self) -> Option<Name> { children(&self.0).nth(0usize) }
 
-	pub fn colon(&self) -> Option<Colon> { token_children(&self.0).nth(0usize) }
+	pub fn colon(&self) -> Option<Colon> { children(&self.0).nth(0usize) }
 
-	pub fn type_(&self) -> Option<Type> { node_children(&self.0).nth(0usize) }
+	pub fn type_(&self) -> Option<Type> { children(&self.0).nth(0usize) }
 
-	pub fn eq(&self) -> Option<Eq> { token_children(&self.0).nth(0usize) }
+	pub fn eq(&self) -> Option<Eq> { children(&self.0).nth(0usize) }
 
-	pub fn init(&self) -> Option<Expr> { node_children(&self.0).nth(0usize) }
+	pub fn init(&self) -> Option<Expr> { children(&self.0).nth(0usize) }
 
-	pub fn semi(&self) -> Option<Semi> { token_children(&self.0).nth(0usize) }
+	pub fn semi(&self) -> Option<Semi> { children(&self.0).nth(0usize) }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -443,19 +487,14 @@ pub struct Import(SyntaxNode);
 impl std::fmt::Debug for Import {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
-impl AstNode for Import {
-	fn cast(node: SyntaxNode) -> Option<Self> {
-		if Self::can_cast(node.kind()) {
-			Some(Self(node))
-		} else {
-			None
-		}
-	}
-}
+impl AstNode for Import {}
 impl AstElement for Import {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Import }
 
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstNode::cast(elem.into_node()?) }
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let node = elem.into_node()?;
+		Self::can_cast(node.kind()).then(|| Self(node))
+	}
 
 	fn span(&self) -> FileSpan {
 		let range = self.0.text_range();
@@ -465,13 +504,15 @@ impl AstElement for Import {
 			relative: (),
 		}
 	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
 }
 impl Import {
-	pub fn import_kw(&self) -> Option<ImportKw> { token_children(&self.0).nth(0usize) }
+	pub fn import_kw(&self) -> Option<ImportKw> { children(&self.0).nth(0usize) }
 
-	pub fn import_tree(&self) -> Option<ImportTree> { node_children(&self.0).nth(0usize) }
+	pub fn import_tree(&self) -> Option<ImportTree> { children(&self.0).nth(0usize) }
 
-	pub fn semi(&self) -> Option<Semi> { token_children(&self.0).nth(0usize) }
+	pub fn semi(&self) -> Option<Semi> { children(&self.0).nth(0usize) }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -479,19 +520,14 @@ pub struct Abi(SyntaxNode);
 impl std::fmt::Debug for Abi {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
-impl AstNode for Abi {
-	fn cast(node: SyntaxNode) -> Option<Self> {
-		if Self::can_cast(node.kind()) {
-			Some(Self(node))
-		} else {
-			None
-		}
-	}
-}
+impl AstNode for Abi {}
 impl AstElement for Abi {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Abi }
 
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstNode::cast(elem.into_node()?) }
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let node = elem.into_node()?;
+		Self::can_cast(node.kind()).then(|| Self(node))
+	}
 
 	fn span(&self) -> FileSpan {
 		let range = self.0.text_range();
@@ -501,11 +537,13 @@ impl AstElement for Abi {
 			relative: (),
 		}
 	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
 }
 impl Abi {
-	pub fn extern_kw(&self) -> Option<ExternKw> { token_children(&self.0).nth(0usize) }
+	pub fn extern_kw(&self) -> Option<ExternKw> { children(&self.0).nth(0usize) }
 
-	pub fn string_lit(&self) -> Option<StringLit> { token_children(&self.0).nth(0usize) }
+	pub fn string_lit(&self) -> Option<StringLit> { children(&self.0).nth(0usize) }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -513,19 +551,14 @@ pub struct ParamList(SyntaxNode);
 impl std::fmt::Debug for ParamList {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
-impl AstNode for ParamList {
-	fn cast(node: SyntaxNode) -> Option<Self> {
-		if Self::can_cast(node.kind()) {
-			Some(Self(node))
-		} else {
-			None
-		}
-	}
-}
+impl AstNode for ParamList {}
 impl AstElement for ParamList {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::ParamList }
 
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstNode::cast(elem.into_node()?) }
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let node = elem.into_node()?;
+		Self::can_cast(node.kind()).then(|| Self(node))
+	}
 
 	fn span(&self) -> FileSpan {
 		let range = self.0.text_range();
@@ -535,13 +568,15 @@ impl AstElement for ParamList {
 			relative: (),
 		}
 	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
 }
 impl ParamList {
-	pub fn l_paren(&self) -> Option<LParen> { token_children(&self.0).nth(0usize) }
+	pub fn l_paren(&self) -> Option<LParen> { children(&self.0).nth(0usize) }
 
-	pub fn params(&self) -> impl Iterator<Item = Param> + '_ { node_children(&self.0) }
+	pub fn params(&self) -> impl Iterator<Item = Param> + '_ { children(&self.0) }
 
-	pub fn r_paren(&self) -> Option<RParen> { token_children(&self.0).nth(0usize) }
+	pub fn r_paren(&self) -> Option<RParen> { children(&self.0).nth(0usize) }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -549,19 +584,14 @@ pub struct RetTy(SyntaxNode);
 impl std::fmt::Debug for RetTy {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
-impl AstNode for RetTy {
-	fn cast(node: SyntaxNode) -> Option<Self> {
-		if Self::can_cast(node.kind()) {
-			Some(Self(node))
-		} else {
-			None
-		}
-	}
-}
+impl AstNode for RetTy {}
 impl AstElement for RetTy {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::RetTy }
 
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstNode::cast(elem.into_node()?) }
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let node = elem.into_node()?;
+		Self::can_cast(node.kind()).then(|| Self(node))
+	}
 
 	fn span(&self) -> FileSpan {
 		let range = self.0.text_range();
@@ -571,11 +601,13 @@ impl AstElement for RetTy {
 			relative: (),
 		}
 	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
 }
 impl RetTy {
-	pub fn arrow(&self) -> Option<Arrow> { token_children(&self.0).nth(0usize) }
+	pub fn arrow(&self) -> Option<Arrow> { children(&self.0).nth(0usize) }
 
-	pub fn type_(&self) -> Option<Type> { node_children(&self.0).nth(0usize) }
+	pub fn type_(&self) -> Option<Type> { children(&self.0).nth(0usize) }
 }
 
 pub enum FnBody {
@@ -590,29 +622,29 @@ impl std::fmt::Debug for FnBody {
 		}
 	}
 }
-impl AstNode for FnBody {
-	fn cast(node: SyntaxNode) -> Option<Self> {
-		node.children_with_tokens().find_map(|x| match x {
-			SyntaxElementRef::Node(node) => match node.kind() {
-				SyntaxKind::Block => AstNode::cast(node.clone()).map(Self::Block),
-				_ => None,
-			},
-			SyntaxElementRef::Token(tok) => match tok.kind() {
-				SyntaxKind::Semi => AstToken::cast(tok.clone()).map(Self::Semi),
-				_ => None,
-			},
-		})
-	}
-}
+impl AstNode for FnBody {}
 impl AstElement for FnBody {
 	fn can_cast(kind: SyntaxKind) -> bool { matches!(kind, |SyntaxKind::Semi| SyntaxKind::Block) }
 
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstNode::cast(elem.into_node()?) }
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		match elem.kind() {
+			SyntaxKind::Block => AstElement::cast(elem.clone()).map(Self::Block),
+			SyntaxKind::Semi => AstElement::cast(elem.clone()).map(Self::Semi),
+			_ => None,
+		}
+	}
 
 	fn span(&self) -> FileSpan {
 		match self {
 			Self::Semi(x) => x.span(),
 			Self::Block(x) => x.span(),
+		}
+	}
+
+	fn inner(self) -> SyntaxElement {
+		match self {
+			Self::Semi(x) => x.inner(),
+			Self::Block(x) => x.inner(),
 		}
 	}
 }
@@ -622,19 +654,14 @@ pub struct Block(SyntaxNode);
 impl std::fmt::Debug for Block {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
-impl AstNode for Block {
-	fn cast(node: SyntaxNode) -> Option<Self> {
-		if Self::can_cast(node.kind()) {
-			Some(Self(node))
-		} else {
-			None
-		}
-	}
-}
+impl AstNode for Block {}
 impl AstElement for Block {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Block }
 
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstNode::cast(elem.into_node()?) }
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let node = elem.into_node()?;
+		Self::can_cast(node.kind()).then(|| Self(node))
+	}
 
 	fn span(&self) -> FileSpan {
 		let range = self.0.text_range();
@@ -644,13 +671,15 @@ impl AstElement for Block {
 			relative: (),
 		}
 	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
 }
 impl Block {
-	pub fn l_brace(&self) -> Option<LBrace> { token_children(&self.0).nth(0usize) }
+	pub fn l_brace(&self) -> Option<LBrace> { children(&self.0).nth(0usize) }
 
-	pub fn statements(&self) -> impl Iterator<Item = Stmt> + '_ { node_children(&self.0) }
+	pub fn statements(&self) -> impl Iterator<Item = Stmt> + '_ { children(&self.0) }
 
-	pub fn r_brace(&self) -> Option<RBrace> { token_children(&self.0).nth(0usize) }
+	pub fn r_brace(&self) -> Option<RBrace> { children(&self.0).nth(0usize) }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -658,19 +687,14 @@ pub struct Param(SyntaxNode);
 impl std::fmt::Debug for Param {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
-impl AstNode for Param {
-	fn cast(node: SyntaxNode) -> Option<Self> {
-		if Self::can_cast(node.kind()) {
-			Some(Self(node))
-		} else {
-			None
-		}
-	}
-}
+impl AstNode for Param {}
 impl AstElement for Param {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Param }
 
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstNode::cast(elem.into_node()?) }
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let node = elem.into_node()?;
+		Self::can_cast(node.kind()).then(|| Self(node))
+	}
 
 	fn span(&self) -> FileSpan {
 		let range = self.0.text_range();
@@ -680,13 +704,15 @@ impl AstElement for Param {
 			relative: (),
 		}
 	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
 }
 impl Param {
-	pub fn name(&self) -> Option<Name> { node_children(&self.0).nth(0usize) }
+	pub fn name(&self) -> Option<Name> { children(&self.0).nth(0usize) }
 
-	pub fn colon(&self) -> Option<Colon> { token_children(&self.0).nth(0usize) }
+	pub fn colon(&self) -> Option<Colon> { children(&self.0).nth(0usize) }
 
-	pub fn type_(&self) -> Option<Type> { node_children(&self.0).nth(0usize) }
+	pub fn type_(&self) -> Option<Type> { children(&self.0).nth(0usize) }
 }
 
 pub enum Type {
@@ -707,23 +733,7 @@ impl std::fmt::Debug for Type {
 		}
 	}
 }
-impl AstNode for Type {
-	fn cast(node: SyntaxNode) -> Option<Self> {
-		node.children_with_tokens().find_map(|x| match x {
-			SyntaxElementRef::Node(node) => match node.kind() {
-				SyntaxKind::ArrayType => AstNode::cast(node.clone()).map(Self::ArrayType),
-				SyntaxKind::FnType => AstNode::cast(node.clone()).map(Self::FnType),
-				SyntaxKind::InferType => AstNode::cast(node.clone()).map(Self::InferType),
-				SyntaxKind::PathType => AstNode::cast(node.clone()).map(Self::PathType),
-				SyntaxKind::PtrType => AstNode::cast(node.clone()).map(Self::PtrType),
-				_ => None,
-			},
-			SyntaxElementRef::Token(tok) => match tok.kind() {
-				_ => None,
-			},
-		})
-	}
-}
+impl AstNode for Type {}
 impl AstElement for Type {
 	fn can_cast(kind: SyntaxKind) -> bool {
 		matches!(kind, |SyntaxKind::ArrayType| SyntaxKind::FnType
@@ -732,7 +742,16 @@ impl AstElement for Type {
 			| SyntaxKind::PtrType)
 	}
 
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstNode::cast(elem.into_node()?) }
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		match elem.kind() {
+			SyntaxKind::ArrayType => AstElement::cast(elem.clone()).map(Self::ArrayType),
+			SyntaxKind::FnType => AstElement::cast(elem.clone()).map(Self::FnType),
+			SyntaxKind::InferType => AstElement::cast(elem.clone()).map(Self::InferType),
+			SyntaxKind::PathType => AstElement::cast(elem.clone()).map(Self::PathType),
+			SyntaxKind::PtrType => AstElement::cast(elem.clone()).map(Self::PtrType),
+			_ => None,
+		}
+	}
 
 	fn span(&self) -> FileSpan {
 		match self {
@@ -743,6 +762,16 @@ impl AstElement for Type {
 			Self::PtrType(x) => x.span(),
 		}
 	}
+
+	fn inner(self) -> SyntaxElement {
+		match self {
+			Self::ArrayType(x) => x.inner(),
+			Self::FnType(x) => x.inner(),
+			Self::InferType(x) => x.inner(),
+			Self::PathType(x) => x.inner(),
+			Self::PtrType(x) => x.inner(),
+		}
+	}
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -750,19 +779,14 @@ pub struct VariantList(SyntaxNode);
 impl std::fmt::Debug for VariantList {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
-impl AstNode for VariantList {
-	fn cast(node: SyntaxNode) -> Option<Self> {
-		if Self::can_cast(node.kind()) {
-			Some(Self(node))
-		} else {
-			None
-		}
-	}
-}
+impl AstNode for VariantList {}
 impl AstElement for VariantList {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::VariantList }
 
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstNode::cast(elem.into_node()?) }
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let node = elem.into_node()?;
+		Self::can_cast(node.kind()).then(|| Self(node))
+	}
 
 	fn span(&self) -> FileSpan {
 		let range = self.0.text_range();
@@ -772,13 +796,15 @@ impl AstElement for VariantList {
 			relative: (),
 		}
 	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
 }
 impl VariantList {
-	pub fn l_brace(&self) -> Option<LBrace> { token_children(&self.0).nth(0usize) }
+	pub fn l_brace(&self) -> Option<LBrace> { children(&self.0).nth(0usize) }
 
-	pub fn variants(&self) -> impl Iterator<Item = Name> + '_ { node_children(&self.0) }
+	pub fn variants(&self) -> impl Iterator<Item = Name> + '_ { children(&self.0) }
 
-	pub fn r_brace(&self) -> Option<RBrace> { token_children(&self.0).nth(0usize) }
+	pub fn r_brace(&self) -> Option<RBrace> { children(&self.0).nth(0usize) }
 }
 
 pub enum Expr {
@@ -831,38 +857,7 @@ impl std::fmt::Debug for Expr {
 		}
 	}
 }
-impl AstNode for Expr {
-	fn cast(node: SyntaxNode) -> Option<Self> {
-		node.children_with_tokens().find_map(|x| match x {
-			SyntaxElementRef::Node(node) => match node.kind() {
-				SyntaxKind::ArrayExpr => AstNode::cast(node.clone()).map(Self::ArrayExpr),
-				SyntaxKind::InfixExpr => AstNode::cast(node.clone()).map(Self::InfixExpr),
-				SyntaxKind::Block => AstNode::cast(node.clone()).map(Self::Block),
-				SyntaxKind::BreakExpr => AstNode::cast(node.clone()).map(Self::BreakExpr),
-				SyntaxKind::CallExpr => AstNode::cast(node.clone()).map(Self::CallExpr),
-				SyntaxKind::CastExpr => AstNode::cast(node.clone()).map(Self::CastExpr),
-				SyntaxKind::FieldExpr => AstNode::cast(node.clone()).map(Self::FieldExpr),
-				SyntaxKind::ForExpr => AstNode::cast(node.clone()).map(Self::ForExpr),
-				SyntaxKind::IfExpr => AstNode::cast(node.clone()).map(Self::IfExpr),
-				SyntaxKind::IndexExpr => AstNode::cast(node.clone()).map(Self::IndexExpr),
-				SyntaxKind::LoopExpr => AstNode::cast(node.clone()).map(Self::LoopExpr),
-				SyntaxKind::MatchExpr => AstNode::cast(node.clone()).map(Self::MatchExpr),
-				SyntaxKind::ParenExpr => AstNode::cast(node.clone()).map(Self::ParenExpr),
-				SyntaxKind::PathExpr => AstNode::cast(node.clone()).map(Self::PathExpr),
-				SyntaxKind::PrefixExpr => AstNode::cast(node.clone()).map(Self::PrefixExpr),
-				SyntaxKind::RefExpr => AstNode::cast(node.clone()).map(Self::RefExpr),
-				SyntaxKind::ReturnExpr => AstNode::cast(node.clone()).map(Self::ReturnExpr),
-				SyntaxKind::WhileExpr => AstNode::cast(node.clone()).map(Self::WhileExpr),
-				SyntaxKind::LetExpr => AstNode::cast(node.clone()).map(Self::LetExpr),
-				_ => None.or_else(|| AstNode::cast(node.clone()).map(Self::Literal)),
-			},
-			SyntaxElementRef::Token(tok) => match tok.kind() {
-				SyntaxKind::ContinueKw => AstToken::cast(tok.clone()).map(Self::ContinueKw),
-				_ => None,
-			},
-		})
-	}
-}
+impl AstNode for Expr {}
 impl AstElement for Expr {
 	fn can_cast(kind: SyntaxKind) -> bool {
 		matches!(kind, |SyntaxKind::ContinueKw| SyntaxKind::ArrayExpr
@@ -887,7 +882,32 @@ impl AstElement for Expr {
 			|| Literal::can_cast(kind)
 	}
 
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstNode::cast(elem.into_node()?) }
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		match elem.kind() {
+			SyntaxKind::ArrayExpr => AstElement::cast(elem.clone()).map(Self::ArrayExpr),
+			SyntaxKind::InfixExpr => AstElement::cast(elem.clone()).map(Self::InfixExpr),
+			SyntaxKind::Block => AstElement::cast(elem.clone()).map(Self::Block),
+			SyntaxKind::BreakExpr => AstElement::cast(elem.clone()).map(Self::BreakExpr),
+			SyntaxKind::CallExpr => AstElement::cast(elem.clone()).map(Self::CallExpr),
+			SyntaxKind::CastExpr => AstElement::cast(elem.clone()).map(Self::CastExpr),
+			SyntaxKind::FieldExpr => AstElement::cast(elem.clone()).map(Self::FieldExpr),
+			SyntaxKind::ForExpr => AstElement::cast(elem.clone()).map(Self::ForExpr),
+			SyntaxKind::IfExpr => AstElement::cast(elem.clone()).map(Self::IfExpr),
+			SyntaxKind::IndexExpr => AstElement::cast(elem.clone()).map(Self::IndexExpr),
+			SyntaxKind::LoopExpr => AstElement::cast(elem.clone()).map(Self::LoopExpr),
+			SyntaxKind::MatchExpr => AstElement::cast(elem.clone()).map(Self::MatchExpr),
+			SyntaxKind::ParenExpr => AstElement::cast(elem.clone()).map(Self::ParenExpr),
+			SyntaxKind::PathExpr => AstElement::cast(elem.clone()).map(Self::PathExpr),
+			SyntaxKind::PrefixExpr => AstElement::cast(elem.clone()).map(Self::PrefixExpr),
+			SyntaxKind::RefExpr => AstElement::cast(elem.clone()).map(Self::RefExpr),
+			SyntaxKind::ReturnExpr => AstElement::cast(elem.clone()).map(Self::ReturnExpr),
+			SyntaxKind::WhileExpr => AstElement::cast(elem.clone()).map(Self::WhileExpr),
+			SyntaxKind::LetExpr => AstElement::cast(elem.clone()).map(Self::LetExpr),
+			SyntaxKind::ContinueKw => AstElement::cast(elem.clone()).map(Self::ContinueKw),
+			_ => None,
+		}
+		.or_else(|| AstElement::cast(elem.clone()).map(Self::Literal))
+	}
 
 	fn span(&self) -> FileSpan {
 		match self {
@@ -914,6 +934,63 @@ impl AstElement for Expr {
 			Self::LetExpr(x) => x.span(),
 		}
 	}
+
+	fn inner(self) -> SyntaxElement {
+		match self {
+			Self::ContinueKw(x) => x.inner(),
+			Self::ArrayExpr(x) => x.inner(),
+			Self::InfixExpr(x) => x.inner(),
+			Self::Block(x) => x.inner(),
+			Self::BreakExpr(x) => x.inner(),
+			Self::CallExpr(x) => x.inner(),
+			Self::CastExpr(x) => x.inner(),
+			Self::FieldExpr(x) => x.inner(),
+			Self::ForExpr(x) => x.inner(),
+			Self::IfExpr(x) => x.inner(),
+			Self::IndexExpr(x) => x.inner(),
+			Self::Literal(x) => x.inner(),
+			Self::LoopExpr(x) => x.inner(),
+			Self::MatchExpr(x) => x.inner(),
+			Self::ParenExpr(x) => x.inner(),
+			Self::PathExpr(x) => x.inner(),
+			Self::PrefixExpr(x) => x.inner(),
+			Self::RefExpr(x) => x.inner(),
+			Self::ReturnExpr(x) => x.inner(),
+			Self::WhileExpr(x) => x.inner(),
+			Self::LetExpr(x) => x.inner(),
+		}
+	}
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct Rename(SyntaxNode);
+impl std::fmt::Debug for Rename {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstNode for Rename {}
+impl AstElement for Rename {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Rename }
+
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let node = elem.into_node()?;
+		Self::can_cast(node.kind()).then(|| Self(node))
+	}
+
+	fn span(&self) -> FileSpan {
+		let range = self.0.text_range();
+		FileSpan {
+			start: range.start().into(),
+			end: range.end().into(),
+			relative: (),
+		}
+	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
+}
+impl Rename {
+	pub fn as_kw(&self) -> Option<AsKw> { children(&self.0).nth(0usize) }
+
+	pub fn name(&self) -> Option<Name> { children(&self.0).nth(0usize) }
 }
 
 pub enum ImportTree {
@@ -928,29 +1005,29 @@ impl std::fmt::Debug for ImportTree {
 		}
 	}
 }
-impl AstNode for ImportTree {
-	fn cast(node: SyntaxNode) -> Option<Self> {
-		node.children_with_tokens().find_map(|x| match x {
-			SyntaxElementRef::Node(node) => match node.kind() {
-				SyntaxKind::ListImport => AstNode::cast(node.clone()).map(Self::ListImport),
-				SyntaxKind::RenameImport => AstNode::cast(node.clone()).map(Self::RenameImport),
-				_ => None,
-			},
-			SyntaxElementRef::Token(tok) => match tok.kind() {
-				_ => None,
-			},
-		})
-	}
-}
+impl AstNode for ImportTree {}
 impl AstElement for ImportTree {
 	fn can_cast(kind: SyntaxKind) -> bool { matches!(kind, |SyntaxKind::ListImport| SyntaxKind::RenameImport) }
 
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstNode::cast(elem.into_node()?) }
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		match elem.kind() {
+			SyntaxKind::ListImport => AstElement::cast(elem.clone()).map(Self::ListImport),
+			SyntaxKind::RenameImport => AstElement::cast(elem.clone()).map(Self::RenameImport),
+			_ => None,
+		}
+	}
 
 	fn span(&self) -> FileSpan {
 		match self {
 			Self::ListImport(x) => x.span(),
 			Self::RenameImport(x) => x.span(),
+		}
+	}
+
+	fn inner(self) -> SyntaxElement {
+		match self {
+			Self::ListImport(x) => x.inner(),
+			Self::RenameImport(x) => x.inner(),
 		}
 	}
 }
@@ -960,19 +1037,14 @@ pub struct ListImport(SyntaxNode);
 impl std::fmt::Debug for ListImport {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
-impl AstNode for ListImport {
-	fn cast(node: SyntaxNode) -> Option<Self> {
-		if Self::can_cast(node.kind()) {
-			Some(Self(node))
-		} else {
-			None
-		}
-	}
-}
+impl AstNode for ListImport {}
 impl AstElement for ListImport {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::ListImport }
 
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstNode::cast(elem.into_node()?) }
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let node = elem.into_node()?;
+		Self::can_cast(node.kind()).then(|| Self(node))
+	}
 
 	fn span(&self) -> FileSpan {
 		let range = self.0.text_range();
@@ -982,13 +1054,13 @@ impl AstElement for ListImport {
 			relative: (),
 		}
 	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
 }
 impl ListImport {
-	pub fn prefix(&self) -> Option<Path> { node_children(&self.0).nth(0usize) }
+	pub fn path(&self) -> Option<Path> { children(&self.0).nth(0usize) }
 
-	pub fn dot(&self) -> Option<Dot> { token_children(&self.0).nth(0usize) }
-
-	pub fn wildcard(&self) -> Option<Wildcard> { node_children(&self.0).nth(0usize) }
+	pub fn import_tree_list(&self) -> Option<ImportTreeList> { children(&self.0).nth(0usize) }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -996,19 +1068,14 @@ pub struct RenameImport(SyntaxNode);
 impl std::fmt::Debug for RenameImport {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
-impl AstNode for RenameImport {
-	fn cast(node: SyntaxNode) -> Option<Self> {
-		if Self::can_cast(node.kind()) {
-			Some(Self(node))
-		} else {
-			None
-		}
-	}
-}
+impl AstNode for RenameImport {}
 impl AstElement for RenameImport {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::RenameImport }
 
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstNode::cast(elem.into_node()?) }
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let node = elem.into_node()?;
+		Self::can_cast(node.kind()).then(|| Self(node))
+	}
 
 	fn span(&self) -> FileSpan {
 		let range = self.0.text_range();
@@ -1018,120 +1085,13 @@ impl AstElement for RenameImport {
 			relative: (),
 		}
 	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
 }
 impl RenameImport {
-	pub fn path(&self) -> Option<Path> { node_children(&self.0).nth(0usize) }
+	pub fn path(&self) -> Option<Path> { children(&self.0).nth(0usize) }
 
-	pub fn rename(&self) -> Option<Rename> { node_children(&self.0).nth(0usize) }
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct Path(SyntaxNode);
-impl std::fmt::Debug for Path {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstNode for Path {
-	fn cast(node: SyntaxNode) -> Option<Self> {
-		if Self::can_cast(node.kind()) {
-			Some(Self(node))
-		} else {
-			None
-		}
-	}
-}
-impl AstElement for Path {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Path }
-
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstNode::cast(elem.into_node()?) }
-
-	fn span(&self) -> FileSpan {
-		let range = self.0.text_range();
-		FileSpan {
-			start: range.start().into(),
-			end: range.end().into(),
-			relative: (),
-		}
-	}
-}
-impl Path {
-	pub fn scope(&self) -> Option<Dot> { token_children(&self.0).nth(0usize) }
-
-	pub fn qualifier(&self) -> impl Iterator<Item = PathSegment> + '_ { node_children(&self.0) }
-
-	pub fn end(&self) -> Option<Name> { node_children(&self.0).nth(0usize) }
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct Rename(SyntaxNode);
-impl std::fmt::Debug for Rename {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstNode for Rename {
-	fn cast(node: SyntaxNode) -> Option<Self> {
-		if Self::can_cast(node.kind()) {
-			Some(Self(node))
-		} else {
-			None
-		}
-	}
-}
-impl AstElement for Rename {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Rename }
-
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstNode::cast(elem.into_node()?) }
-
-	fn span(&self) -> FileSpan {
-		let range = self.0.text_range();
-		FileSpan {
-			start: range.start().into(),
-			end: range.end().into(),
-			relative: (),
-		}
-	}
-}
-impl Rename {
-	pub fn as_kw(&self) -> Option<AsKw> { token_children(&self.0).nth(0usize) }
-
-	pub fn name(&self) -> Option<Name> { node_children(&self.0).nth(0usize) }
-}
-
-pub enum Wildcard {
-	Star(Star),
-	ImportTreeList(ImportTreeList),
-}
-impl std::fmt::Debug for Wildcard {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		match self {
-			Self::Star(x) => std::fmt::Debug::fmt(x, f),
-			Self::ImportTreeList(x) => std::fmt::Debug::fmt(x, f),
-		}
-	}
-}
-impl AstNode for Wildcard {
-	fn cast(node: SyntaxNode) -> Option<Self> {
-		node.children_with_tokens().find_map(|x| match x {
-			SyntaxElementRef::Node(node) => match node.kind() {
-				SyntaxKind::ImportTreeList => AstNode::cast(node.clone()).map(Self::ImportTreeList),
-				_ => None,
-			},
-			SyntaxElementRef::Token(tok) => match tok.kind() {
-				SyntaxKind::Star => AstToken::cast(tok.clone()).map(Self::Star),
-				_ => None,
-			},
-		})
-	}
-}
-impl AstElement for Wildcard {
-	fn can_cast(kind: SyntaxKind) -> bool { matches!(kind, |SyntaxKind::Star| SyntaxKind::ImportTreeList) }
-
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstNode::cast(elem.into_node()?) }
-
-	fn span(&self) -> FileSpan {
-		match self {
-			Self::Star(x) => x.span(),
-			Self::ImportTreeList(x) => x.span(),
-		}
-	}
+	pub fn rename(&self) -> Option<Rename> { children(&self.0).nth(0usize) }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -1139,19 +1099,14 @@ pub struct ImportTreeList(SyntaxNode);
 impl std::fmt::Debug for ImportTreeList {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
-impl AstNode for ImportTreeList {
-	fn cast(node: SyntaxNode) -> Option<Self> {
-		if Self::can_cast(node.kind()) {
-			Some(Self(node))
-		} else {
-			None
-		}
-	}
-}
+impl AstNode for ImportTreeList {}
 impl AstElement for ImportTreeList {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::ImportTreeList }
 
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstNode::cast(elem.into_node()?) }
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let node = elem.into_node()?;
+		Self::can_cast(node.kind()).then(|| Self(node))
+	}
 
 	fn span(&self) -> FileSpan {
 		let range = self.0.text_range();
@@ -1161,13 +1116,15 @@ impl AstElement for ImportTreeList {
 			relative: (),
 		}
 	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
 }
 impl ImportTreeList {
-	pub fn l_brace(&self) -> Option<LBrace> { token_children(&self.0).nth(0usize) }
+	pub fn l_brace(&self) -> Option<LBrace> { children(&self.0).nth(0usize) }
 
-	pub fn import_trees(&self) -> impl Iterator<Item = ImportTree> + '_ { node_children(&self.0) }
+	pub fn import_trees(&self) -> impl Iterator<Item = ImportTree> + '_ { children(&self.0) }
 
-	pub fn r_brace(&self) -> Option<RBrace> { token_children(&self.0).nth(0usize) }
+	pub fn r_brace(&self) -> Option<RBrace> { children(&self.0).nth(0usize) }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -1175,19 +1132,14 @@ pub struct ArrayType(SyntaxNode);
 impl std::fmt::Debug for ArrayType {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
-impl AstNode for ArrayType {
-	fn cast(node: SyntaxNode) -> Option<Self> {
-		if Self::can_cast(node.kind()) {
-			Some(Self(node))
-		} else {
-			None
-		}
-	}
-}
+impl AstNode for ArrayType {}
 impl AstElement for ArrayType {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::ArrayType }
 
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstNode::cast(elem.into_node()?) }
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let node = elem.into_node()?;
+		Self::can_cast(node.kind()).then(|| Self(node))
+	}
 
 	fn span(&self) -> FileSpan {
 		let range = self.0.text_range();
@@ -1197,17 +1149,19 @@ impl AstElement for ArrayType {
 			relative: (),
 		}
 	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
 }
 impl ArrayType {
-	pub fn l_bracket(&self) -> Option<LBracket> { token_children(&self.0).nth(0usize) }
+	pub fn l_bracket(&self) -> Option<LBracket> { children(&self.0).nth(0usize) }
 
-	pub fn type_(&self) -> Option<Type> { node_children(&self.0).nth(0usize) }
+	pub fn type_(&self) -> Option<Type> { children(&self.0).nth(0usize) }
 
-	pub fn semi(&self) -> Option<Semi> { token_children(&self.0).nth(0usize) }
+	pub fn semi(&self) -> Option<Semi> { children(&self.0).nth(0usize) }
 
-	pub fn len(&self) -> Option<Expr> { node_children(&self.0).nth(0usize) }
+	pub fn len(&self) -> Option<Expr> { children(&self.0).nth(0usize) }
 
-	pub fn r_bracket(&self) -> Option<RBracket> { token_children(&self.0).nth(0usize) }
+	pub fn r_bracket(&self) -> Option<RBracket> { children(&self.0).nth(0usize) }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -1215,19 +1169,14 @@ pub struct FnType(SyntaxNode);
 impl std::fmt::Debug for FnType {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
-impl AstNode for FnType {
-	fn cast(node: SyntaxNode) -> Option<Self> {
-		if Self::can_cast(node.kind()) {
-			Some(Self(node))
-		} else {
-			None
-		}
-	}
-}
+impl AstNode for FnType {}
 impl AstElement for FnType {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::FnType }
 
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstNode::cast(elem.into_node()?) }
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let node = elem.into_node()?;
+		Self::can_cast(node.kind()).then(|| Self(node))
+	}
 
 	fn span(&self) -> FileSpan {
 		let range = self.0.text_range();
@@ -1237,15 +1186,17 @@ impl AstElement for FnType {
 			relative: (),
 		}
 	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
 }
 impl FnType {
-	pub fn abi(&self) -> Option<Abi> { node_children(&self.0).nth(0usize) }
+	pub fn abi(&self) -> Option<Abi> { children(&self.0).nth(0usize) }
 
-	pub fn fn_kw(&self) -> Option<FnKw> { token_children(&self.0).nth(0usize) }
+	pub fn fn_kw(&self) -> Option<FnKw> { children(&self.0).nth(0usize) }
 
-	pub fn params(&self) -> Option<TyParamList> { node_children(&self.0).nth(0usize) }
+	pub fn params(&self) -> Option<TyParamList> { children(&self.0).nth(0usize) }
 
-	pub fn ret_ty(&self) -> Option<RetTy> { node_children(&self.0).nth(0usize) }
+	pub fn ret_ty(&self) -> Option<RetTy> { children(&self.0).nth(0usize) }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -1253,19 +1204,14 @@ pub struct InferType(SyntaxNode);
 impl std::fmt::Debug for InferType {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
-impl AstNode for InferType {
-	fn cast(node: SyntaxNode) -> Option<Self> {
-		if Self::can_cast(node.kind()) {
-			Some(Self(node))
-		} else {
-			None
-		}
-	}
-}
+impl AstNode for InferType {}
 impl AstElement for InferType {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::InferType }
 
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstNode::cast(elem.into_node()?) }
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let node = elem.into_node()?;
+		Self::can_cast(node.kind()).then(|| Self(node))
+	}
 
 	fn span(&self) -> FileSpan {
 		let range = self.0.text_range();
@@ -1275,9 +1221,11 @@ impl AstElement for InferType {
 			relative: (),
 		}
 	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
 }
 impl InferType {
-	pub fn underscore(&self) -> Option<Underscore> { token_children(&self.0).nth(0usize) }
+	pub fn underscore(&self) -> Option<Underscore> { children(&self.0).nth(0usize) }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -1285,19 +1233,14 @@ pub struct PathType(SyntaxNode);
 impl std::fmt::Debug for PathType {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
-impl AstNode for PathType {
-	fn cast(node: SyntaxNode) -> Option<Self> {
-		if Self::can_cast(node.kind()) {
-			Some(Self(node))
-		} else {
-			None
-		}
-	}
-}
+impl AstNode for PathType {}
 impl AstElement for PathType {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::PathType }
 
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstNode::cast(elem.into_node()?) }
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let node = elem.into_node()?;
+		Self::can_cast(node.kind()).then(|| Self(node))
+	}
 
 	fn span(&self) -> FileSpan {
 		let range = self.0.text_range();
@@ -1307,9 +1250,11 @@ impl AstElement for PathType {
 			relative: (),
 		}
 	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
 }
 impl PathType {
-	pub fn path(&self) -> Option<Path> { node_children(&self.0).nth(0usize) }
+	pub fn path(&self) -> Option<Path> { children(&self.0).nth(0usize) }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -1317,19 +1262,14 @@ pub struct PtrType(SyntaxNode);
 impl std::fmt::Debug for PtrType {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
-impl AstNode for PtrType {
-	fn cast(node: SyntaxNode) -> Option<Self> {
-		if Self::can_cast(node.kind()) {
-			Some(Self(node))
-		} else {
-			None
-		}
-	}
-}
+impl AstNode for PtrType {}
 impl AstElement for PtrType {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::PtrType }
 
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstNode::cast(elem.into_node()?) }
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let node = elem.into_node()?;
+		Self::can_cast(node.kind()).then(|| Self(node))
+	}
 
 	fn span(&self) -> FileSpan {
 		let range = self.0.text_range();
@@ -1339,13 +1279,15 @@ impl AstElement for PtrType {
 			relative: (),
 		}
 	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
 }
 impl PtrType {
-	pub fn star(&self) -> Option<Star> { token_children(&self.0).nth(0usize) }
+	pub fn star(&self) -> Option<Star> { children(&self.0).nth(0usize) }
 
-	pub fn mut_kw(&self) -> Option<MutKw> { token_children(&self.0).nth(0usize) }
+	pub fn mut_kw(&self) -> Option<MutKw> { children(&self.0).nth(0usize) }
 
-	pub fn type_(&self) -> Option<Type> { node_children(&self.0).nth(0usize) }
+	pub fn type_(&self) -> Option<Type> { children(&self.0).nth(0usize) }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -1353,19 +1295,14 @@ pub struct TyParamList(SyntaxNode);
 impl std::fmt::Debug for TyParamList {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
-impl AstNode for TyParamList {
-	fn cast(node: SyntaxNode) -> Option<Self> {
-		if Self::can_cast(node.kind()) {
-			Some(Self(node))
-		} else {
-			None
-		}
-	}
-}
+impl AstNode for TyParamList {}
 impl AstElement for TyParamList {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::TyParamList }
 
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstNode::cast(elem.into_node()?) }
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let node = elem.into_node()?;
+		Self::can_cast(node.kind()).then(|| Self(node))
+	}
 
 	fn span(&self) -> FileSpan {
 		let range = self.0.text_range();
@@ -1375,13 +1312,15 @@ impl AstElement for TyParamList {
 			relative: (),
 		}
 	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
 }
 impl TyParamList {
-	pub fn l_paren(&self) -> Option<LParen> { token_children(&self.0).nth(0usize) }
+	pub fn l_paren(&self) -> Option<LParen> { children(&self.0).nth(0usize) }
 
-	pub fn types(&self) -> impl Iterator<Item = Type> + '_ { node_children(&self.0) }
+	pub fn types(&self) -> impl Iterator<Item = Type> + '_ { children(&self.0) }
 
-	pub fn r_paren(&self) -> Option<RParen> { token_children(&self.0).nth(0usize) }
+	pub fn r_paren(&self) -> Option<RParen> { children(&self.0).nth(0usize) }
 }
 
 pub enum Stmt {
@@ -1400,27 +1339,21 @@ impl std::fmt::Debug for Stmt {
 		}
 	}
 }
-impl AstNode for Stmt {
-	fn cast(node: SyntaxNode) -> Option<Self> {
-		node.children_with_tokens().find_map(|x| match x {
-			SyntaxElementRef::Node(node) => match node.kind() {
-				SyntaxKind::SemiExpr => AstNode::cast(node.clone()).map(Self::SemiExpr),
-				SyntaxKind::Item => AstNode::cast(node.clone()).map(Self::Item),
-				_ => None.or_else(|| AstNode::cast(node.clone()).map(Self::Expr)),
-			},
-			SyntaxElementRef::Token(tok) => match tok.kind() {
-				SyntaxKind::Semi => AstToken::cast(tok.clone()).map(Self::Semi),
-				_ => None,
-			},
-		})
-	}
-}
+impl AstNode for Stmt {}
 impl AstElement for Stmt {
 	fn can_cast(kind: SyntaxKind) -> bool {
 		matches!(kind, |SyntaxKind::Semi| SyntaxKind::SemiExpr | SyntaxKind::Item) || Expr::can_cast(kind)
 	}
 
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstNode::cast(elem.into_node()?) }
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		match elem.kind() {
+			SyntaxKind::SemiExpr => AstElement::cast(elem.clone()).map(Self::SemiExpr),
+			SyntaxKind::Item => AstElement::cast(elem.clone()).map(Self::Item),
+			SyntaxKind::Semi => AstElement::cast(elem.clone()).map(Self::Semi),
+			_ => None,
+		}
+		.or_else(|| AstElement::cast(elem.clone()).map(Self::Expr))
+	}
 
 	fn span(&self) -> FileSpan {
 		match self {
@@ -1430,6 +1363,15 @@ impl AstElement for Stmt {
 			Self::Item(x) => x.span(),
 		}
 	}
+
+	fn inner(self) -> SyntaxElement {
+		match self {
+			Self::Semi(x) => x.inner(),
+			Self::SemiExpr(x) => x.inner(),
+			Self::Expr(x) => x.inner(),
+			Self::Item(x) => x.inner(),
+		}
+	}
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -1437,19 +1379,14 @@ pub struct SemiExpr(SyntaxNode);
 impl std::fmt::Debug for SemiExpr {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
-impl AstNode for SemiExpr {
-	fn cast(node: SyntaxNode) -> Option<Self> {
-		if Self::can_cast(node.kind()) {
-			Some(Self(node))
-		} else {
-			None
-		}
-	}
-}
+impl AstNode for SemiExpr {}
 impl AstElement for SemiExpr {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::SemiExpr }
 
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstNode::cast(elem.into_node()?) }
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let node = elem.into_node()?;
+		Self::can_cast(node.kind()).then(|| Self(node))
+	}
 
 	fn span(&self) -> FileSpan {
 		let range = self.0.text_range();
@@ -1459,11 +1396,13 @@ impl AstElement for SemiExpr {
 			relative: (),
 		}
 	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
 }
 impl SemiExpr {
-	pub fn expr(&self) -> Option<Expr> { node_children(&self.0).nth(0usize) }
+	pub fn expr(&self) -> Option<Expr> { children(&self.0).nth(0usize) }
 
-	pub fn semi(&self) -> Option<Semi> { token_children(&self.0).nth(0usize) }
+	pub fn semi(&self) -> Option<Semi> { children(&self.0).nth(0usize) }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -1471,19 +1410,14 @@ pub struct ArrayExpr(SyntaxNode);
 impl std::fmt::Debug for ArrayExpr {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
-impl AstNode for ArrayExpr {
-	fn cast(node: SyntaxNode) -> Option<Self> {
-		if Self::can_cast(node.kind()) {
-			Some(Self(node))
-		} else {
-			None
-		}
-	}
-}
+impl AstNode for ArrayExpr {}
 impl AstElement for ArrayExpr {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::ArrayExpr }
 
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstNode::cast(elem.into_node()?) }
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let node = elem.into_node()?;
+		Self::can_cast(node.kind()).then(|| Self(node))
+	}
 
 	fn span(&self) -> FileSpan {
 		let range = self.0.text_range();
@@ -1493,13 +1427,15 @@ impl AstElement for ArrayExpr {
 			relative: (),
 		}
 	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
 }
 impl ArrayExpr {
-	pub fn l_bracket(&self) -> Option<LBracket> { token_children(&self.0).nth(0usize) }
+	pub fn l_bracket(&self) -> Option<LBracket> { children(&self.0).nth(0usize) }
 
-	pub fn array_init(&self) -> Option<ArrayInit> { node_children(&self.0).nth(0usize) }
+	pub fn array_init(&self) -> Option<ArrayInit> { children(&self.0).nth(0usize) }
 
-	pub fn r_bracket(&self) -> Option<RBracket> { token_children(&self.0).nth(0usize) }
+	pub fn r_bracket(&self) -> Option<RBracket> { children(&self.0).nth(0usize) }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -1507,19 +1443,14 @@ pub struct InfixExpr(SyntaxNode);
 impl std::fmt::Debug for InfixExpr {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
-impl AstNode for InfixExpr {
-	fn cast(node: SyntaxNode) -> Option<Self> {
-		if Self::can_cast(node.kind()) {
-			Some(Self(node))
-		} else {
-			None
-		}
-	}
-}
+impl AstNode for InfixExpr {}
 impl AstElement for InfixExpr {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::InfixExpr }
 
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstNode::cast(elem.into_node()?) }
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let node = elem.into_node()?;
+		Self::can_cast(node.kind()).then(|| Self(node))
+	}
 
 	fn span(&self) -> FileSpan {
 		let range = self.0.text_range();
@@ -1529,13 +1460,15 @@ impl AstElement for InfixExpr {
 			relative: (),
 		}
 	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
 }
 impl InfixExpr {
-	pub fn lhs(&self) -> Option<Expr> { node_children(&self.0).nth(0usize) }
+	pub fn lhs(&self) -> Option<Expr> { children(&self.0).nth(0usize) }
 
-	pub fn op(&self) -> Option<InfixOp> { node_children(&self.0).nth(0usize) }
+	pub fn op(&self) -> Option<InfixOp> { children(&self.0).nth(0usize) }
 
-	pub fn rhs(&self) -> Option<Expr> { node_children(&self.0).nth(1usize) }
+	pub fn rhs(&self) -> Option<Expr> { children(&self.0).nth(1usize) }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -1543,19 +1476,14 @@ pub struct BreakExpr(SyntaxNode);
 impl std::fmt::Debug for BreakExpr {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
-impl AstNode for BreakExpr {
-	fn cast(node: SyntaxNode) -> Option<Self> {
-		if Self::can_cast(node.kind()) {
-			Some(Self(node))
-		} else {
-			None
-		}
-	}
-}
+impl AstNode for BreakExpr {}
 impl AstElement for BreakExpr {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::BreakExpr }
 
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstNode::cast(elem.into_node()?) }
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let node = elem.into_node()?;
+		Self::can_cast(node.kind()).then(|| Self(node))
+	}
 
 	fn span(&self) -> FileSpan {
 		let range = self.0.text_range();
@@ -1565,11 +1493,13 @@ impl AstElement for BreakExpr {
 			relative: (),
 		}
 	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
 }
 impl BreakExpr {
-	pub fn break_kw(&self) -> Option<BreakKw> { token_children(&self.0).nth(0usize) }
+	pub fn break_kw(&self) -> Option<BreakKw> { children(&self.0).nth(0usize) }
 
-	pub fn expr(&self) -> Option<Expr> { node_children(&self.0).nth(0usize) }
+	pub fn expr(&self) -> Option<Expr> { children(&self.0).nth(0usize) }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -1577,19 +1507,14 @@ pub struct CallExpr(SyntaxNode);
 impl std::fmt::Debug for CallExpr {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
-impl AstNode for CallExpr {
-	fn cast(node: SyntaxNode) -> Option<Self> {
-		if Self::can_cast(node.kind()) {
-			Some(Self(node))
-		} else {
-			None
-		}
-	}
-}
+impl AstNode for CallExpr {}
 impl AstElement for CallExpr {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::CallExpr }
 
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstNode::cast(elem.into_node()?) }
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let node = elem.into_node()?;
+		Self::can_cast(node.kind()).then(|| Self(node))
+	}
 
 	fn span(&self) -> FileSpan {
 		let range = self.0.text_range();
@@ -1599,11 +1524,13 @@ impl AstElement for CallExpr {
 			relative: (),
 		}
 	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
 }
 impl CallExpr {
-	pub fn expr(&self) -> Option<Expr> { node_children(&self.0).nth(0usize) }
+	pub fn expr(&self) -> Option<Expr> { children(&self.0).nth(0usize) }
 
-	pub fn arg_list(&self) -> Option<ArgList> { node_children(&self.0).nth(0usize) }
+	pub fn arg_list(&self) -> Option<ArgList> { children(&self.0).nth(0usize) }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -1611,19 +1538,14 @@ pub struct CastExpr(SyntaxNode);
 impl std::fmt::Debug for CastExpr {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
-impl AstNode for CastExpr {
-	fn cast(node: SyntaxNode) -> Option<Self> {
-		if Self::can_cast(node.kind()) {
-			Some(Self(node))
-		} else {
-			None
-		}
-	}
-}
+impl AstNode for CastExpr {}
 impl AstElement for CastExpr {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::CastExpr }
 
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstNode::cast(elem.into_node()?) }
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let node = elem.into_node()?;
+		Self::can_cast(node.kind()).then(|| Self(node))
+	}
 
 	fn span(&self) -> FileSpan {
 		let range = self.0.text_range();
@@ -1633,13 +1555,15 @@ impl AstElement for CastExpr {
 			relative: (),
 		}
 	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
 }
 impl CastExpr {
-	pub fn expr(&self) -> Option<Expr> { node_children(&self.0).nth(0usize) }
+	pub fn expr(&self) -> Option<Expr> { children(&self.0).nth(0usize) }
 
-	pub fn as_kw(&self) -> Option<AsKw> { token_children(&self.0).nth(0usize) }
+	pub fn as_kw(&self) -> Option<AsKw> { children(&self.0).nth(0usize) }
 
-	pub fn type_(&self) -> Option<Type> { node_children(&self.0).nth(0usize) }
+	pub fn type_(&self) -> Option<Type> { children(&self.0).nth(0usize) }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -1647,19 +1571,14 @@ pub struct FieldExpr(SyntaxNode);
 impl std::fmt::Debug for FieldExpr {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
-impl AstNode for FieldExpr {
-	fn cast(node: SyntaxNode) -> Option<Self> {
-		if Self::can_cast(node.kind()) {
-			Some(Self(node))
-		} else {
-			None
-		}
-	}
-}
+impl AstNode for FieldExpr {}
 impl AstElement for FieldExpr {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::FieldExpr }
 
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstNode::cast(elem.into_node()?) }
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let node = elem.into_node()?;
+		Self::can_cast(node.kind()).then(|| Self(node))
+	}
 
 	fn span(&self) -> FileSpan {
 		let range = self.0.text_range();
@@ -1669,13 +1588,15 @@ impl AstElement for FieldExpr {
 			relative: (),
 		}
 	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
 }
 impl FieldExpr {
-	pub fn expr(&self) -> Option<Expr> { node_children(&self.0).nth(0usize) }
+	pub fn expr(&self) -> Option<Expr> { children(&self.0).nth(0usize) }
 
-	pub fn dot(&self) -> Option<Dot> { token_children(&self.0).nth(0usize) }
+	pub fn dot(&self) -> Option<Dot> { children(&self.0).nth(0usize) }
 
-	pub fn name(&self) -> Option<Name> { node_children(&self.0).nth(0usize) }
+	pub fn name(&self) -> Option<Name> { children(&self.0).nth(0usize) }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -1683,19 +1604,14 @@ pub struct ForExpr(SyntaxNode);
 impl std::fmt::Debug for ForExpr {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
-impl AstNode for ForExpr {
-	fn cast(node: SyntaxNode) -> Option<Self> {
-		if Self::can_cast(node.kind()) {
-			Some(Self(node))
-		} else {
-			None
-		}
-	}
-}
+impl AstNode for ForExpr {}
 impl AstElement for ForExpr {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::ForExpr }
 
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstNode::cast(elem.into_node()?) }
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let node = elem.into_node()?;
+		Self::can_cast(node.kind()).then(|| Self(node))
+	}
 
 	fn span(&self) -> FileSpan {
 		let range = self.0.text_range();
@@ -1705,17 +1621,19 @@ impl AstElement for ForExpr {
 			relative: (),
 		}
 	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
 }
 impl ForExpr {
-	pub fn for_kw(&self) -> Option<ForKw> { token_children(&self.0).nth(0usize) }
+	pub fn for_kw(&self) -> Option<ForKw> { children(&self.0).nth(0usize) }
 
-	pub fn name(&self) -> Option<Name> { node_children(&self.0).nth(0usize) }
+	pub fn name(&self) -> Option<Name> { children(&self.0).nth(0usize) }
 
-	pub fn in_kw(&self) -> Option<InKw> { token_children(&self.0).nth(0usize) }
+	pub fn in_kw(&self) -> Option<InKw> { children(&self.0).nth(0usize) }
 
-	pub fn iter(&self) -> Option<Expr> { node_children(&self.0).nth(0usize) }
+	pub fn iter(&self) -> Option<Expr> { children(&self.0).nth(0usize) }
 
-	pub fn body(&self) -> Option<Block> { node_children(&self.0).nth(0usize) }
+	pub fn body(&self) -> Option<Block> { children(&self.0).nth(0usize) }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -1723,19 +1641,14 @@ pub struct IfExpr(SyntaxNode);
 impl std::fmt::Debug for IfExpr {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
-impl AstNode for IfExpr {
-	fn cast(node: SyntaxNode) -> Option<Self> {
-		if Self::can_cast(node.kind()) {
-			Some(Self(node))
-		} else {
-			None
-		}
-	}
-}
+impl AstNode for IfExpr {}
 impl AstElement for IfExpr {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::IfExpr }
 
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstNode::cast(elem.into_node()?) }
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let node = elem.into_node()?;
+		Self::can_cast(node.kind()).then(|| Self(node))
+	}
 
 	fn span(&self) -> FileSpan {
 		let range = self.0.text_range();
@@ -1745,17 +1658,19 @@ impl AstElement for IfExpr {
 			relative: (),
 		}
 	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
 }
 impl IfExpr {
-	pub fn if_kw(&self) -> Option<IfKw> { token_children(&self.0).nth(0usize) }
+	pub fn if_kw(&self) -> Option<IfKw> { children(&self.0).nth(0usize) }
 
-	pub fn cond(&self) -> Option<Expr> { node_children(&self.0).nth(0usize) }
+	pub fn cond(&self) -> Option<Expr> { children(&self.0).nth(0usize) }
 
-	pub fn then(&self) -> Option<Block> { node_children(&self.0).nth(0usize) }
+	pub fn then(&self) -> Option<Block> { children(&self.0).nth(0usize) }
 
-	pub fn else_kw(&self) -> Option<ElseKw> { token_children(&self.0).nth(0usize) }
+	pub fn else_kw(&self) -> Option<ElseKw> { children(&self.0).nth(0usize) }
 
-	pub fn else_(&self) -> Option<Expr> { node_children(&self.0).nth(1usize) }
+	pub fn else_(&self) -> Option<Expr> { children(&self.0).nth(1usize) }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -1763,19 +1678,14 @@ pub struct IndexExpr(SyntaxNode);
 impl std::fmt::Debug for IndexExpr {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
-impl AstNode for IndexExpr {
-	fn cast(node: SyntaxNode) -> Option<Self> {
-		if Self::can_cast(node.kind()) {
-			Some(Self(node))
-		} else {
-			None
-		}
-	}
-}
+impl AstNode for IndexExpr {}
 impl AstElement for IndexExpr {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::IndexExpr }
 
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstNode::cast(elem.into_node()?) }
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let node = elem.into_node()?;
+		Self::can_cast(node.kind()).then(|| Self(node))
+	}
 
 	fn span(&self) -> FileSpan {
 		let range = self.0.text_range();
@@ -1785,15 +1695,17 @@ impl AstElement for IndexExpr {
 			relative: (),
 		}
 	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
 }
 impl IndexExpr {
-	pub fn base(&self) -> Option<Expr> { node_children(&self.0).nth(0usize) }
+	pub fn base(&self) -> Option<Expr> { children(&self.0).nth(0usize) }
 
-	pub fn l_bracket(&self) -> Option<LBracket> { token_children(&self.0).nth(0usize) }
+	pub fn l_bracket(&self) -> Option<LBracket> { children(&self.0).nth(0usize) }
 
-	pub fn index(&self) -> Option<Expr> { node_children(&self.0).nth(1usize) }
+	pub fn index(&self) -> Option<Expr> { children(&self.0).nth(1usize) }
 
-	pub fn r_bracket(&self) -> Option<RBracket> { token_children(&self.0).nth(0usize) }
+	pub fn r_bracket(&self) -> Option<RBracket> { children(&self.0).nth(0usize) }
 }
 
 pub enum Literal {
@@ -1814,23 +1726,7 @@ impl std::fmt::Debug for Literal {
 		}
 	}
 }
-impl AstNode for Literal {
-	fn cast(node: SyntaxNode) -> Option<Self> {
-		node.children_with_tokens().find_map(|x| match x {
-			SyntaxElementRef::Node(node) => match node.kind() {
-				_ => None,
-			},
-			SyntaxElementRef::Token(tok) => match tok.kind() {
-				SyntaxKind::BoolLit => AstToken::cast(tok.clone()).map(Self::BoolLit),
-				SyntaxKind::CharLit => AstToken::cast(tok.clone()).map(Self::CharLit),
-				SyntaxKind::FloatLit => AstToken::cast(tok.clone()).map(Self::FloatLit),
-				SyntaxKind::IntLit => AstToken::cast(tok.clone()).map(Self::IntLit),
-				SyntaxKind::StringLit => AstToken::cast(tok.clone()).map(Self::StringLit),
-				_ => None,
-			},
-		})
-	}
-}
+impl AstNode for Literal {}
 impl AstElement for Literal {
 	fn can_cast(kind: SyntaxKind) -> bool {
 		matches!(kind, |SyntaxKind::BoolLit| SyntaxKind::CharLit
@@ -1839,7 +1735,16 @@ impl AstElement for Literal {
 			| SyntaxKind::StringLit)
 	}
 
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstNode::cast(elem.into_node()?) }
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		match elem.kind() {
+			SyntaxKind::BoolLit => AstElement::cast(elem.clone()).map(Self::BoolLit),
+			SyntaxKind::CharLit => AstElement::cast(elem.clone()).map(Self::CharLit),
+			SyntaxKind::FloatLit => AstElement::cast(elem.clone()).map(Self::FloatLit),
+			SyntaxKind::IntLit => AstElement::cast(elem.clone()).map(Self::IntLit),
+			SyntaxKind::StringLit => AstElement::cast(elem.clone()).map(Self::StringLit),
+			_ => None,
+		}
+	}
 
 	fn span(&self) -> FileSpan {
 		match self {
@@ -1850,6 +1755,16 @@ impl AstElement for Literal {
 			Self::StringLit(x) => x.span(),
 		}
 	}
+
+	fn inner(self) -> SyntaxElement {
+		match self {
+			Self::BoolLit(x) => x.inner(),
+			Self::CharLit(x) => x.inner(),
+			Self::FloatLit(x) => x.inner(),
+			Self::IntLit(x) => x.inner(),
+			Self::StringLit(x) => x.inner(),
+		}
+	}
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -1857,19 +1772,14 @@ pub struct LoopExpr(SyntaxNode);
 impl std::fmt::Debug for LoopExpr {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
-impl AstNode for LoopExpr {
-	fn cast(node: SyntaxNode) -> Option<Self> {
-		if Self::can_cast(node.kind()) {
-			Some(Self(node))
-		} else {
-			None
-		}
-	}
-}
+impl AstNode for LoopExpr {}
 impl AstElement for LoopExpr {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::LoopExpr }
 
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstNode::cast(elem.into_node()?) }
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let node = elem.into_node()?;
+		Self::can_cast(node.kind()).then(|| Self(node))
+	}
 
 	fn span(&self) -> FileSpan {
 		let range = self.0.text_range();
@@ -1879,15 +1789,17 @@ impl AstElement for LoopExpr {
 			relative: (),
 		}
 	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
 }
 impl LoopExpr {
-	pub fn loop_kw(&self) -> Option<LoopKw> { token_children(&self.0).nth(0usize) }
+	pub fn loop_kw(&self) -> Option<LoopKw> { children(&self.0).nth(0usize) }
 
-	pub fn body(&self) -> Option<Block> { node_children(&self.0).nth(0usize) }
+	pub fn body(&self) -> Option<Block> { children(&self.0).nth(0usize) }
 
-	pub fn while_kw(&self) -> Option<WhileKw> { token_children(&self.0).nth(0usize) }
+	pub fn while_kw(&self) -> Option<WhileKw> { children(&self.0).nth(0usize) }
 
-	pub fn expr(&self) -> Option<Expr> { node_children(&self.0).nth(0usize) }
+	pub fn expr(&self) -> Option<Expr> { children(&self.0).nth(0usize) }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -1895,19 +1807,14 @@ pub struct MatchExpr(SyntaxNode);
 impl std::fmt::Debug for MatchExpr {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
-impl AstNode for MatchExpr {
-	fn cast(node: SyntaxNode) -> Option<Self> {
-		if Self::can_cast(node.kind()) {
-			Some(Self(node))
-		} else {
-			None
-		}
-	}
-}
+impl AstNode for MatchExpr {}
 impl AstElement for MatchExpr {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::MatchExpr }
 
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstNode::cast(elem.into_node()?) }
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let node = elem.into_node()?;
+		Self::can_cast(node.kind()).then(|| Self(node))
+	}
 
 	fn span(&self) -> FileSpan {
 		let range = self.0.text_range();
@@ -1917,17 +1824,19 @@ impl AstElement for MatchExpr {
 			relative: (),
 		}
 	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
 }
 impl MatchExpr {
-	pub fn match_kw(&self) -> Option<MatchKw> { token_children(&self.0).nth(0usize) }
+	pub fn match_kw(&self) -> Option<MatchKw> { children(&self.0).nth(0usize) }
 
-	pub fn expr(&self) -> Option<Expr> { node_children(&self.0).nth(0usize) }
+	pub fn expr(&self) -> Option<Expr> { children(&self.0).nth(0usize) }
 
-	pub fn l_brace(&self) -> Option<LBrace> { token_children(&self.0).nth(0usize) }
+	pub fn l_brace(&self) -> Option<LBrace> { children(&self.0).nth(0usize) }
 
-	pub fn arms(&self) -> impl Iterator<Item = MatchArm> + '_ { node_children(&self.0) }
+	pub fn arms(&self) -> impl Iterator<Item = MatchArm> + '_ { children(&self.0) }
 
-	pub fn r_brace(&self) -> Option<RBrace> { token_children(&self.0).nth(0usize) }
+	pub fn r_brace(&self) -> Option<RBrace> { children(&self.0).nth(0usize) }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -1935,19 +1844,14 @@ pub struct ParenExpr(SyntaxNode);
 impl std::fmt::Debug for ParenExpr {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
-impl AstNode for ParenExpr {
-	fn cast(node: SyntaxNode) -> Option<Self> {
-		if Self::can_cast(node.kind()) {
-			Some(Self(node))
-		} else {
-			None
-		}
-	}
-}
+impl AstNode for ParenExpr {}
 impl AstElement for ParenExpr {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::ParenExpr }
 
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstNode::cast(elem.into_node()?) }
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let node = elem.into_node()?;
+		Self::can_cast(node.kind()).then(|| Self(node))
+	}
 
 	fn span(&self) -> FileSpan {
 		let range = self.0.text_range();
@@ -1957,13 +1861,15 @@ impl AstElement for ParenExpr {
 			relative: (),
 		}
 	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
 }
 impl ParenExpr {
-	pub fn l_paren(&self) -> Option<LParen> { token_children(&self.0).nth(0usize) }
+	pub fn l_paren(&self) -> Option<LParen> { children(&self.0).nth(0usize) }
 
-	pub fn expr(&self) -> Option<Expr> { node_children(&self.0).nth(0usize) }
+	pub fn expr(&self) -> Option<Expr> { children(&self.0).nth(0usize) }
 
-	pub fn r_paren(&self) -> Option<RParen> { token_children(&self.0).nth(0usize) }
+	pub fn r_paren(&self) -> Option<RParen> { children(&self.0).nth(0usize) }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -1971,19 +1877,14 @@ pub struct PathExpr(SyntaxNode);
 impl std::fmt::Debug for PathExpr {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
-impl AstNode for PathExpr {
-	fn cast(node: SyntaxNode) -> Option<Self> {
-		if Self::can_cast(node.kind()) {
-			Some(Self(node))
-		} else {
-			None
-		}
-	}
-}
+impl AstNode for PathExpr {}
 impl AstElement for PathExpr {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::PathExpr }
 
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstNode::cast(elem.into_node()?) }
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let node = elem.into_node()?;
+		Self::can_cast(node.kind()).then(|| Self(node))
+	}
 
 	fn span(&self) -> FileSpan {
 		let range = self.0.text_range();
@@ -1993,9 +1894,11 @@ impl AstElement for PathExpr {
 			relative: (),
 		}
 	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
 }
 impl PathExpr {
-	pub fn path(&self) -> Option<Path> { node_children(&self.0).nth(0usize) }
+	pub fn path(&self) -> Option<Path> { children(&self.0).nth(0usize) }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -2003,19 +1906,14 @@ pub struct PrefixExpr(SyntaxNode);
 impl std::fmt::Debug for PrefixExpr {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
-impl AstNode for PrefixExpr {
-	fn cast(node: SyntaxNode) -> Option<Self> {
-		if Self::can_cast(node.kind()) {
-			Some(Self(node))
-		} else {
-			None
-		}
-	}
-}
+impl AstNode for PrefixExpr {}
 impl AstElement for PrefixExpr {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::PrefixExpr }
 
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstNode::cast(elem.into_node()?) }
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let node = elem.into_node()?;
+		Self::can_cast(node.kind()).then(|| Self(node))
+	}
 
 	fn span(&self) -> FileSpan {
 		let range = self.0.text_range();
@@ -2025,11 +1923,13 @@ impl AstElement for PrefixExpr {
 			relative: (),
 		}
 	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
 }
 impl PrefixExpr {
-	pub fn op(&self) -> Option<PrefixOp> { node_children(&self.0).nth(0usize) }
+	pub fn op(&self) -> Option<PrefixOp> { children(&self.0).nth(0usize) }
 
-	pub fn expr(&self) -> Option<Expr> { node_children(&self.0).nth(0usize) }
+	pub fn expr(&self) -> Option<Expr> { children(&self.0).nth(0usize) }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -2037,19 +1937,14 @@ pub struct RefExpr(SyntaxNode);
 impl std::fmt::Debug for RefExpr {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
-impl AstNode for RefExpr {
-	fn cast(node: SyntaxNode) -> Option<Self> {
-		if Self::can_cast(node.kind()) {
-			Some(Self(node))
-		} else {
-			None
-		}
-	}
-}
+impl AstNode for RefExpr {}
 impl AstElement for RefExpr {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::RefExpr }
 
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstNode::cast(elem.into_node()?) }
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let node = elem.into_node()?;
+		Self::can_cast(node.kind()).then(|| Self(node))
+	}
 
 	fn span(&self) -> FileSpan {
 		let range = self.0.text_range();
@@ -2059,13 +1954,15 @@ impl AstElement for RefExpr {
 			relative: (),
 		}
 	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
 }
 impl RefExpr {
-	pub fn amp(&self) -> Option<Amp> { token_children(&self.0).nth(0usize) }
+	pub fn amp(&self) -> Option<Amp> { children(&self.0).nth(0usize) }
 
-	pub fn mut_kw(&self) -> Option<MutKw> { token_children(&self.0).nth(0usize) }
+	pub fn mut_kw(&self) -> Option<MutKw> { children(&self.0).nth(0usize) }
 
-	pub fn expr(&self) -> Option<Expr> { node_children(&self.0).nth(0usize) }
+	pub fn expr(&self) -> Option<Expr> { children(&self.0).nth(0usize) }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -2073,19 +1970,14 @@ pub struct ReturnExpr(SyntaxNode);
 impl std::fmt::Debug for ReturnExpr {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
-impl AstNode for ReturnExpr {
-	fn cast(node: SyntaxNode) -> Option<Self> {
-		if Self::can_cast(node.kind()) {
-			Some(Self(node))
-		} else {
-			None
-		}
-	}
-}
+impl AstNode for ReturnExpr {}
 impl AstElement for ReturnExpr {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::ReturnExpr }
 
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstNode::cast(elem.into_node()?) }
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let node = elem.into_node()?;
+		Self::can_cast(node.kind()).then(|| Self(node))
+	}
 
 	fn span(&self) -> FileSpan {
 		let range = self.0.text_range();
@@ -2095,11 +1987,13 @@ impl AstElement for ReturnExpr {
 			relative: (),
 		}
 	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
 }
 impl ReturnExpr {
-	pub fn return_kw(&self) -> Option<ReturnKw> { token_children(&self.0).nth(0usize) }
+	pub fn return_kw(&self) -> Option<ReturnKw> { children(&self.0).nth(0usize) }
 
-	pub fn expr(&self) -> Option<Expr> { node_children(&self.0).nth(0usize) }
+	pub fn expr(&self) -> Option<Expr> { children(&self.0).nth(0usize) }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -2107,19 +2001,14 @@ pub struct WhileExpr(SyntaxNode);
 impl std::fmt::Debug for WhileExpr {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
-impl AstNode for WhileExpr {
-	fn cast(node: SyntaxNode) -> Option<Self> {
-		if Self::can_cast(node.kind()) {
-			Some(Self(node))
-		} else {
-			None
-		}
-	}
-}
+impl AstNode for WhileExpr {}
 impl AstElement for WhileExpr {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::WhileExpr }
 
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstNode::cast(elem.into_node()?) }
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let node = elem.into_node()?;
+		Self::can_cast(node.kind()).then(|| Self(node))
+	}
 
 	fn span(&self) -> FileSpan {
 		let range = self.0.text_range();
@@ -2129,13 +2018,15 @@ impl AstElement for WhileExpr {
 			relative: (),
 		}
 	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
 }
 impl WhileExpr {
-	pub fn while_kw(&self) -> Option<WhileKw> { token_children(&self.0).nth(0usize) }
+	pub fn while_kw(&self) -> Option<WhileKw> { children(&self.0).nth(0usize) }
 
-	pub fn expr(&self) -> Option<Expr> { node_children(&self.0).nth(0usize) }
+	pub fn expr(&self) -> Option<Expr> { children(&self.0).nth(0usize) }
 
-	pub fn body(&self) -> Option<Block> { node_children(&self.0).nth(0usize) }
+	pub fn body(&self) -> Option<Block> { children(&self.0).nth(0usize) }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -2143,19 +2034,14 @@ pub struct LetExpr(SyntaxNode);
 impl std::fmt::Debug for LetExpr {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
-impl AstNode for LetExpr {
-	fn cast(node: SyntaxNode) -> Option<Self> {
-		if Self::can_cast(node.kind()) {
-			Some(Self(node))
-		} else {
-			None
-		}
-	}
-}
+impl AstNode for LetExpr {}
 impl AstElement for LetExpr {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::LetExpr }
 
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstNode::cast(elem.into_node()?) }
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let node = elem.into_node()?;
+		Self::can_cast(node.kind()).then(|| Self(node))
+	}
 
 	fn span(&self) -> FileSpan {
 		let range = self.0.text_range();
@@ -2165,19 +2051,21 @@ impl AstElement for LetExpr {
 			relative: (),
 		}
 	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
 }
 impl LetExpr {
-	pub fn let_kw(&self) -> Option<LetKw> { token_children(&self.0).nth(0usize) }
+	pub fn let_kw(&self) -> Option<LetKw> { children(&self.0).nth(0usize) }
 
-	pub fn name(&self) -> Option<Name> { node_children(&self.0).nth(0usize) }
+	pub fn name(&self) -> Option<Name> { children(&self.0).nth(0usize) }
 
-	pub fn colon(&self) -> Option<Colon> { token_children(&self.0).nth(0usize) }
+	pub fn colon(&self) -> Option<Colon> { children(&self.0).nth(0usize) }
 
-	pub fn type_(&self) -> Option<Type> { node_children(&self.0).nth(0usize) }
+	pub fn type_(&self) -> Option<Type> { children(&self.0).nth(0usize) }
 
-	pub fn eq(&self) -> Option<Eq> { token_children(&self.0).nth(0usize) }
+	pub fn eq(&self) -> Option<Eq> { children(&self.0).nth(0usize) }
 
-	pub fn init(&self) -> Option<Expr> { node_children(&self.0).nth(0usize) }
+	pub fn init(&self) -> Option<Expr> { children(&self.0).nth(0usize) }
 }
 
 pub enum ArrayInit {
@@ -2192,29 +2080,29 @@ impl std::fmt::Debug for ArrayInit {
 		}
 	}
 }
-impl AstNode for ArrayInit {
-	fn cast(node: SyntaxNode) -> Option<Self> {
-		node.children_with_tokens().find_map(|x| match x {
-			SyntaxElementRef::Node(node) => match node.kind() {
-				SyntaxKind::ArrayList => AstNode::cast(node.clone()).map(Self::ArrayList),
-				SyntaxKind::ArrayRepeat => AstNode::cast(node.clone()).map(Self::ArrayRepeat),
-				_ => None,
-			},
-			SyntaxElementRef::Token(tok) => match tok.kind() {
-				_ => None,
-			},
-		})
-	}
-}
+impl AstNode for ArrayInit {}
 impl AstElement for ArrayInit {
 	fn can_cast(kind: SyntaxKind) -> bool { matches!(kind, |SyntaxKind::ArrayList| SyntaxKind::ArrayRepeat) }
 
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstNode::cast(elem.into_node()?) }
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		match elem.kind() {
+			SyntaxKind::ArrayList => AstElement::cast(elem.clone()).map(Self::ArrayList),
+			SyntaxKind::ArrayRepeat => AstElement::cast(elem.clone()).map(Self::ArrayRepeat),
+			_ => None,
+		}
+	}
 
 	fn span(&self) -> FileSpan {
 		match self {
 			Self::ArrayList(x) => x.span(),
 			Self::ArrayRepeat(x) => x.span(),
+		}
+	}
+
+	fn inner(self) -> SyntaxElement {
+		match self {
+			Self::ArrayList(x) => x.inner(),
+			Self::ArrayRepeat(x) => x.inner(),
 		}
 	}
 }
@@ -2224,19 +2112,14 @@ pub struct ArrayList(SyntaxNode);
 impl std::fmt::Debug for ArrayList {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
-impl AstNode for ArrayList {
-	fn cast(node: SyntaxNode) -> Option<Self> {
-		if Self::can_cast(node.kind()) {
-			Some(Self(node))
-		} else {
-			None
-		}
-	}
-}
+impl AstNode for ArrayList {}
 impl AstElement for ArrayList {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::ArrayList }
 
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstNode::cast(elem.into_node()?) }
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let node = elem.into_node()?;
+		Self::can_cast(node.kind()).then(|| Self(node))
+	}
 
 	fn span(&self) -> FileSpan {
 		let range = self.0.text_range();
@@ -2246,9 +2129,11 @@ impl AstElement for ArrayList {
 			relative: (),
 		}
 	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
 }
 impl ArrayList {
-	pub fn exprs(&self) -> impl Iterator<Item = Expr> + '_ { node_children(&self.0) }
+	pub fn exprs(&self) -> impl Iterator<Item = Expr> + '_ { children(&self.0) }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -2256,19 +2141,14 @@ pub struct ArrayRepeat(SyntaxNode);
 impl std::fmt::Debug for ArrayRepeat {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
-impl AstNode for ArrayRepeat {
-	fn cast(node: SyntaxNode) -> Option<Self> {
-		if Self::can_cast(node.kind()) {
-			Some(Self(node))
-		} else {
-			None
-		}
-	}
-}
+impl AstNode for ArrayRepeat {}
 impl AstElement for ArrayRepeat {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::ArrayRepeat }
 
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstNode::cast(elem.into_node()?) }
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let node = elem.into_node()?;
+		Self::can_cast(node.kind()).then(|| Self(node))
+	}
 
 	fn span(&self) -> FileSpan {
 		let range = self.0.text_range();
@@ -2278,13 +2158,15 @@ impl AstElement for ArrayRepeat {
 			relative: (),
 		}
 	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
 }
 impl ArrayRepeat {
-	pub fn expr(&self) -> Option<Expr> { node_children(&self.0).nth(0usize) }
+	pub fn expr(&self) -> Option<Expr> { children(&self.0).nth(0usize) }
 
-	pub fn semi(&self) -> Option<Semi> { token_children(&self.0).nth(0usize) }
+	pub fn semi(&self) -> Option<Semi> { children(&self.0).nth(0usize) }
 
-	pub fn len(&self) -> Option<Expr> { node_children(&self.0).nth(1usize) }
+	pub fn len(&self) -> Option<Expr> { children(&self.0).nth(1usize) }
 }
 
 pub enum InfixOp {
@@ -2353,47 +2235,7 @@ impl std::fmt::Debug for InfixOp {
 		}
 	}
 }
-impl AstNode for InfixOp {
-	fn cast(node: SyntaxNode) -> Option<Self> {
-		node.children_with_tokens().find_map(|x| match x {
-			SyntaxElementRef::Node(node) => match node.kind() {
-				_ => None,
-			},
-			SyntaxElementRef::Token(tok) => match tok.kind() {
-				SyntaxKind::PipePipe => AstToken::cast(tok.clone()).map(Self::PipePipe),
-				SyntaxKind::AmpAmp => AstToken::cast(tok.clone()).map(Self::AmpAmp),
-				SyntaxKind::EqEq => AstToken::cast(tok.clone()).map(Self::EqEq),
-				SyntaxKind::Neq => AstToken::cast(tok.clone()).map(Self::Neq),
-				SyntaxKind::Leq => AstToken::cast(tok.clone()).map(Self::Leq),
-				SyntaxKind::Geq => AstToken::cast(tok.clone()).map(Self::Geq),
-				SyntaxKind::Lt => AstToken::cast(tok.clone()).map(Self::Lt),
-				SyntaxKind::Gt => AstToken::cast(tok.clone()).map(Self::Gt),
-				SyntaxKind::Plus => AstToken::cast(tok.clone()).map(Self::Plus),
-				SyntaxKind::Star => AstToken::cast(tok.clone()).map(Self::Star),
-				SyntaxKind::Minus => AstToken::cast(tok.clone()).map(Self::Minus),
-				SyntaxKind::Slash => AstToken::cast(tok.clone()).map(Self::Slash),
-				SyntaxKind::Percent => AstToken::cast(tok.clone()).map(Self::Percent),
-				SyntaxKind::Shl => AstToken::cast(tok.clone()).map(Self::Shl),
-				SyntaxKind::Shr => AstToken::cast(tok.clone()).map(Self::Shr),
-				SyntaxKind::Caret => AstToken::cast(tok.clone()).map(Self::Caret),
-				SyntaxKind::Pipe => AstToken::cast(tok.clone()).map(Self::Pipe),
-				SyntaxKind::Amp => AstToken::cast(tok.clone()).map(Self::Amp),
-				SyntaxKind::Eq => AstToken::cast(tok.clone()).map(Self::Eq),
-				SyntaxKind::PlusEq => AstToken::cast(tok.clone()).map(Self::PlusEq),
-				SyntaxKind::SlashEq => AstToken::cast(tok.clone()).map(Self::SlashEq),
-				SyntaxKind::StarEq => AstToken::cast(tok.clone()).map(Self::StarEq),
-				SyntaxKind::PercentEq => AstToken::cast(tok.clone()).map(Self::PercentEq),
-				SyntaxKind::ShrEq => AstToken::cast(tok.clone()).map(Self::ShrEq),
-				SyntaxKind::ShlEq => AstToken::cast(tok.clone()).map(Self::ShlEq),
-				SyntaxKind::MinusEq => AstToken::cast(tok.clone()).map(Self::MinusEq),
-				SyntaxKind::PipeEq => AstToken::cast(tok.clone()).map(Self::PipeEq),
-				SyntaxKind::AmpEq => AstToken::cast(tok.clone()).map(Self::AmpEq),
-				SyntaxKind::CaretEq => AstToken::cast(tok.clone()).map(Self::CaretEq),
-				_ => None,
-			},
-		})
-	}
-}
+impl AstNode for InfixOp {}
 impl AstElement for InfixOp {
 	fn can_cast(kind: SyntaxKind) -> bool {
 		matches!(kind, |SyntaxKind::PipePipe| SyntaxKind::AmpAmp
@@ -2426,7 +2268,40 @@ impl AstElement for InfixOp {
 			| SyntaxKind::CaretEq)
 	}
 
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstNode::cast(elem.into_node()?) }
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		match elem.kind() {
+			SyntaxKind::PipePipe => AstElement::cast(elem.clone()).map(Self::PipePipe),
+			SyntaxKind::AmpAmp => AstElement::cast(elem.clone()).map(Self::AmpAmp),
+			SyntaxKind::EqEq => AstElement::cast(elem.clone()).map(Self::EqEq),
+			SyntaxKind::Neq => AstElement::cast(elem.clone()).map(Self::Neq),
+			SyntaxKind::Leq => AstElement::cast(elem.clone()).map(Self::Leq),
+			SyntaxKind::Geq => AstElement::cast(elem.clone()).map(Self::Geq),
+			SyntaxKind::Lt => AstElement::cast(elem.clone()).map(Self::Lt),
+			SyntaxKind::Gt => AstElement::cast(elem.clone()).map(Self::Gt),
+			SyntaxKind::Plus => AstElement::cast(elem.clone()).map(Self::Plus),
+			SyntaxKind::Star => AstElement::cast(elem.clone()).map(Self::Star),
+			SyntaxKind::Minus => AstElement::cast(elem.clone()).map(Self::Minus),
+			SyntaxKind::Slash => AstElement::cast(elem.clone()).map(Self::Slash),
+			SyntaxKind::Percent => AstElement::cast(elem.clone()).map(Self::Percent),
+			SyntaxKind::Shl => AstElement::cast(elem.clone()).map(Self::Shl),
+			SyntaxKind::Shr => AstElement::cast(elem.clone()).map(Self::Shr),
+			SyntaxKind::Caret => AstElement::cast(elem.clone()).map(Self::Caret),
+			SyntaxKind::Pipe => AstElement::cast(elem.clone()).map(Self::Pipe),
+			SyntaxKind::Amp => AstElement::cast(elem.clone()).map(Self::Amp),
+			SyntaxKind::Eq => AstElement::cast(elem.clone()).map(Self::Eq),
+			SyntaxKind::PlusEq => AstElement::cast(elem.clone()).map(Self::PlusEq),
+			SyntaxKind::SlashEq => AstElement::cast(elem.clone()).map(Self::SlashEq),
+			SyntaxKind::StarEq => AstElement::cast(elem.clone()).map(Self::StarEq),
+			SyntaxKind::PercentEq => AstElement::cast(elem.clone()).map(Self::PercentEq),
+			SyntaxKind::ShrEq => AstElement::cast(elem.clone()).map(Self::ShrEq),
+			SyntaxKind::ShlEq => AstElement::cast(elem.clone()).map(Self::ShlEq),
+			SyntaxKind::MinusEq => AstElement::cast(elem.clone()).map(Self::MinusEq),
+			SyntaxKind::PipeEq => AstElement::cast(elem.clone()).map(Self::PipeEq),
+			SyntaxKind::AmpEq => AstElement::cast(elem.clone()).map(Self::AmpEq),
+			SyntaxKind::CaretEq => AstElement::cast(elem.clone()).map(Self::CaretEq),
+			_ => None,
+		}
+	}
 
 	fn span(&self) -> FileSpan {
 		match self {
@@ -2461,6 +2336,40 @@ impl AstElement for InfixOp {
 			Self::CaretEq(x) => x.span(),
 		}
 	}
+
+	fn inner(self) -> SyntaxElement {
+		match self {
+			Self::PipePipe(x) => x.inner(),
+			Self::AmpAmp(x) => x.inner(),
+			Self::EqEq(x) => x.inner(),
+			Self::Neq(x) => x.inner(),
+			Self::Leq(x) => x.inner(),
+			Self::Geq(x) => x.inner(),
+			Self::Lt(x) => x.inner(),
+			Self::Gt(x) => x.inner(),
+			Self::Plus(x) => x.inner(),
+			Self::Star(x) => x.inner(),
+			Self::Minus(x) => x.inner(),
+			Self::Slash(x) => x.inner(),
+			Self::Percent(x) => x.inner(),
+			Self::Shl(x) => x.inner(),
+			Self::Shr(x) => x.inner(),
+			Self::Caret(x) => x.inner(),
+			Self::Pipe(x) => x.inner(),
+			Self::Amp(x) => x.inner(),
+			Self::Eq(x) => x.inner(),
+			Self::PlusEq(x) => x.inner(),
+			Self::SlashEq(x) => x.inner(),
+			Self::StarEq(x) => x.inner(),
+			Self::PercentEq(x) => x.inner(),
+			Self::ShrEq(x) => x.inner(),
+			Self::ShlEq(x) => x.inner(),
+			Self::MinusEq(x) => x.inner(),
+			Self::PipeEq(x) => x.inner(),
+			Self::AmpEq(x) => x.inner(),
+			Self::CaretEq(x) => x.inner(),
+		}
+	}
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -2468,19 +2377,14 @@ pub struct ArgList(SyntaxNode);
 impl std::fmt::Debug for ArgList {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
-impl AstNode for ArgList {
-	fn cast(node: SyntaxNode) -> Option<Self> {
-		if Self::can_cast(node.kind()) {
-			Some(Self(node))
-		} else {
-			None
-		}
-	}
-}
+impl AstNode for ArgList {}
 impl AstElement for ArgList {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::ArgList }
 
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstNode::cast(elem.into_node()?) }
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let node = elem.into_node()?;
+		Self::can_cast(node.kind()).then(|| Self(node))
+	}
 
 	fn span(&self) -> FileSpan {
 		let range = self.0.text_range();
@@ -2490,13 +2394,15 @@ impl AstElement for ArgList {
 			relative: (),
 		}
 	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
 }
 impl ArgList {
-	pub fn l_paren(&self) -> Option<LParen> { token_children(&self.0).nth(0usize) }
+	pub fn l_paren(&self) -> Option<LParen> { children(&self.0).nth(0usize) }
 
-	pub fn exprs(&self) -> impl Iterator<Item = Expr> + '_ { node_children(&self.0) }
+	pub fn exprs(&self) -> impl Iterator<Item = Expr> + '_ { children(&self.0) }
 
-	pub fn r_paren(&self) -> Option<RParen> { token_children(&self.0).nth(0usize) }
+	pub fn r_paren(&self) -> Option<RParen> { children(&self.0).nth(0usize) }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -2504,19 +2410,14 @@ pub struct MatchArm(SyntaxNode);
 impl std::fmt::Debug for MatchArm {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
-impl AstNode for MatchArm {
-	fn cast(node: SyntaxNode) -> Option<Self> {
-		if Self::can_cast(node.kind()) {
-			Some(Self(node))
-		} else {
-			None
-		}
-	}
-}
+impl AstNode for MatchArm {}
 impl AstElement for MatchArm {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::MatchArm }
 
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstNode::cast(elem.into_node()?) }
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let node = elem.into_node()?;
+		Self::can_cast(node.kind()).then(|| Self(node))
+	}
 
 	fn span(&self) -> FileSpan {
 		let range = self.0.text_range();
@@ -2526,15 +2427,17 @@ impl AstElement for MatchArm {
 			relative: (),
 		}
 	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
 }
 impl MatchArm {
-	pub fn value(&self) -> Option<Expr> { node_children(&self.0).nth(0usize) }
+	pub fn value(&self) -> Option<Expr> { children(&self.0).nth(0usize) }
 
-	pub fn fat_arrow(&self) -> Option<FatArrow> { token_children(&self.0).nth(0usize) }
+	pub fn fat_arrow(&self) -> Option<FatArrow> { children(&self.0).nth(0usize) }
 
-	pub fn then(&self) -> Option<Expr> { node_children(&self.0).nth(1usize) }
+	pub fn then(&self) -> Option<Expr> { children(&self.0).nth(1usize) }
 
-	pub fn comma(&self) -> Option<Comma> { token_children(&self.0).nth(0usize) }
+	pub fn comma(&self) -> Option<Comma> { children(&self.0).nth(0usize) }
 }
 
 pub enum PrefixOp {
@@ -2551,25 +2454,18 @@ impl std::fmt::Debug for PrefixOp {
 		}
 	}
 }
-impl AstNode for PrefixOp {
-	fn cast(node: SyntaxNode) -> Option<Self> {
-		node.children_with_tokens().find_map(|x| match x {
-			SyntaxElementRef::Node(node) => match node.kind() {
-				_ => None,
-			},
-			SyntaxElementRef::Token(tok) => match tok.kind() {
-				SyntaxKind::Minus => AstToken::cast(tok.clone()).map(Self::Minus),
-				SyntaxKind::Not => AstToken::cast(tok.clone()).map(Self::Not),
-				SyntaxKind::Star => AstToken::cast(tok.clone()).map(Self::Star),
-				_ => None,
-			},
-		})
-	}
-}
+impl AstNode for PrefixOp {}
 impl AstElement for PrefixOp {
 	fn can_cast(kind: SyntaxKind) -> bool { matches!(kind, |SyntaxKind::Minus| SyntaxKind::Not | SyntaxKind::Star) }
 
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstNode::cast(elem.into_node()?) }
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		match elem.kind() {
+			SyntaxKind::Minus => AstElement::cast(elem.clone()).map(Self::Minus),
+			SyntaxKind::Not => AstElement::cast(elem.clone()).map(Self::Not),
+			SyntaxKind::Star => AstElement::cast(elem.clone()).map(Self::Star),
+			_ => None,
+		}
+	}
 
 	fn span(&self) -> FileSpan {
 		match self {
@@ -2578,38 +2474,12 @@ impl AstElement for PrefixOp {
 			Self::Star(x) => x.span(),
 		}
 	}
-}
 
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct PathSegment(SyntaxNode);
-impl std::fmt::Debug for PathSegment {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstNode for PathSegment {
-	fn cast(node: SyntaxNode) -> Option<Self> {
-		if Self::can_cast(node.kind()) {
-			Some(Self(node))
-		} else {
-			None
+	fn inner(self) -> SyntaxElement {
+		match self {
+			Self::Minus(x) => x.inner(),
+			Self::Not(x) => x.inner(),
+			Self::Star(x) => x.inner(),
 		}
 	}
-}
-impl AstElement for PathSegment {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::PathSegment }
-
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstNode::cast(elem.into_node()?) }
-
-	fn span(&self) -> FileSpan {
-		let range = self.0.text_range();
-		FileSpan {
-			start: range.start().into(),
-			end: range.end().into(),
-			relative: (),
-		}
-	}
-}
-impl PathSegment {
-	pub fn name(&self) -> Option<Name> { node_children(&self.0).nth(0usize) }
-
-	pub fn dot(&self) -> Option<Dot> { token_children(&self.0).nth(0usize) }
 }

@@ -8,574 +8,20 @@ use diagnostics::FileSpan;
 use crate::generated::*;
 
 #[derive(Clone, PartialEq, Eq, Hash)]
-pub struct Semi(SyntaxToken);
-impl std::fmt::Debug for Semi {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstToken for Semi {
-	fn cast(tok: SyntaxToken) -> Option<Self> {
-		if Self::can_cast(tok.kind()) {
-			Some(Self(tok))
-		} else {
-			None
-		}
-	}
-}
-impl AstElement for Semi {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Semi }
-
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstToken::cast(elem.into_token()?) }
-
-	fn span(&self) -> FileSpan {
-		let range = self.0.text_range();
-		FileSpan {
-			start: range.start().into(),
-			end: range.end().into(),
-			relative: (),
-		}
-	}
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct At(SyntaxToken);
-impl std::fmt::Debug for At {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstToken for At {
-	fn cast(tok: SyntaxToken) -> Option<Self> {
-		if Self::can_cast(tok.kind()) {
-			Some(Self(tok))
-		} else {
-			None
-		}
-	}
-}
-impl AstElement for At {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::At }
-
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstToken::cast(elem.into_token()?) }
-
-	fn span(&self) -> FileSpan {
-		let range = self.0.text_range();
-		FileSpan {
-			start: range.start().into(),
-			end: range.end().into(),
-			relative: (),
-		}
-	}
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct FnKw(SyntaxToken);
-impl std::fmt::Debug for FnKw {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstToken for FnKw {
-	fn cast(tok: SyntaxToken) -> Option<Self> {
-		if Self::can_cast(tok.kind()) {
-			Some(Self(tok))
-		} else {
-			None
-		}
-	}
-}
-impl AstElement for FnKw {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::FnKw }
-
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstToken::cast(elem.into_token()?) }
-
-	fn span(&self) -> FileSpan {
-		let range = self.0.text_range();
-		FileSpan {
-			start: range.start().into(),
-			end: range.end().into(),
-			relative: (),
-		}
-	}
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct LParen(SyntaxToken);
-impl std::fmt::Debug for LParen {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstToken for LParen {
-	fn cast(tok: SyntaxToken) -> Option<Self> {
-		if Self::can_cast(tok.kind()) {
-			Some(Self(tok))
-		} else {
-			None
-		}
-	}
-}
-impl AstElement for LParen {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::LParen }
-
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstToken::cast(elem.into_token()?) }
-
-	fn span(&self) -> FileSpan {
-		let range = self.0.text_range();
-		FileSpan {
-			start: range.start().into(),
-			end: range.end().into(),
-			relative: (),
-		}
-	}
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct Comma(SyntaxToken);
-impl std::fmt::Debug for Comma {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstToken for Comma {
-	fn cast(tok: SyntaxToken) -> Option<Self> {
-		if Self::can_cast(tok.kind()) {
-			Some(Self(tok))
-		} else {
-			None
-		}
-	}
-}
-impl AstElement for Comma {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Comma }
-
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstToken::cast(elem.into_token()?) }
-
-	fn span(&self) -> FileSpan {
-		let range = self.0.text_range();
-		FileSpan {
-			start: range.start().into(),
-			end: range.end().into(),
-			relative: (),
-		}
-	}
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct RParen(SyntaxToken);
-impl std::fmt::Debug for RParen {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstToken for RParen {
-	fn cast(tok: SyntaxToken) -> Option<Self> {
-		if Self::can_cast(tok.kind()) {
-			Some(Self(tok))
-		} else {
-			None
-		}
-	}
-}
-impl AstElement for RParen {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::RParen }
-
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstToken::cast(elem.into_token()?) }
-
-	fn span(&self) -> FileSpan {
-		let range = self.0.text_range();
-		FileSpan {
-			start: range.start().into(),
-			end: range.end().into(),
-			relative: (),
-		}
-	}
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct Colon(SyntaxToken);
-impl std::fmt::Debug for Colon {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstToken for Colon {
-	fn cast(tok: SyntaxToken) -> Option<Self> {
-		if Self::can_cast(tok.kind()) {
-			Some(Self(tok))
-		} else {
-			None
-		}
-	}
-}
-impl AstElement for Colon {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Colon }
-
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstToken::cast(elem.into_token()?) }
-
-	fn span(&self) -> FileSpan {
-		let range = self.0.text_range();
-		FileSpan {
-			start: range.start().into(),
-			end: range.end().into(),
-			relative: (),
-		}
-	}
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct Arrow(SyntaxToken);
-impl std::fmt::Debug for Arrow {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstToken for Arrow {
-	fn cast(tok: SyntaxToken) -> Option<Self> {
-		if Self::can_cast(tok.kind()) {
-			Some(Self(tok))
-		} else {
-			None
-		}
-	}
-}
-impl AstElement for Arrow {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Arrow }
-
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstToken::cast(elem.into_token()?) }
-
-	fn span(&self) -> FileSpan {
-		let range = self.0.text_range();
-		FileSpan {
-			start: range.start().into(),
-			end: range.end().into(),
-			relative: (),
-		}
-	}
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct PubKw(SyntaxToken);
-impl std::fmt::Debug for PubKw {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstToken for PubKw {
-	fn cast(tok: SyntaxToken) -> Option<Self> {
-		if Self::can_cast(tok.kind()) {
-			Some(Self(tok))
-		} else {
-			None
-		}
-	}
-}
-impl AstElement for PubKw {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::PubKw }
-
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstToken::cast(elem.into_token()?) }
-
-	fn span(&self) -> FileSpan {
-		let range = self.0.text_range();
-		FileSpan {
-			start: range.start().into(),
-			end: range.end().into(),
-			relative: (),
-		}
-	}
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct ExternKw(SyntaxToken);
-impl std::fmt::Debug for ExternKw {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstToken for ExternKw {
-	fn cast(tok: SyntaxToken) -> Option<Self> {
-		if Self::can_cast(tok.kind()) {
-			Some(Self(tok))
-		} else {
-			None
-		}
-	}
-}
-impl AstElement for ExternKw {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::ExternKw }
-
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstToken::cast(elem.into_token()?) }
-
-	fn span(&self) -> FileSpan {
-		let range = self.0.text_range();
-		FileSpan {
-			start: range.start().into(),
-			end: range.end().into(),
-			relative: (),
-		}
-	}
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct StringLit(SyntaxToken);
-impl std::fmt::Debug for StringLit {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstToken for StringLit {
-	fn cast(tok: SyntaxToken) -> Option<Self> {
-		if Self::can_cast(tok.kind()) {
-			Some(Self(tok))
-		} else {
-			None
-		}
-	}
-}
-impl AstElement for StringLit {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::StringLit }
-
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstToken::cast(elem.into_token()?) }
-
-	fn span(&self) -> FileSpan {
-		let range = self.0.text_range();
-		FileSpan {
-			start: range.start().into(),
-			end: range.end().into(),
-			relative: (),
-		}
-	}
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct StructKw(SyntaxToken);
-impl std::fmt::Debug for StructKw {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstToken for StructKw {
-	fn cast(tok: SyntaxToken) -> Option<Self> {
-		if Self::can_cast(tok.kind()) {
-			Some(Self(tok))
-		} else {
-			None
-		}
-	}
-}
-impl AstElement for StructKw {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::StructKw }
-
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstToken::cast(elem.into_token()?) }
-
-	fn span(&self) -> FileSpan {
-		let range = self.0.text_range();
-		FileSpan {
-			start: range.start().into(),
-			end: range.end().into(),
-			relative: (),
-		}
-	}
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct LBrace(SyntaxToken);
-impl std::fmt::Debug for LBrace {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstToken for LBrace {
-	fn cast(tok: SyntaxToken) -> Option<Self> {
-		if Self::can_cast(tok.kind()) {
-			Some(Self(tok))
-		} else {
-			None
-		}
-	}
-}
-impl AstElement for LBrace {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::LBrace }
-
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstToken::cast(elem.into_token()?) }
-
-	fn span(&self) -> FileSpan {
-		let range = self.0.text_range();
-		FileSpan {
-			start: range.start().into(),
-			end: range.end().into(),
-			relative: (),
-		}
-	}
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct RBrace(SyntaxToken);
-impl std::fmt::Debug for RBrace {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstToken for RBrace {
-	fn cast(tok: SyntaxToken) -> Option<Self> {
-		if Self::can_cast(tok.kind()) {
-			Some(Self(tok))
-		} else {
-			None
-		}
-	}
-}
-impl AstElement for RBrace {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::RBrace }
-
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstToken::cast(elem.into_token()?) }
-
-	fn span(&self) -> FileSpan {
-		let range = self.0.text_range();
-		FileSpan {
-			start: range.start().into(),
-			end: range.end().into(),
-			relative: (),
-		}
-	}
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct EnumKw(SyntaxToken);
-impl std::fmt::Debug for EnumKw {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstToken for EnumKw {
-	fn cast(tok: SyntaxToken) -> Option<Self> {
-		if Self::can_cast(tok.kind()) {
-			Some(Self(tok))
-		} else {
-			None
-		}
-	}
-}
-impl AstElement for EnumKw {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::EnumKw }
-
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstToken::cast(elem.into_token()?) }
-
-	fn span(&self) -> FileSpan {
-		let range = self.0.text_range();
-		FileSpan {
-			start: range.start().into(),
-			end: range.end().into(),
-			relative: (),
-		}
-	}
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct TypeKw(SyntaxToken);
-impl std::fmt::Debug for TypeKw {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstToken for TypeKw {
-	fn cast(tok: SyntaxToken) -> Option<Self> {
-		if Self::can_cast(tok.kind()) {
-			Some(Self(tok))
-		} else {
-			None
-		}
-	}
-}
-impl AstElement for TypeKw {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::TypeKw }
-
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstToken::cast(elem.into_token()?) }
-
-	fn span(&self) -> FileSpan {
-		let range = self.0.text_range();
-		FileSpan {
-			start: range.start().into(),
-			end: range.end().into(),
-			relative: (),
-		}
-	}
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct Eq(SyntaxToken);
-impl std::fmt::Debug for Eq {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstToken for Eq {
-	fn cast(tok: SyntaxToken) -> Option<Self> {
-		if Self::can_cast(tok.kind()) {
-			Some(Self(tok))
-		} else {
-			None
-		}
-	}
-}
-impl AstElement for Eq {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Eq }
-
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstToken::cast(elem.into_token()?) }
-
-	fn span(&self) -> FileSpan {
-		let range = self.0.text_range();
-		FileSpan {
-			start: range.start().into(),
-			end: range.end().into(),
-			relative: (),
-		}
-	}
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct StaticKw(SyntaxToken);
-impl std::fmt::Debug for StaticKw {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstToken for StaticKw {
-	fn cast(tok: SyntaxToken) -> Option<Self> {
-		if Self::can_cast(tok.kind()) {
-			Some(Self(tok))
-		} else {
-			None
-		}
-	}
-}
-impl AstElement for StaticKw {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::StaticKw }
-
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstToken::cast(elem.into_token()?) }
-
-	fn span(&self) -> FileSpan {
-		let range = self.0.text_range();
-		FileSpan {
-			start: range.start().into(),
-			end: range.end().into(),
-			relative: (),
-		}
-	}
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct ImportKw(SyntaxToken);
-impl std::fmt::Debug for ImportKw {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstToken for ImportKw {
-	fn cast(tok: SyntaxToken) -> Option<Self> {
-		if Self::can_cast(tok.kind()) {
-			Some(Self(tok))
-		} else {
-			None
-		}
-	}
-}
-impl AstElement for ImportKw {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::ImportKw }
-
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstToken::cast(elem.into_token()?) }
-
-	fn span(&self) -> FileSpan {
-		let range = self.0.text_range();
-		FileSpan {
-			start: range.start().into(),
-			end: range.end().into(),
-			relative: (),
-		}
-	}
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Dot(SyntaxToken);
 impl std::fmt::Debug for Dot {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
 impl AstToken for Dot {
-	fn cast(tok: SyntaxToken) -> Option<Self> {
-		if Self::can_cast(tok.kind()) {
-			Some(Self(tok))
-		} else {
-			None
-		}
-	}
+	fn text(&self) -> Text { self.0.text_key().into() }
 }
 impl AstElement for Dot {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Dot }
 
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstToken::cast(elem.into_token()?) }
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let tok = elem.into_token()?;
+		Self::can_cast(tok.kind()).then(|| Self(tok))
+	}
 
 	fn span(&self) -> FileSpan {
 		let range = self.0.text_range();
@@ -585,1456 +31,8 @@ impl AstElement for Dot {
 			relative: (),
 		}
 	}
-}
 
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct Star(SyntaxToken);
-impl std::fmt::Debug for Star {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstToken for Star {
-	fn cast(tok: SyntaxToken) -> Option<Self> {
-		if Self::can_cast(tok.kind()) {
-			Some(Self(tok))
-		} else {
-			None
-		}
-	}
-}
-impl AstElement for Star {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Star }
-
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstToken::cast(elem.into_token()?) }
-
-	fn span(&self) -> FileSpan {
-		let range = self.0.text_range();
-		FileSpan {
-			start: range.start().into(),
-			end: range.end().into(),
-			relative: (),
-		}
-	}
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct AsKw(SyntaxToken);
-impl std::fmt::Debug for AsKw {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstToken for AsKw {
-	fn cast(tok: SyntaxToken) -> Option<Self> {
-		if Self::can_cast(tok.kind()) {
-			Some(Self(tok))
-		} else {
-			None
-		}
-	}
-}
-impl AstElement for AsKw {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::AsKw }
-
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstToken::cast(elem.into_token()?) }
-
-	fn span(&self) -> FileSpan {
-		let range = self.0.text_range();
-		FileSpan {
-			start: range.start().into(),
-			end: range.end().into(),
-			relative: (),
-		}
-	}
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct LBracket(SyntaxToken);
-impl std::fmt::Debug for LBracket {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstToken for LBracket {
-	fn cast(tok: SyntaxToken) -> Option<Self> {
-		if Self::can_cast(tok.kind()) {
-			Some(Self(tok))
-		} else {
-			None
-		}
-	}
-}
-impl AstElement for LBracket {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::LBracket }
-
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstToken::cast(elem.into_token()?) }
-
-	fn span(&self) -> FileSpan {
-		let range = self.0.text_range();
-		FileSpan {
-			start: range.start().into(),
-			end: range.end().into(),
-			relative: (),
-		}
-	}
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct RBracket(SyntaxToken);
-impl std::fmt::Debug for RBracket {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstToken for RBracket {
-	fn cast(tok: SyntaxToken) -> Option<Self> {
-		if Self::can_cast(tok.kind()) {
-			Some(Self(tok))
-		} else {
-			None
-		}
-	}
-}
-impl AstElement for RBracket {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::RBracket }
-
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstToken::cast(elem.into_token()?) }
-
-	fn span(&self) -> FileSpan {
-		let range = self.0.text_range();
-		FileSpan {
-			start: range.start().into(),
-			end: range.end().into(),
-			relative: (),
-		}
-	}
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct Underscore(SyntaxToken);
-impl std::fmt::Debug for Underscore {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstToken for Underscore {
-	fn cast(tok: SyntaxToken) -> Option<Self> {
-		if Self::can_cast(tok.kind()) {
-			Some(Self(tok))
-		} else {
-			None
-		}
-	}
-}
-impl AstElement for Underscore {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Underscore }
-
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstToken::cast(elem.into_token()?) }
-
-	fn span(&self) -> FileSpan {
-		let range = self.0.text_range();
-		FileSpan {
-			start: range.start().into(),
-			end: range.end().into(),
-			relative: (),
-		}
-	}
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct MutKw(SyntaxToken);
-impl std::fmt::Debug for MutKw {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstToken for MutKw {
-	fn cast(tok: SyntaxToken) -> Option<Self> {
-		if Self::can_cast(tok.kind()) {
-			Some(Self(tok))
-		} else {
-			None
-		}
-	}
-}
-impl AstElement for MutKw {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::MutKw }
-
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstToken::cast(elem.into_token()?) }
-
-	fn span(&self) -> FileSpan {
-		let range = self.0.text_range();
-		FileSpan {
-			start: range.start().into(),
-			end: range.end().into(),
-			relative: (),
-		}
-	}
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct ContinueKw(SyntaxToken);
-impl std::fmt::Debug for ContinueKw {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstToken for ContinueKw {
-	fn cast(tok: SyntaxToken) -> Option<Self> {
-		if Self::can_cast(tok.kind()) {
-			Some(Self(tok))
-		} else {
-			None
-		}
-	}
-}
-impl AstElement for ContinueKw {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::ContinueKw }
-
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstToken::cast(elem.into_token()?) }
-
-	fn span(&self) -> FileSpan {
-		let range = self.0.text_range();
-		FileSpan {
-			start: range.start().into(),
-			end: range.end().into(),
-			relative: (),
-		}
-	}
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct LetKw(SyntaxToken);
-impl std::fmt::Debug for LetKw {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstToken for LetKw {
-	fn cast(tok: SyntaxToken) -> Option<Self> {
-		if Self::can_cast(tok.kind()) {
-			Some(Self(tok))
-		} else {
-			None
-		}
-	}
-}
-impl AstElement for LetKw {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::LetKw }
-
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstToken::cast(elem.into_token()?) }
-
-	fn span(&self) -> FileSpan {
-		let range = self.0.text_range();
-		FileSpan {
-			start: range.start().into(),
-			end: range.end().into(),
-			relative: (),
-		}
-	}
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct PipePipe(SyntaxToken);
-impl std::fmt::Debug for PipePipe {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstToken for PipePipe {
-	fn cast(tok: SyntaxToken) -> Option<Self> {
-		if Self::can_cast(tok.kind()) {
-			Some(Self(tok))
-		} else {
-			None
-		}
-	}
-}
-impl AstElement for PipePipe {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::PipePipe }
-
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstToken::cast(elem.into_token()?) }
-
-	fn span(&self) -> FileSpan {
-		let range = self.0.text_range();
-		FileSpan {
-			start: range.start().into(),
-			end: range.end().into(),
-			relative: (),
-		}
-	}
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct AmpAmp(SyntaxToken);
-impl std::fmt::Debug for AmpAmp {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstToken for AmpAmp {
-	fn cast(tok: SyntaxToken) -> Option<Self> {
-		if Self::can_cast(tok.kind()) {
-			Some(Self(tok))
-		} else {
-			None
-		}
-	}
-}
-impl AstElement for AmpAmp {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::AmpAmp }
-
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstToken::cast(elem.into_token()?) }
-
-	fn span(&self) -> FileSpan {
-		let range = self.0.text_range();
-		FileSpan {
-			start: range.start().into(),
-			end: range.end().into(),
-			relative: (),
-		}
-	}
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct EqEq(SyntaxToken);
-impl std::fmt::Debug for EqEq {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstToken for EqEq {
-	fn cast(tok: SyntaxToken) -> Option<Self> {
-		if Self::can_cast(tok.kind()) {
-			Some(Self(tok))
-		} else {
-			None
-		}
-	}
-}
-impl AstElement for EqEq {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::EqEq }
-
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstToken::cast(elem.into_token()?) }
-
-	fn span(&self) -> FileSpan {
-		let range = self.0.text_range();
-		FileSpan {
-			start: range.start().into(),
-			end: range.end().into(),
-			relative: (),
-		}
-	}
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct Neq(SyntaxToken);
-impl std::fmt::Debug for Neq {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstToken for Neq {
-	fn cast(tok: SyntaxToken) -> Option<Self> {
-		if Self::can_cast(tok.kind()) {
-			Some(Self(tok))
-		} else {
-			None
-		}
-	}
-}
-impl AstElement for Neq {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Neq }
-
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstToken::cast(elem.into_token()?) }
-
-	fn span(&self) -> FileSpan {
-		let range = self.0.text_range();
-		FileSpan {
-			start: range.start().into(),
-			end: range.end().into(),
-			relative: (),
-		}
-	}
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct Leq(SyntaxToken);
-impl std::fmt::Debug for Leq {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstToken for Leq {
-	fn cast(tok: SyntaxToken) -> Option<Self> {
-		if Self::can_cast(tok.kind()) {
-			Some(Self(tok))
-		} else {
-			None
-		}
-	}
-}
-impl AstElement for Leq {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Leq }
-
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstToken::cast(elem.into_token()?) }
-
-	fn span(&self) -> FileSpan {
-		let range = self.0.text_range();
-		FileSpan {
-			start: range.start().into(),
-			end: range.end().into(),
-			relative: (),
-		}
-	}
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct Geq(SyntaxToken);
-impl std::fmt::Debug for Geq {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstToken for Geq {
-	fn cast(tok: SyntaxToken) -> Option<Self> {
-		if Self::can_cast(tok.kind()) {
-			Some(Self(tok))
-		} else {
-			None
-		}
-	}
-}
-impl AstElement for Geq {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Geq }
-
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstToken::cast(elem.into_token()?) }
-
-	fn span(&self) -> FileSpan {
-		let range = self.0.text_range();
-		FileSpan {
-			start: range.start().into(),
-			end: range.end().into(),
-			relative: (),
-		}
-	}
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct Lt(SyntaxToken);
-impl std::fmt::Debug for Lt {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstToken for Lt {
-	fn cast(tok: SyntaxToken) -> Option<Self> {
-		if Self::can_cast(tok.kind()) {
-			Some(Self(tok))
-		} else {
-			None
-		}
-	}
-}
-impl AstElement for Lt {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Lt }
-
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstToken::cast(elem.into_token()?) }
-
-	fn span(&self) -> FileSpan {
-		let range = self.0.text_range();
-		FileSpan {
-			start: range.start().into(),
-			end: range.end().into(),
-			relative: (),
-		}
-	}
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct Gt(SyntaxToken);
-impl std::fmt::Debug for Gt {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstToken for Gt {
-	fn cast(tok: SyntaxToken) -> Option<Self> {
-		if Self::can_cast(tok.kind()) {
-			Some(Self(tok))
-		} else {
-			None
-		}
-	}
-}
-impl AstElement for Gt {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Gt }
-
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstToken::cast(elem.into_token()?) }
-
-	fn span(&self) -> FileSpan {
-		let range = self.0.text_range();
-		FileSpan {
-			start: range.start().into(),
-			end: range.end().into(),
-			relative: (),
-		}
-	}
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct Plus(SyntaxToken);
-impl std::fmt::Debug for Plus {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstToken for Plus {
-	fn cast(tok: SyntaxToken) -> Option<Self> {
-		if Self::can_cast(tok.kind()) {
-			Some(Self(tok))
-		} else {
-			None
-		}
-	}
-}
-impl AstElement for Plus {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Plus }
-
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstToken::cast(elem.into_token()?) }
-
-	fn span(&self) -> FileSpan {
-		let range = self.0.text_range();
-		FileSpan {
-			start: range.start().into(),
-			end: range.end().into(),
-			relative: (),
-		}
-	}
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct Minus(SyntaxToken);
-impl std::fmt::Debug for Minus {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstToken for Minus {
-	fn cast(tok: SyntaxToken) -> Option<Self> {
-		if Self::can_cast(tok.kind()) {
-			Some(Self(tok))
-		} else {
-			None
-		}
-	}
-}
-impl AstElement for Minus {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Minus }
-
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstToken::cast(elem.into_token()?) }
-
-	fn span(&self) -> FileSpan {
-		let range = self.0.text_range();
-		FileSpan {
-			start: range.start().into(),
-			end: range.end().into(),
-			relative: (),
-		}
-	}
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct Slash(SyntaxToken);
-impl std::fmt::Debug for Slash {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstToken for Slash {
-	fn cast(tok: SyntaxToken) -> Option<Self> {
-		if Self::can_cast(tok.kind()) {
-			Some(Self(tok))
-		} else {
-			None
-		}
-	}
-}
-impl AstElement for Slash {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Slash }
-
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstToken::cast(elem.into_token()?) }
-
-	fn span(&self) -> FileSpan {
-		let range = self.0.text_range();
-		FileSpan {
-			start: range.start().into(),
-			end: range.end().into(),
-			relative: (),
-		}
-	}
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct Percent(SyntaxToken);
-impl std::fmt::Debug for Percent {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstToken for Percent {
-	fn cast(tok: SyntaxToken) -> Option<Self> {
-		if Self::can_cast(tok.kind()) {
-			Some(Self(tok))
-		} else {
-			None
-		}
-	}
-}
-impl AstElement for Percent {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Percent }
-
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstToken::cast(elem.into_token()?) }
-
-	fn span(&self) -> FileSpan {
-		let range = self.0.text_range();
-		FileSpan {
-			start: range.start().into(),
-			end: range.end().into(),
-			relative: (),
-		}
-	}
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct Shl(SyntaxToken);
-impl std::fmt::Debug for Shl {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstToken for Shl {
-	fn cast(tok: SyntaxToken) -> Option<Self> {
-		if Self::can_cast(tok.kind()) {
-			Some(Self(tok))
-		} else {
-			None
-		}
-	}
-}
-impl AstElement for Shl {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Shl }
-
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstToken::cast(elem.into_token()?) }
-
-	fn span(&self) -> FileSpan {
-		let range = self.0.text_range();
-		FileSpan {
-			start: range.start().into(),
-			end: range.end().into(),
-			relative: (),
-		}
-	}
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct Shr(SyntaxToken);
-impl std::fmt::Debug for Shr {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstToken for Shr {
-	fn cast(tok: SyntaxToken) -> Option<Self> {
-		if Self::can_cast(tok.kind()) {
-			Some(Self(tok))
-		} else {
-			None
-		}
-	}
-}
-impl AstElement for Shr {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Shr }
-
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstToken::cast(elem.into_token()?) }
-
-	fn span(&self) -> FileSpan {
-		let range = self.0.text_range();
-		FileSpan {
-			start: range.start().into(),
-			end: range.end().into(),
-			relative: (),
-		}
-	}
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct Caret(SyntaxToken);
-impl std::fmt::Debug for Caret {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstToken for Caret {
-	fn cast(tok: SyntaxToken) -> Option<Self> {
-		if Self::can_cast(tok.kind()) {
-			Some(Self(tok))
-		} else {
-			None
-		}
-	}
-}
-impl AstElement for Caret {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Caret }
-
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstToken::cast(elem.into_token()?) }
-
-	fn span(&self) -> FileSpan {
-		let range = self.0.text_range();
-		FileSpan {
-			start: range.start().into(),
-			end: range.end().into(),
-			relative: (),
-		}
-	}
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct Pipe(SyntaxToken);
-impl std::fmt::Debug for Pipe {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstToken for Pipe {
-	fn cast(tok: SyntaxToken) -> Option<Self> {
-		if Self::can_cast(tok.kind()) {
-			Some(Self(tok))
-		} else {
-			None
-		}
-	}
-}
-impl AstElement for Pipe {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Pipe }
-
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstToken::cast(elem.into_token()?) }
-
-	fn span(&self) -> FileSpan {
-		let range = self.0.text_range();
-		FileSpan {
-			start: range.start().into(),
-			end: range.end().into(),
-			relative: (),
-		}
-	}
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct Amp(SyntaxToken);
-impl std::fmt::Debug for Amp {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstToken for Amp {
-	fn cast(tok: SyntaxToken) -> Option<Self> {
-		if Self::can_cast(tok.kind()) {
-			Some(Self(tok))
-		} else {
-			None
-		}
-	}
-}
-impl AstElement for Amp {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Amp }
-
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstToken::cast(elem.into_token()?) }
-
-	fn span(&self) -> FileSpan {
-		let range = self.0.text_range();
-		FileSpan {
-			start: range.start().into(),
-			end: range.end().into(),
-			relative: (),
-		}
-	}
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct PlusEq(SyntaxToken);
-impl std::fmt::Debug for PlusEq {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstToken for PlusEq {
-	fn cast(tok: SyntaxToken) -> Option<Self> {
-		if Self::can_cast(tok.kind()) {
-			Some(Self(tok))
-		} else {
-			None
-		}
-	}
-}
-impl AstElement for PlusEq {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::PlusEq }
-
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstToken::cast(elem.into_token()?) }
-
-	fn span(&self) -> FileSpan {
-		let range = self.0.text_range();
-		FileSpan {
-			start: range.start().into(),
-			end: range.end().into(),
-			relative: (),
-		}
-	}
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct SlashEq(SyntaxToken);
-impl std::fmt::Debug for SlashEq {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstToken for SlashEq {
-	fn cast(tok: SyntaxToken) -> Option<Self> {
-		if Self::can_cast(tok.kind()) {
-			Some(Self(tok))
-		} else {
-			None
-		}
-	}
-}
-impl AstElement for SlashEq {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::SlashEq }
-
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstToken::cast(elem.into_token()?) }
-
-	fn span(&self) -> FileSpan {
-		let range = self.0.text_range();
-		FileSpan {
-			start: range.start().into(),
-			end: range.end().into(),
-			relative: (),
-		}
-	}
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct StarEq(SyntaxToken);
-impl std::fmt::Debug for StarEq {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstToken for StarEq {
-	fn cast(tok: SyntaxToken) -> Option<Self> {
-		if Self::can_cast(tok.kind()) {
-			Some(Self(tok))
-		} else {
-			None
-		}
-	}
-}
-impl AstElement for StarEq {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::StarEq }
-
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstToken::cast(elem.into_token()?) }
-
-	fn span(&self) -> FileSpan {
-		let range = self.0.text_range();
-		FileSpan {
-			start: range.start().into(),
-			end: range.end().into(),
-			relative: (),
-		}
-	}
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct PercentEq(SyntaxToken);
-impl std::fmt::Debug for PercentEq {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstToken for PercentEq {
-	fn cast(tok: SyntaxToken) -> Option<Self> {
-		if Self::can_cast(tok.kind()) {
-			Some(Self(tok))
-		} else {
-			None
-		}
-	}
-}
-impl AstElement for PercentEq {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::PercentEq }
-
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstToken::cast(elem.into_token()?) }
-
-	fn span(&self) -> FileSpan {
-		let range = self.0.text_range();
-		FileSpan {
-			start: range.start().into(),
-			end: range.end().into(),
-			relative: (),
-		}
-	}
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct ShrEq(SyntaxToken);
-impl std::fmt::Debug for ShrEq {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstToken for ShrEq {
-	fn cast(tok: SyntaxToken) -> Option<Self> {
-		if Self::can_cast(tok.kind()) {
-			Some(Self(tok))
-		} else {
-			None
-		}
-	}
-}
-impl AstElement for ShrEq {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::ShrEq }
-
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstToken::cast(elem.into_token()?) }
-
-	fn span(&self) -> FileSpan {
-		let range = self.0.text_range();
-		FileSpan {
-			start: range.start().into(),
-			end: range.end().into(),
-			relative: (),
-		}
-	}
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct ShlEq(SyntaxToken);
-impl std::fmt::Debug for ShlEq {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstToken for ShlEq {
-	fn cast(tok: SyntaxToken) -> Option<Self> {
-		if Self::can_cast(tok.kind()) {
-			Some(Self(tok))
-		} else {
-			None
-		}
-	}
-}
-impl AstElement for ShlEq {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::ShlEq }
-
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstToken::cast(elem.into_token()?) }
-
-	fn span(&self) -> FileSpan {
-		let range = self.0.text_range();
-		FileSpan {
-			start: range.start().into(),
-			end: range.end().into(),
-			relative: (),
-		}
-	}
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct MinusEq(SyntaxToken);
-impl std::fmt::Debug for MinusEq {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstToken for MinusEq {
-	fn cast(tok: SyntaxToken) -> Option<Self> {
-		if Self::can_cast(tok.kind()) {
-			Some(Self(tok))
-		} else {
-			None
-		}
-	}
-}
-impl AstElement for MinusEq {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::MinusEq }
-
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstToken::cast(elem.into_token()?) }
-
-	fn span(&self) -> FileSpan {
-		let range = self.0.text_range();
-		FileSpan {
-			start: range.start().into(),
-			end: range.end().into(),
-			relative: (),
-		}
-	}
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct PipeEq(SyntaxToken);
-impl std::fmt::Debug for PipeEq {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstToken for PipeEq {
-	fn cast(tok: SyntaxToken) -> Option<Self> {
-		if Self::can_cast(tok.kind()) {
-			Some(Self(tok))
-		} else {
-			None
-		}
-	}
-}
-impl AstElement for PipeEq {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::PipeEq }
-
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstToken::cast(elem.into_token()?) }
-
-	fn span(&self) -> FileSpan {
-		let range = self.0.text_range();
-		FileSpan {
-			start: range.start().into(),
-			end: range.end().into(),
-			relative: (),
-		}
-	}
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct AmpEq(SyntaxToken);
-impl std::fmt::Debug for AmpEq {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstToken for AmpEq {
-	fn cast(tok: SyntaxToken) -> Option<Self> {
-		if Self::can_cast(tok.kind()) {
-			Some(Self(tok))
-		} else {
-			None
-		}
-	}
-}
-impl AstElement for AmpEq {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::AmpEq }
-
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstToken::cast(elem.into_token()?) }
-
-	fn span(&self) -> FileSpan {
-		let range = self.0.text_range();
-		FileSpan {
-			start: range.start().into(),
-			end: range.end().into(),
-			relative: (),
-		}
-	}
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct CaretEq(SyntaxToken);
-impl std::fmt::Debug for CaretEq {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstToken for CaretEq {
-	fn cast(tok: SyntaxToken) -> Option<Self> {
-		if Self::can_cast(tok.kind()) {
-			Some(Self(tok))
-		} else {
-			None
-		}
-	}
-}
-impl AstElement for CaretEq {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::CaretEq }
-
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstToken::cast(elem.into_token()?) }
-
-	fn span(&self) -> FileSpan {
-		let range = self.0.text_range();
-		FileSpan {
-			start: range.start().into(),
-			end: range.end().into(),
-			relative: (),
-		}
-	}
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct BreakKw(SyntaxToken);
-impl std::fmt::Debug for BreakKw {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstToken for BreakKw {
-	fn cast(tok: SyntaxToken) -> Option<Self> {
-		if Self::can_cast(tok.kind()) {
-			Some(Self(tok))
-		} else {
-			None
-		}
-	}
-}
-impl AstElement for BreakKw {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::BreakKw }
-
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstToken::cast(elem.into_token()?) }
-
-	fn span(&self) -> FileSpan {
-		let range = self.0.text_range();
-		FileSpan {
-			start: range.start().into(),
-			end: range.end().into(),
-			relative: (),
-		}
-	}
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct ForKw(SyntaxToken);
-impl std::fmt::Debug for ForKw {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstToken for ForKw {
-	fn cast(tok: SyntaxToken) -> Option<Self> {
-		if Self::can_cast(tok.kind()) {
-			Some(Self(tok))
-		} else {
-			None
-		}
-	}
-}
-impl AstElement for ForKw {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::ForKw }
-
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstToken::cast(elem.into_token()?) }
-
-	fn span(&self) -> FileSpan {
-		let range = self.0.text_range();
-		FileSpan {
-			start: range.start().into(),
-			end: range.end().into(),
-			relative: (),
-		}
-	}
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct InKw(SyntaxToken);
-impl std::fmt::Debug for InKw {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstToken for InKw {
-	fn cast(tok: SyntaxToken) -> Option<Self> {
-		if Self::can_cast(tok.kind()) {
-			Some(Self(tok))
-		} else {
-			None
-		}
-	}
-}
-impl AstElement for InKw {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::InKw }
-
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstToken::cast(elem.into_token()?) }
-
-	fn span(&self) -> FileSpan {
-		let range = self.0.text_range();
-		FileSpan {
-			start: range.start().into(),
-			end: range.end().into(),
-			relative: (),
-		}
-	}
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct IfKw(SyntaxToken);
-impl std::fmt::Debug for IfKw {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstToken for IfKw {
-	fn cast(tok: SyntaxToken) -> Option<Self> {
-		if Self::can_cast(tok.kind()) {
-			Some(Self(tok))
-		} else {
-			None
-		}
-	}
-}
-impl AstElement for IfKw {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::IfKw }
-
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstToken::cast(elem.into_token()?) }
-
-	fn span(&self) -> FileSpan {
-		let range = self.0.text_range();
-		FileSpan {
-			start: range.start().into(),
-			end: range.end().into(),
-			relative: (),
-		}
-	}
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct ElseKw(SyntaxToken);
-impl std::fmt::Debug for ElseKw {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstToken for ElseKw {
-	fn cast(tok: SyntaxToken) -> Option<Self> {
-		if Self::can_cast(tok.kind()) {
-			Some(Self(tok))
-		} else {
-			None
-		}
-	}
-}
-impl AstElement for ElseKw {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::ElseKw }
-
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstToken::cast(elem.into_token()?) }
-
-	fn span(&self) -> FileSpan {
-		let range = self.0.text_range();
-		FileSpan {
-			start: range.start().into(),
-			end: range.end().into(),
-			relative: (),
-		}
-	}
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct BoolLit(SyntaxToken);
-impl std::fmt::Debug for BoolLit {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstToken for BoolLit {
-	fn cast(tok: SyntaxToken) -> Option<Self> {
-		if Self::can_cast(tok.kind()) {
-			Some(Self(tok))
-		} else {
-			None
-		}
-	}
-}
-impl AstElement for BoolLit {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::BoolLit }
-
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstToken::cast(elem.into_token()?) }
-
-	fn span(&self) -> FileSpan {
-		let range = self.0.text_range();
-		FileSpan {
-			start: range.start().into(),
-			end: range.end().into(),
-			relative: (),
-		}
-	}
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct CharLit(SyntaxToken);
-impl std::fmt::Debug for CharLit {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstToken for CharLit {
-	fn cast(tok: SyntaxToken) -> Option<Self> {
-		if Self::can_cast(tok.kind()) {
-			Some(Self(tok))
-		} else {
-			None
-		}
-	}
-}
-impl AstElement for CharLit {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::CharLit }
-
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstToken::cast(elem.into_token()?) }
-
-	fn span(&self) -> FileSpan {
-		let range = self.0.text_range();
-		FileSpan {
-			start: range.start().into(),
-			end: range.end().into(),
-			relative: (),
-		}
-	}
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct FloatLit(SyntaxToken);
-impl std::fmt::Debug for FloatLit {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstToken for FloatLit {
-	fn cast(tok: SyntaxToken) -> Option<Self> {
-		if Self::can_cast(tok.kind()) {
-			Some(Self(tok))
-		} else {
-			None
-		}
-	}
-}
-impl AstElement for FloatLit {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::FloatLit }
-
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstToken::cast(elem.into_token()?) }
-
-	fn span(&self) -> FileSpan {
-		let range = self.0.text_range();
-		FileSpan {
-			start: range.start().into(),
-			end: range.end().into(),
-			relative: (),
-		}
-	}
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct IntLit(SyntaxToken);
-impl std::fmt::Debug for IntLit {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstToken for IntLit {
-	fn cast(tok: SyntaxToken) -> Option<Self> {
-		if Self::can_cast(tok.kind()) {
-			Some(Self(tok))
-		} else {
-			None
-		}
-	}
-}
-impl AstElement for IntLit {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::IntLit }
-
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstToken::cast(elem.into_token()?) }
-
-	fn span(&self) -> FileSpan {
-		let range = self.0.text_range();
-		FileSpan {
-			start: range.start().into(),
-			end: range.end().into(),
-			relative: (),
-		}
-	}
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct LoopKw(SyntaxToken);
-impl std::fmt::Debug for LoopKw {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstToken for LoopKw {
-	fn cast(tok: SyntaxToken) -> Option<Self> {
-		if Self::can_cast(tok.kind()) {
-			Some(Self(tok))
-		} else {
-			None
-		}
-	}
-}
-impl AstElement for LoopKw {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::LoopKw }
-
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstToken::cast(elem.into_token()?) }
-
-	fn span(&self) -> FileSpan {
-		let range = self.0.text_range();
-		FileSpan {
-			start: range.start().into(),
-			end: range.end().into(),
-			relative: (),
-		}
-	}
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct WhileKw(SyntaxToken);
-impl std::fmt::Debug for WhileKw {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstToken for WhileKw {
-	fn cast(tok: SyntaxToken) -> Option<Self> {
-		if Self::can_cast(tok.kind()) {
-			Some(Self(tok))
-		} else {
-			None
-		}
-	}
-}
-impl AstElement for WhileKw {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::WhileKw }
-
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstToken::cast(elem.into_token()?) }
-
-	fn span(&self) -> FileSpan {
-		let range = self.0.text_range();
-		FileSpan {
-			start: range.start().into(),
-			end: range.end().into(),
-			relative: (),
-		}
-	}
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct MatchKw(SyntaxToken);
-impl std::fmt::Debug for MatchKw {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstToken for MatchKw {
-	fn cast(tok: SyntaxToken) -> Option<Self> {
-		if Self::can_cast(tok.kind()) {
-			Some(Self(tok))
-		} else {
-			None
-		}
-	}
-}
-impl AstElement for MatchKw {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::MatchKw }
-
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstToken::cast(elem.into_token()?) }
-
-	fn span(&self) -> FileSpan {
-		let range = self.0.text_range();
-		FileSpan {
-			start: range.start().into(),
-			end: range.end().into(),
-			relative: (),
-		}
-	}
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct FatArrow(SyntaxToken);
-impl std::fmt::Debug for FatArrow {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstToken for FatArrow {
-	fn cast(tok: SyntaxToken) -> Option<Self> {
-		if Self::can_cast(tok.kind()) {
-			Some(Self(tok))
-		} else {
-			None
-		}
-	}
-}
-impl AstElement for FatArrow {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::FatArrow }
-
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstToken::cast(elem.into_token()?) }
-
-	fn span(&self) -> FileSpan {
-		let range = self.0.text_range();
-		FileSpan {
-			start: range.start().into(),
-			end: range.end().into(),
-			relative: (),
-		}
-	}
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct Not(SyntaxToken);
-impl std::fmt::Debug for Not {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstToken for Not {
-	fn cast(tok: SyntaxToken) -> Option<Self> {
-		if Self::can_cast(tok.kind()) {
-			Some(Self(tok))
-		} else {
-			None
-		}
-	}
-}
-impl AstElement for Not {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Not }
-
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstToken::cast(elem.into_token()?) }
-
-	fn span(&self) -> FileSpan {
-		let range = self.0.text_range();
-		FileSpan {
-			start: range.start().into(),
-			end: range.end().into(),
-			relative: (),
-		}
-	}
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct ReturnKw(SyntaxToken);
-impl std::fmt::Debug for ReturnKw {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstToken for ReturnKw {
-	fn cast(tok: SyntaxToken) -> Option<Self> {
-		if Self::can_cast(tok.kind()) {
-			Some(Self(tok))
-		} else {
-			None
-		}
-	}
-}
-impl AstElement for ReturnKw {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::ReturnKw }
-
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstToken::cast(elem.into_token()?) }
-
-	fn span(&self) -> FileSpan {
-		let range = self.0.text_range();
-		FileSpan {
-			start: range.start().into(),
-			end: range.end().into(),
-			relative: (),
-		}
-	}
+	fn inner(self) -> SyntaxElement { self.0.into() }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -2043,18 +41,15 @@ impl std::fmt::Debug for Ident {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
 impl AstToken for Ident {
-	fn cast(tok: SyntaxToken) -> Option<Self> {
-		if Self::can_cast(tok.kind()) {
-			Some(Self(tok))
-		} else {
-			None
-		}
-	}
+	fn text(&self) -> Text { self.0.text_key().into() }
 }
 impl AstElement for Ident {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Ident }
 
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstToken::cast(elem.into_token()?) }
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let tok = elem.into_token()?;
+		Self::can_cast(tok.kind()).then(|| Self(tok))
+	}
 
 	fn span(&self) -> FileSpan {
 		let range = self.0.text_range();
@@ -2064,4 +59,1938 @@ impl AstElement for Ident {
 			relative: (),
 		}
 	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct Semi(SyntaxToken);
+impl std::fmt::Debug for Semi {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for Semi {
+	fn text(&self) -> Text { self.0.text_key().into() }
+}
+impl AstElement for Semi {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Semi }
+
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let tok = elem.into_token()?;
+		Self::can_cast(tok.kind()).then(|| Self(tok))
+	}
+
+	fn span(&self) -> FileSpan {
+		let range = self.0.text_range();
+		FileSpan {
+			start: range.start().into(),
+			end: range.end().into(),
+			relative: (),
+		}
+	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct At(SyntaxToken);
+impl std::fmt::Debug for At {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for At {
+	fn text(&self) -> Text { self.0.text_key().into() }
+}
+impl AstElement for At {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::At }
+
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let tok = elem.into_token()?;
+		Self::can_cast(tok.kind()).then(|| Self(tok))
+	}
+
+	fn span(&self) -> FileSpan {
+		let range = self.0.text_range();
+		FileSpan {
+			start: range.start().into(),
+			end: range.end().into(),
+			relative: (),
+		}
+	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct FnKw(SyntaxToken);
+impl std::fmt::Debug for FnKw {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for FnKw {
+	fn text(&self) -> Text { self.0.text_key().into() }
+}
+impl AstElement for FnKw {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::FnKw }
+
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let tok = elem.into_token()?;
+		Self::can_cast(tok.kind()).then(|| Self(tok))
+	}
+
+	fn span(&self) -> FileSpan {
+		let range = self.0.text_range();
+		FileSpan {
+			start: range.start().into(),
+			end: range.end().into(),
+			relative: (),
+		}
+	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct LParen(SyntaxToken);
+impl std::fmt::Debug for LParen {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for LParen {
+	fn text(&self) -> Text { self.0.text_key().into() }
+}
+impl AstElement for LParen {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::LParen }
+
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let tok = elem.into_token()?;
+		Self::can_cast(tok.kind()).then(|| Self(tok))
+	}
+
+	fn span(&self) -> FileSpan {
+		let range = self.0.text_range();
+		FileSpan {
+			start: range.start().into(),
+			end: range.end().into(),
+			relative: (),
+		}
+	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct Comma(SyntaxToken);
+impl std::fmt::Debug for Comma {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for Comma {
+	fn text(&self) -> Text { self.0.text_key().into() }
+}
+impl AstElement for Comma {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Comma }
+
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let tok = elem.into_token()?;
+		Self::can_cast(tok.kind()).then(|| Self(tok))
+	}
+
+	fn span(&self) -> FileSpan {
+		let range = self.0.text_range();
+		FileSpan {
+			start: range.start().into(),
+			end: range.end().into(),
+			relative: (),
+		}
+	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct RParen(SyntaxToken);
+impl std::fmt::Debug for RParen {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for RParen {
+	fn text(&self) -> Text { self.0.text_key().into() }
+}
+impl AstElement for RParen {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::RParen }
+
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let tok = elem.into_token()?;
+		Self::can_cast(tok.kind()).then(|| Self(tok))
+	}
+
+	fn span(&self) -> FileSpan {
+		let range = self.0.text_range();
+		FileSpan {
+			start: range.start().into(),
+			end: range.end().into(),
+			relative: (),
+		}
+	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct Colon(SyntaxToken);
+impl std::fmt::Debug for Colon {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for Colon {
+	fn text(&self) -> Text { self.0.text_key().into() }
+}
+impl AstElement for Colon {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Colon }
+
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let tok = elem.into_token()?;
+		Self::can_cast(tok.kind()).then(|| Self(tok))
+	}
+
+	fn span(&self) -> FileSpan {
+		let range = self.0.text_range();
+		FileSpan {
+			start: range.start().into(),
+			end: range.end().into(),
+			relative: (),
+		}
+	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct Arrow(SyntaxToken);
+impl std::fmt::Debug for Arrow {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for Arrow {
+	fn text(&self) -> Text { self.0.text_key().into() }
+}
+impl AstElement for Arrow {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Arrow }
+
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let tok = elem.into_token()?;
+		Self::can_cast(tok.kind()).then(|| Self(tok))
+	}
+
+	fn span(&self) -> FileSpan {
+		let range = self.0.text_range();
+		FileSpan {
+			start: range.start().into(),
+			end: range.end().into(),
+			relative: (),
+		}
+	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct PubKw(SyntaxToken);
+impl std::fmt::Debug for PubKw {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for PubKw {
+	fn text(&self) -> Text { self.0.text_key().into() }
+}
+impl AstElement for PubKw {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::PubKw }
+
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let tok = elem.into_token()?;
+		Self::can_cast(tok.kind()).then(|| Self(tok))
+	}
+
+	fn span(&self) -> FileSpan {
+		let range = self.0.text_range();
+		FileSpan {
+			start: range.start().into(),
+			end: range.end().into(),
+			relative: (),
+		}
+	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct ExternKw(SyntaxToken);
+impl std::fmt::Debug for ExternKw {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for ExternKw {
+	fn text(&self) -> Text { self.0.text_key().into() }
+}
+impl AstElement for ExternKw {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::ExternKw }
+
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let tok = elem.into_token()?;
+		Self::can_cast(tok.kind()).then(|| Self(tok))
+	}
+
+	fn span(&self) -> FileSpan {
+		let range = self.0.text_range();
+		FileSpan {
+			start: range.start().into(),
+			end: range.end().into(),
+			relative: (),
+		}
+	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct StringLit(SyntaxToken);
+impl std::fmt::Debug for StringLit {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for StringLit {
+	fn text(&self) -> Text { self.0.text_key().into() }
+}
+impl AstElement for StringLit {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::StringLit }
+
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let tok = elem.into_token()?;
+		Self::can_cast(tok.kind()).then(|| Self(tok))
+	}
+
+	fn span(&self) -> FileSpan {
+		let range = self.0.text_range();
+		FileSpan {
+			start: range.start().into(),
+			end: range.end().into(),
+			relative: (),
+		}
+	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct StructKw(SyntaxToken);
+impl std::fmt::Debug for StructKw {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for StructKw {
+	fn text(&self) -> Text { self.0.text_key().into() }
+}
+impl AstElement for StructKw {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::StructKw }
+
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let tok = elem.into_token()?;
+		Self::can_cast(tok.kind()).then(|| Self(tok))
+	}
+
+	fn span(&self) -> FileSpan {
+		let range = self.0.text_range();
+		FileSpan {
+			start: range.start().into(),
+			end: range.end().into(),
+			relative: (),
+		}
+	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct LBrace(SyntaxToken);
+impl std::fmt::Debug for LBrace {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for LBrace {
+	fn text(&self) -> Text { self.0.text_key().into() }
+}
+impl AstElement for LBrace {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::LBrace }
+
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let tok = elem.into_token()?;
+		Self::can_cast(tok.kind()).then(|| Self(tok))
+	}
+
+	fn span(&self) -> FileSpan {
+		let range = self.0.text_range();
+		FileSpan {
+			start: range.start().into(),
+			end: range.end().into(),
+			relative: (),
+		}
+	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct RBrace(SyntaxToken);
+impl std::fmt::Debug for RBrace {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for RBrace {
+	fn text(&self) -> Text { self.0.text_key().into() }
+}
+impl AstElement for RBrace {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::RBrace }
+
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let tok = elem.into_token()?;
+		Self::can_cast(tok.kind()).then(|| Self(tok))
+	}
+
+	fn span(&self) -> FileSpan {
+		let range = self.0.text_range();
+		FileSpan {
+			start: range.start().into(),
+			end: range.end().into(),
+			relative: (),
+		}
+	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct EnumKw(SyntaxToken);
+impl std::fmt::Debug for EnumKw {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for EnumKw {
+	fn text(&self) -> Text { self.0.text_key().into() }
+}
+impl AstElement for EnumKw {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::EnumKw }
+
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let tok = elem.into_token()?;
+		Self::can_cast(tok.kind()).then(|| Self(tok))
+	}
+
+	fn span(&self) -> FileSpan {
+		let range = self.0.text_range();
+		FileSpan {
+			start: range.start().into(),
+			end: range.end().into(),
+			relative: (),
+		}
+	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct TypeKw(SyntaxToken);
+impl std::fmt::Debug for TypeKw {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for TypeKw {
+	fn text(&self) -> Text { self.0.text_key().into() }
+}
+impl AstElement for TypeKw {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::TypeKw }
+
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let tok = elem.into_token()?;
+		Self::can_cast(tok.kind()).then(|| Self(tok))
+	}
+
+	fn span(&self) -> FileSpan {
+		let range = self.0.text_range();
+		FileSpan {
+			start: range.start().into(),
+			end: range.end().into(),
+			relative: (),
+		}
+	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct Eq(SyntaxToken);
+impl std::fmt::Debug for Eq {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for Eq {
+	fn text(&self) -> Text { self.0.text_key().into() }
+}
+impl AstElement for Eq {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Eq }
+
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let tok = elem.into_token()?;
+		Self::can_cast(tok.kind()).then(|| Self(tok))
+	}
+
+	fn span(&self) -> FileSpan {
+		let range = self.0.text_range();
+		FileSpan {
+			start: range.start().into(),
+			end: range.end().into(),
+			relative: (),
+		}
+	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct StaticKw(SyntaxToken);
+impl std::fmt::Debug for StaticKw {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for StaticKw {
+	fn text(&self) -> Text { self.0.text_key().into() }
+}
+impl AstElement for StaticKw {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::StaticKw }
+
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let tok = elem.into_token()?;
+		Self::can_cast(tok.kind()).then(|| Self(tok))
+	}
+
+	fn span(&self) -> FileSpan {
+		let range = self.0.text_range();
+		FileSpan {
+			start: range.start().into(),
+			end: range.end().into(),
+			relative: (),
+		}
+	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct AsKw(SyntaxToken);
+impl std::fmt::Debug for AsKw {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for AsKw {
+	fn text(&self) -> Text { self.0.text_key().into() }
+}
+impl AstElement for AsKw {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::AsKw }
+
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let tok = elem.into_token()?;
+		Self::can_cast(tok.kind()).then(|| Self(tok))
+	}
+
+	fn span(&self) -> FileSpan {
+		let range = self.0.text_range();
+		FileSpan {
+			start: range.start().into(),
+			end: range.end().into(),
+			relative: (),
+		}
+	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct ImportKw(SyntaxToken);
+impl std::fmt::Debug for ImportKw {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for ImportKw {
+	fn text(&self) -> Text { self.0.text_key().into() }
+}
+impl AstElement for ImportKw {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::ImportKw }
+
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let tok = elem.into_token()?;
+		Self::can_cast(tok.kind()).then(|| Self(tok))
+	}
+
+	fn span(&self) -> FileSpan {
+		let range = self.0.text_range();
+		FileSpan {
+			start: range.start().into(),
+			end: range.end().into(),
+			relative: (),
+		}
+	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct LBracket(SyntaxToken);
+impl std::fmt::Debug for LBracket {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for LBracket {
+	fn text(&self) -> Text { self.0.text_key().into() }
+}
+impl AstElement for LBracket {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::LBracket }
+
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let tok = elem.into_token()?;
+		Self::can_cast(tok.kind()).then(|| Self(tok))
+	}
+
+	fn span(&self) -> FileSpan {
+		let range = self.0.text_range();
+		FileSpan {
+			start: range.start().into(),
+			end: range.end().into(),
+			relative: (),
+		}
+	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct RBracket(SyntaxToken);
+impl std::fmt::Debug for RBracket {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for RBracket {
+	fn text(&self) -> Text { self.0.text_key().into() }
+}
+impl AstElement for RBracket {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::RBracket }
+
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let tok = elem.into_token()?;
+		Self::can_cast(tok.kind()).then(|| Self(tok))
+	}
+
+	fn span(&self) -> FileSpan {
+		let range = self.0.text_range();
+		FileSpan {
+			start: range.start().into(),
+			end: range.end().into(),
+			relative: (),
+		}
+	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct Underscore(SyntaxToken);
+impl std::fmt::Debug for Underscore {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for Underscore {
+	fn text(&self) -> Text { self.0.text_key().into() }
+}
+impl AstElement for Underscore {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Underscore }
+
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let tok = elem.into_token()?;
+		Self::can_cast(tok.kind()).then(|| Self(tok))
+	}
+
+	fn span(&self) -> FileSpan {
+		let range = self.0.text_range();
+		FileSpan {
+			start: range.start().into(),
+			end: range.end().into(),
+			relative: (),
+		}
+	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct Star(SyntaxToken);
+impl std::fmt::Debug for Star {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for Star {
+	fn text(&self) -> Text { self.0.text_key().into() }
+}
+impl AstElement for Star {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Star }
+
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let tok = elem.into_token()?;
+		Self::can_cast(tok.kind()).then(|| Self(tok))
+	}
+
+	fn span(&self) -> FileSpan {
+		let range = self.0.text_range();
+		FileSpan {
+			start: range.start().into(),
+			end: range.end().into(),
+			relative: (),
+		}
+	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct MutKw(SyntaxToken);
+impl std::fmt::Debug for MutKw {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for MutKw {
+	fn text(&self) -> Text { self.0.text_key().into() }
+}
+impl AstElement for MutKw {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::MutKw }
+
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let tok = elem.into_token()?;
+		Self::can_cast(tok.kind()).then(|| Self(tok))
+	}
+
+	fn span(&self) -> FileSpan {
+		let range = self.0.text_range();
+		FileSpan {
+			start: range.start().into(),
+			end: range.end().into(),
+			relative: (),
+		}
+	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct ContinueKw(SyntaxToken);
+impl std::fmt::Debug for ContinueKw {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for ContinueKw {
+	fn text(&self) -> Text { self.0.text_key().into() }
+}
+impl AstElement for ContinueKw {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::ContinueKw }
+
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let tok = elem.into_token()?;
+		Self::can_cast(tok.kind()).then(|| Self(tok))
+	}
+
+	fn span(&self) -> FileSpan {
+		let range = self.0.text_range();
+		FileSpan {
+			start: range.start().into(),
+			end: range.end().into(),
+			relative: (),
+		}
+	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct LetKw(SyntaxToken);
+impl std::fmt::Debug for LetKw {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for LetKw {
+	fn text(&self) -> Text { self.0.text_key().into() }
+}
+impl AstElement for LetKw {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::LetKw }
+
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let tok = elem.into_token()?;
+		Self::can_cast(tok.kind()).then(|| Self(tok))
+	}
+
+	fn span(&self) -> FileSpan {
+		let range = self.0.text_range();
+		FileSpan {
+			start: range.start().into(),
+			end: range.end().into(),
+			relative: (),
+		}
+	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct PipePipe(SyntaxToken);
+impl std::fmt::Debug for PipePipe {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for PipePipe {
+	fn text(&self) -> Text { self.0.text_key().into() }
+}
+impl AstElement for PipePipe {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::PipePipe }
+
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let tok = elem.into_token()?;
+		Self::can_cast(tok.kind()).then(|| Self(tok))
+	}
+
+	fn span(&self) -> FileSpan {
+		let range = self.0.text_range();
+		FileSpan {
+			start: range.start().into(),
+			end: range.end().into(),
+			relative: (),
+		}
+	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct AmpAmp(SyntaxToken);
+impl std::fmt::Debug for AmpAmp {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for AmpAmp {
+	fn text(&self) -> Text { self.0.text_key().into() }
+}
+impl AstElement for AmpAmp {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::AmpAmp }
+
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let tok = elem.into_token()?;
+		Self::can_cast(tok.kind()).then(|| Self(tok))
+	}
+
+	fn span(&self) -> FileSpan {
+		let range = self.0.text_range();
+		FileSpan {
+			start: range.start().into(),
+			end: range.end().into(),
+			relative: (),
+		}
+	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct EqEq(SyntaxToken);
+impl std::fmt::Debug for EqEq {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for EqEq {
+	fn text(&self) -> Text { self.0.text_key().into() }
+}
+impl AstElement for EqEq {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::EqEq }
+
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let tok = elem.into_token()?;
+		Self::can_cast(tok.kind()).then(|| Self(tok))
+	}
+
+	fn span(&self) -> FileSpan {
+		let range = self.0.text_range();
+		FileSpan {
+			start: range.start().into(),
+			end: range.end().into(),
+			relative: (),
+		}
+	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct Neq(SyntaxToken);
+impl std::fmt::Debug for Neq {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for Neq {
+	fn text(&self) -> Text { self.0.text_key().into() }
+}
+impl AstElement for Neq {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Neq }
+
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let tok = elem.into_token()?;
+		Self::can_cast(tok.kind()).then(|| Self(tok))
+	}
+
+	fn span(&self) -> FileSpan {
+		let range = self.0.text_range();
+		FileSpan {
+			start: range.start().into(),
+			end: range.end().into(),
+			relative: (),
+		}
+	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct Leq(SyntaxToken);
+impl std::fmt::Debug for Leq {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for Leq {
+	fn text(&self) -> Text { self.0.text_key().into() }
+}
+impl AstElement for Leq {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Leq }
+
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let tok = elem.into_token()?;
+		Self::can_cast(tok.kind()).then(|| Self(tok))
+	}
+
+	fn span(&self) -> FileSpan {
+		let range = self.0.text_range();
+		FileSpan {
+			start: range.start().into(),
+			end: range.end().into(),
+			relative: (),
+		}
+	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct Geq(SyntaxToken);
+impl std::fmt::Debug for Geq {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for Geq {
+	fn text(&self) -> Text { self.0.text_key().into() }
+}
+impl AstElement for Geq {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Geq }
+
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let tok = elem.into_token()?;
+		Self::can_cast(tok.kind()).then(|| Self(tok))
+	}
+
+	fn span(&self) -> FileSpan {
+		let range = self.0.text_range();
+		FileSpan {
+			start: range.start().into(),
+			end: range.end().into(),
+			relative: (),
+		}
+	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct Lt(SyntaxToken);
+impl std::fmt::Debug for Lt {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for Lt {
+	fn text(&self) -> Text { self.0.text_key().into() }
+}
+impl AstElement for Lt {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Lt }
+
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let tok = elem.into_token()?;
+		Self::can_cast(tok.kind()).then(|| Self(tok))
+	}
+
+	fn span(&self) -> FileSpan {
+		let range = self.0.text_range();
+		FileSpan {
+			start: range.start().into(),
+			end: range.end().into(),
+			relative: (),
+		}
+	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct Gt(SyntaxToken);
+impl std::fmt::Debug for Gt {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for Gt {
+	fn text(&self) -> Text { self.0.text_key().into() }
+}
+impl AstElement for Gt {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Gt }
+
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let tok = elem.into_token()?;
+		Self::can_cast(tok.kind()).then(|| Self(tok))
+	}
+
+	fn span(&self) -> FileSpan {
+		let range = self.0.text_range();
+		FileSpan {
+			start: range.start().into(),
+			end: range.end().into(),
+			relative: (),
+		}
+	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct Plus(SyntaxToken);
+impl std::fmt::Debug for Plus {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for Plus {
+	fn text(&self) -> Text { self.0.text_key().into() }
+}
+impl AstElement for Plus {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Plus }
+
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let tok = elem.into_token()?;
+		Self::can_cast(tok.kind()).then(|| Self(tok))
+	}
+
+	fn span(&self) -> FileSpan {
+		let range = self.0.text_range();
+		FileSpan {
+			start: range.start().into(),
+			end: range.end().into(),
+			relative: (),
+		}
+	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct Minus(SyntaxToken);
+impl std::fmt::Debug for Minus {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for Minus {
+	fn text(&self) -> Text { self.0.text_key().into() }
+}
+impl AstElement for Minus {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Minus }
+
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let tok = elem.into_token()?;
+		Self::can_cast(tok.kind()).then(|| Self(tok))
+	}
+
+	fn span(&self) -> FileSpan {
+		let range = self.0.text_range();
+		FileSpan {
+			start: range.start().into(),
+			end: range.end().into(),
+			relative: (),
+		}
+	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct Slash(SyntaxToken);
+impl std::fmt::Debug for Slash {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for Slash {
+	fn text(&self) -> Text { self.0.text_key().into() }
+}
+impl AstElement for Slash {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Slash }
+
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let tok = elem.into_token()?;
+		Self::can_cast(tok.kind()).then(|| Self(tok))
+	}
+
+	fn span(&self) -> FileSpan {
+		let range = self.0.text_range();
+		FileSpan {
+			start: range.start().into(),
+			end: range.end().into(),
+			relative: (),
+		}
+	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct Percent(SyntaxToken);
+impl std::fmt::Debug for Percent {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for Percent {
+	fn text(&self) -> Text { self.0.text_key().into() }
+}
+impl AstElement for Percent {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Percent }
+
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let tok = elem.into_token()?;
+		Self::can_cast(tok.kind()).then(|| Self(tok))
+	}
+
+	fn span(&self) -> FileSpan {
+		let range = self.0.text_range();
+		FileSpan {
+			start: range.start().into(),
+			end: range.end().into(),
+			relative: (),
+		}
+	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct Shl(SyntaxToken);
+impl std::fmt::Debug for Shl {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for Shl {
+	fn text(&self) -> Text { self.0.text_key().into() }
+}
+impl AstElement for Shl {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Shl }
+
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let tok = elem.into_token()?;
+		Self::can_cast(tok.kind()).then(|| Self(tok))
+	}
+
+	fn span(&self) -> FileSpan {
+		let range = self.0.text_range();
+		FileSpan {
+			start: range.start().into(),
+			end: range.end().into(),
+			relative: (),
+		}
+	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct Shr(SyntaxToken);
+impl std::fmt::Debug for Shr {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for Shr {
+	fn text(&self) -> Text { self.0.text_key().into() }
+}
+impl AstElement for Shr {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Shr }
+
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let tok = elem.into_token()?;
+		Self::can_cast(tok.kind()).then(|| Self(tok))
+	}
+
+	fn span(&self) -> FileSpan {
+		let range = self.0.text_range();
+		FileSpan {
+			start: range.start().into(),
+			end: range.end().into(),
+			relative: (),
+		}
+	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct Caret(SyntaxToken);
+impl std::fmt::Debug for Caret {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for Caret {
+	fn text(&self) -> Text { self.0.text_key().into() }
+}
+impl AstElement for Caret {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Caret }
+
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let tok = elem.into_token()?;
+		Self::can_cast(tok.kind()).then(|| Self(tok))
+	}
+
+	fn span(&self) -> FileSpan {
+		let range = self.0.text_range();
+		FileSpan {
+			start: range.start().into(),
+			end: range.end().into(),
+			relative: (),
+		}
+	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct Pipe(SyntaxToken);
+impl std::fmt::Debug for Pipe {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for Pipe {
+	fn text(&self) -> Text { self.0.text_key().into() }
+}
+impl AstElement for Pipe {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Pipe }
+
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let tok = elem.into_token()?;
+		Self::can_cast(tok.kind()).then(|| Self(tok))
+	}
+
+	fn span(&self) -> FileSpan {
+		let range = self.0.text_range();
+		FileSpan {
+			start: range.start().into(),
+			end: range.end().into(),
+			relative: (),
+		}
+	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct Amp(SyntaxToken);
+impl std::fmt::Debug for Amp {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for Amp {
+	fn text(&self) -> Text { self.0.text_key().into() }
+}
+impl AstElement for Amp {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Amp }
+
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let tok = elem.into_token()?;
+		Self::can_cast(tok.kind()).then(|| Self(tok))
+	}
+
+	fn span(&self) -> FileSpan {
+		let range = self.0.text_range();
+		FileSpan {
+			start: range.start().into(),
+			end: range.end().into(),
+			relative: (),
+		}
+	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct PlusEq(SyntaxToken);
+impl std::fmt::Debug for PlusEq {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for PlusEq {
+	fn text(&self) -> Text { self.0.text_key().into() }
+}
+impl AstElement for PlusEq {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::PlusEq }
+
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let tok = elem.into_token()?;
+		Self::can_cast(tok.kind()).then(|| Self(tok))
+	}
+
+	fn span(&self) -> FileSpan {
+		let range = self.0.text_range();
+		FileSpan {
+			start: range.start().into(),
+			end: range.end().into(),
+			relative: (),
+		}
+	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct SlashEq(SyntaxToken);
+impl std::fmt::Debug for SlashEq {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for SlashEq {
+	fn text(&self) -> Text { self.0.text_key().into() }
+}
+impl AstElement for SlashEq {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::SlashEq }
+
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let tok = elem.into_token()?;
+		Self::can_cast(tok.kind()).then(|| Self(tok))
+	}
+
+	fn span(&self) -> FileSpan {
+		let range = self.0.text_range();
+		FileSpan {
+			start: range.start().into(),
+			end: range.end().into(),
+			relative: (),
+		}
+	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct StarEq(SyntaxToken);
+impl std::fmt::Debug for StarEq {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for StarEq {
+	fn text(&self) -> Text { self.0.text_key().into() }
+}
+impl AstElement for StarEq {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::StarEq }
+
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let tok = elem.into_token()?;
+		Self::can_cast(tok.kind()).then(|| Self(tok))
+	}
+
+	fn span(&self) -> FileSpan {
+		let range = self.0.text_range();
+		FileSpan {
+			start: range.start().into(),
+			end: range.end().into(),
+			relative: (),
+		}
+	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct PercentEq(SyntaxToken);
+impl std::fmt::Debug for PercentEq {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for PercentEq {
+	fn text(&self) -> Text { self.0.text_key().into() }
+}
+impl AstElement for PercentEq {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::PercentEq }
+
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let tok = elem.into_token()?;
+		Self::can_cast(tok.kind()).then(|| Self(tok))
+	}
+
+	fn span(&self) -> FileSpan {
+		let range = self.0.text_range();
+		FileSpan {
+			start: range.start().into(),
+			end: range.end().into(),
+			relative: (),
+		}
+	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct ShrEq(SyntaxToken);
+impl std::fmt::Debug for ShrEq {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for ShrEq {
+	fn text(&self) -> Text { self.0.text_key().into() }
+}
+impl AstElement for ShrEq {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::ShrEq }
+
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let tok = elem.into_token()?;
+		Self::can_cast(tok.kind()).then(|| Self(tok))
+	}
+
+	fn span(&self) -> FileSpan {
+		let range = self.0.text_range();
+		FileSpan {
+			start: range.start().into(),
+			end: range.end().into(),
+			relative: (),
+		}
+	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct ShlEq(SyntaxToken);
+impl std::fmt::Debug for ShlEq {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for ShlEq {
+	fn text(&self) -> Text { self.0.text_key().into() }
+}
+impl AstElement for ShlEq {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::ShlEq }
+
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let tok = elem.into_token()?;
+		Self::can_cast(tok.kind()).then(|| Self(tok))
+	}
+
+	fn span(&self) -> FileSpan {
+		let range = self.0.text_range();
+		FileSpan {
+			start: range.start().into(),
+			end: range.end().into(),
+			relative: (),
+		}
+	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct MinusEq(SyntaxToken);
+impl std::fmt::Debug for MinusEq {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for MinusEq {
+	fn text(&self) -> Text { self.0.text_key().into() }
+}
+impl AstElement for MinusEq {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::MinusEq }
+
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let tok = elem.into_token()?;
+		Self::can_cast(tok.kind()).then(|| Self(tok))
+	}
+
+	fn span(&self) -> FileSpan {
+		let range = self.0.text_range();
+		FileSpan {
+			start: range.start().into(),
+			end: range.end().into(),
+			relative: (),
+		}
+	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct PipeEq(SyntaxToken);
+impl std::fmt::Debug for PipeEq {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for PipeEq {
+	fn text(&self) -> Text { self.0.text_key().into() }
+}
+impl AstElement for PipeEq {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::PipeEq }
+
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let tok = elem.into_token()?;
+		Self::can_cast(tok.kind()).then(|| Self(tok))
+	}
+
+	fn span(&self) -> FileSpan {
+		let range = self.0.text_range();
+		FileSpan {
+			start: range.start().into(),
+			end: range.end().into(),
+			relative: (),
+		}
+	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct AmpEq(SyntaxToken);
+impl std::fmt::Debug for AmpEq {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for AmpEq {
+	fn text(&self) -> Text { self.0.text_key().into() }
+}
+impl AstElement for AmpEq {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::AmpEq }
+
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let tok = elem.into_token()?;
+		Self::can_cast(tok.kind()).then(|| Self(tok))
+	}
+
+	fn span(&self) -> FileSpan {
+		let range = self.0.text_range();
+		FileSpan {
+			start: range.start().into(),
+			end: range.end().into(),
+			relative: (),
+		}
+	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct CaretEq(SyntaxToken);
+impl std::fmt::Debug for CaretEq {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for CaretEq {
+	fn text(&self) -> Text { self.0.text_key().into() }
+}
+impl AstElement for CaretEq {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::CaretEq }
+
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let tok = elem.into_token()?;
+		Self::can_cast(tok.kind()).then(|| Self(tok))
+	}
+
+	fn span(&self) -> FileSpan {
+		let range = self.0.text_range();
+		FileSpan {
+			start: range.start().into(),
+			end: range.end().into(),
+			relative: (),
+		}
+	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct BreakKw(SyntaxToken);
+impl std::fmt::Debug for BreakKw {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for BreakKw {
+	fn text(&self) -> Text { self.0.text_key().into() }
+}
+impl AstElement for BreakKw {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::BreakKw }
+
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let tok = elem.into_token()?;
+		Self::can_cast(tok.kind()).then(|| Self(tok))
+	}
+
+	fn span(&self) -> FileSpan {
+		let range = self.0.text_range();
+		FileSpan {
+			start: range.start().into(),
+			end: range.end().into(),
+			relative: (),
+		}
+	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct ForKw(SyntaxToken);
+impl std::fmt::Debug for ForKw {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for ForKw {
+	fn text(&self) -> Text { self.0.text_key().into() }
+}
+impl AstElement for ForKw {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::ForKw }
+
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let tok = elem.into_token()?;
+		Self::can_cast(tok.kind()).then(|| Self(tok))
+	}
+
+	fn span(&self) -> FileSpan {
+		let range = self.0.text_range();
+		FileSpan {
+			start: range.start().into(),
+			end: range.end().into(),
+			relative: (),
+		}
+	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct InKw(SyntaxToken);
+impl std::fmt::Debug for InKw {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for InKw {
+	fn text(&self) -> Text { self.0.text_key().into() }
+}
+impl AstElement for InKw {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::InKw }
+
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let tok = elem.into_token()?;
+		Self::can_cast(tok.kind()).then(|| Self(tok))
+	}
+
+	fn span(&self) -> FileSpan {
+		let range = self.0.text_range();
+		FileSpan {
+			start: range.start().into(),
+			end: range.end().into(),
+			relative: (),
+		}
+	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct IfKw(SyntaxToken);
+impl std::fmt::Debug for IfKw {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for IfKw {
+	fn text(&self) -> Text { self.0.text_key().into() }
+}
+impl AstElement for IfKw {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::IfKw }
+
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let tok = elem.into_token()?;
+		Self::can_cast(tok.kind()).then(|| Self(tok))
+	}
+
+	fn span(&self) -> FileSpan {
+		let range = self.0.text_range();
+		FileSpan {
+			start: range.start().into(),
+			end: range.end().into(),
+			relative: (),
+		}
+	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct ElseKw(SyntaxToken);
+impl std::fmt::Debug for ElseKw {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for ElseKw {
+	fn text(&self) -> Text { self.0.text_key().into() }
+}
+impl AstElement for ElseKw {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::ElseKw }
+
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let tok = elem.into_token()?;
+		Self::can_cast(tok.kind()).then(|| Self(tok))
+	}
+
+	fn span(&self) -> FileSpan {
+		let range = self.0.text_range();
+		FileSpan {
+			start: range.start().into(),
+			end: range.end().into(),
+			relative: (),
+		}
+	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct BoolLit(SyntaxToken);
+impl std::fmt::Debug for BoolLit {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for BoolLit {
+	fn text(&self) -> Text { self.0.text_key().into() }
+}
+impl AstElement for BoolLit {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::BoolLit }
+
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let tok = elem.into_token()?;
+		Self::can_cast(tok.kind()).then(|| Self(tok))
+	}
+
+	fn span(&self) -> FileSpan {
+		let range = self.0.text_range();
+		FileSpan {
+			start: range.start().into(),
+			end: range.end().into(),
+			relative: (),
+		}
+	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct CharLit(SyntaxToken);
+impl std::fmt::Debug for CharLit {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for CharLit {
+	fn text(&self) -> Text { self.0.text_key().into() }
+}
+impl AstElement for CharLit {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::CharLit }
+
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let tok = elem.into_token()?;
+		Self::can_cast(tok.kind()).then(|| Self(tok))
+	}
+
+	fn span(&self) -> FileSpan {
+		let range = self.0.text_range();
+		FileSpan {
+			start: range.start().into(),
+			end: range.end().into(),
+			relative: (),
+		}
+	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct FloatLit(SyntaxToken);
+impl std::fmt::Debug for FloatLit {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for FloatLit {
+	fn text(&self) -> Text { self.0.text_key().into() }
+}
+impl AstElement for FloatLit {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::FloatLit }
+
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let tok = elem.into_token()?;
+		Self::can_cast(tok.kind()).then(|| Self(tok))
+	}
+
+	fn span(&self) -> FileSpan {
+		let range = self.0.text_range();
+		FileSpan {
+			start: range.start().into(),
+			end: range.end().into(),
+			relative: (),
+		}
+	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct IntLit(SyntaxToken);
+impl std::fmt::Debug for IntLit {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for IntLit {
+	fn text(&self) -> Text { self.0.text_key().into() }
+}
+impl AstElement for IntLit {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::IntLit }
+
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let tok = elem.into_token()?;
+		Self::can_cast(tok.kind()).then(|| Self(tok))
+	}
+
+	fn span(&self) -> FileSpan {
+		let range = self.0.text_range();
+		FileSpan {
+			start: range.start().into(),
+			end: range.end().into(),
+			relative: (),
+		}
+	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct LoopKw(SyntaxToken);
+impl std::fmt::Debug for LoopKw {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for LoopKw {
+	fn text(&self) -> Text { self.0.text_key().into() }
+}
+impl AstElement for LoopKw {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::LoopKw }
+
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let tok = elem.into_token()?;
+		Self::can_cast(tok.kind()).then(|| Self(tok))
+	}
+
+	fn span(&self) -> FileSpan {
+		let range = self.0.text_range();
+		FileSpan {
+			start: range.start().into(),
+			end: range.end().into(),
+			relative: (),
+		}
+	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct WhileKw(SyntaxToken);
+impl std::fmt::Debug for WhileKw {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for WhileKw {
+	fn text(&self) -> Text { self.0.text_key().into() }
+}
+impl AstElement for WhileKw {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::WhileKw }
+
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let tok = elem.into_token()?;
+		Self::can_cast(tok.kind()).then(|| Self(tok))
+	}
+
+	fn span(&self) -> FileSpan {
+		let range = self.0.text_range();
+		FileSpan {
+			start: range.start().into(),
+			end: range.end().into(),
+			relative: (),
+		}
+	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct MatchKw(SyntaxToken);
+impl std::fmt::Debug for MatchKw {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for MatchKw {
+	fn text(&self) -> Text { self.0.text_key().into() }
+}
+impl AstElement for MatchKw {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::MatchKw }
+
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let tok = elem.into_token()?;
+		Self::can_cast(tok.kind()).then(|| Self(tok))
+	}
+
+	fn span(&self) -> FileSpan {
+		let range = self.0.text_range();
+		FileSpan {
+			start: range.start().into(),
+			end: range.end().into(),
+			relative: (),
+		}
+	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct FatArrow(SyntaxToken);
+impl std::fmt::Debug for FatArrow {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for FatArrow {
+	fn text(&self) -> Text { self.0.text_key().into() }
+}
+impl AstElement for FatArrow {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::FatArrow }
+
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let tok = elem.into_token()?;
+		Self::can_cast(tok.kind()).then(|| Self(tok))
+	}
+
+	fn span(&self) -> FileSpan {
+		let range = self.0.text_range();
+		FileSpan {
+			start: range.start().into(),
+			end: range.end().into(),
+			relative: (),
+		}
+	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct Not(SyntaxToken);
+impl std::fmt::Debug for Not {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for Not {
+	fn text(&self) -> Text { self.0.text_key().into() }
+}
+impl AstElement for Not {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Not }
+
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let tok = elem.into_token()?;
+		Self::can_cast(tok.kind()).then(|| Self(tok))
+	}
+
+	fn span(&self) -> FileSpan {
+		let range = self.0.text_range();
+		FileSpan {
+			start: range.start().into(),
+			end: range.end().into(),
+			relative: (),
+		}
+	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct ReturnKw(SyntaxToken);
+impl std::fmt::Debug for ReturnKw {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for ReturnKw {
+	fn text(&self) -> Text { self.0.text_key().into() }
+}
+impl AstElement for ReturnKw {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::ReturnKw }
+
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let tok = elem.into_token()?;
+		Self::can_cast(tok.kind()).then(|| Self(tok))
+	}
+
+	fn span(&self) -> FileSpan {
+		let range = self.0.text_range();
+		FileSpan {
+			start: range.start().into(),
+			end: range.end().into(),
+			relative: (),
+		}
+	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
 }

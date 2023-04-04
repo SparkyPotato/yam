@@ -1,0 +1,13 @@
+[package]
+name = "hir-lower"
+version = "0.0.0"
+edition = "2021"
+
+[dependencies]
+diagnostics = { path = "../diagnostics" }
+hir = { path = "../hir" }
+syntax = { path = "../syntax" }
+text = { path = "../text" }
+verde = { path = "../verde" }
+
+rustc-hash = "1.1.0"

@@ -1,3 +1,17 @@
+//****************
+// Names and Paths
+//****************
+
+Path =
+  qualifier:Path? segment:PathSegment
+
+PathSegment =
+  '.'
+| Name
+
+Name =
+  'ident'
+
 //*******
 // Items
 //*******
@@ -59,6 +73,9 @@ TypeAlias =
 Static =
   'static' Name ':' Type '=' init:Expr ';'
 
+Rename =
+  'as' Name
+
 Import =
   'import' ImportTree ';'
 
@@ -66,21 +83,14 @@ ImportTree =
   ListImport
 | RenameImport
 
-RenameImport =
-  (Path Rename?)
-
 ListImport =
-  (prefix:Path? '.')? Wildcard
+  Path? ImportTreeList
 
-Wildcard =
-  ImportTreeList
-| '*'
+RenameImport =
+  Path Rename?
 
 ImportTreeList =
   '{' (ImportTree (',' ImportTree)* ','?)? '}'
-
-Rename =
-  'as' Name
 
 //*******
 // Types
@@ -230,16 +240,3 @@ WhileExpr =
 
 ArgList =
   '(' (Expr (',' Expr)* ','?)? ')'
-
-//****************
-// Names and Paths
-//****************
-
-Path =
-  scope:'.'? qualifier:(PathSegment*) end:Name
-
-PathSegment =
-  Name '.'
-
-Name =
-  'ident'

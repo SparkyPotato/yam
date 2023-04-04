@@ -1,0 +1,12 @@
+[package]
+name = "driver"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+diagnostics = { path = "../diagnostics" }
+hir = { path = "../hir" }
+hir-lower = { path = "../hir-lower" }
+parse = { path = "../parse" }
+text = { path = "../text" }
+verde = { path = "../verde", features = ["tracing"] }

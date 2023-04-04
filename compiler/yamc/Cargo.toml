@@ -1,0 +1,11 @@
+[package]
+name = "yamc"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+driver = { path = "../driver" }
+
+clap = { version = "4.2.1", features = ["derive"] }
+tracing = "0.1.37"
+tracing-subscriber = "0.3.16"

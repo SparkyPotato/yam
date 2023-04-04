@@ -225,13 +225,7 @@ impl<'a> Generator<'a> {
 						}
 
 						impl AstToken for #ident {
-							fn cast(tok: SyntaxToken) -> Option<Self> {
-								if Self::can_cast(tok.kind()) {
-									Some(Self(tok))
-								} else {
-									None
-								}
-							}
+							fn text(&self) -> Text { self.0.text_key().into() }
 						}
 
 						impl AstElement for #ident {
@@ -240,7 +234,8 @@ impl<'a> Generator<'a> {
 							}
 
 							fn cast(elem: SyntaxElement) -> Option<Self> {
-								AstToken::cast(elem.into_token()?)
+								let tok = elem.into_token()?;
+								Self::can_cast(tok.kind()).then(|| Self(tok))
 							}
 
 							fn span(&self) -> FileSpan {
@@ -251,6 +246,8 @@ impl<'a> Generator<'a> {
 									relative: (),
 								}
 							}
+
+							fn inner(self) -> SyntaxElement { self.0.into() }
 						}
 					}
 				}
@@ -292,12 +289,12 @@ impl<'a> Generator<'a> {
 								match cardinality {
 									Cardinality::Many => quote! {
 										pub fn #name(&self) -> impl Iterator<Item = #ty> + '_ {
-											node_children(&self.0)
+											children(&self.0)
 										}
 									},
 									Cardinality::One(n) => quote! {
 										pub fn #name(&self) -> Option<#ty> {
-											node_children(&self.0).nth(#n)
+											children(&self.0).nth(#n)
 										}
 									},
 								}
@@ -309,14 +306,14 @@ impl<'a> Generator<'a> {
 									Cardinality::Many => {
 										quote! {
 											pub fn #name(&self) -> impl Iterator<Item = #ty> + '_ {
-												token_children(&self.0)
+												children(&self.0)
 											}
 										}
 									},
 									Cardinality::One(n) => {
 										quote! {
 											pub fn #name(&self) -> Option<#ty> {
-												token_children(&self.0).nth(#n)
+												children(&self.0).nth(#n)
 											}
 										}
 									},
@@ -332,15 +329,7 @@ impl<'a> Generator<'a> {
 								fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 							}
 
-							impl AstNode for #name {
-								fn cast(node: SyntaxNode) -> Option<Self> {
-									if Self::can_cast(node.kind()) {
-										Some(Self(node))
-									} else {
-										None
-									}
-								}
-							}
+							impl AstNode for #name {}
 
 							impl AstElement for #name {
 								fn can_cast(kind: SyntaxKind) -> bool {
@@ -348,7 +337,8 @@ impl<'a> Generator<'a> {
 								}
 
 								fn cast(elem: SyntaxElement) -> Option<Self> {
-									AstNode::cast(elem.into_node()?)
+									let node = elem.into_node()?;
+									Self::can_cast(node.kind()).then(|| Self(node))
 								}
 
 								fn span(&self) -> FileSpan {
@@ -359,6 +349,8 @@ impl<'a> Generator<'a> {
 										relative: (),
 									}
 								}
+
+								fn inner(self) -> SyntaxElement { self.0.into() }
 							}
 
 							impl #name {
@@ -398,22 +390,7 @@ impl<'a> Generator<'a> {
 								}
 							}
 
-							impl AstNode for #name {
-								fn cast(node: SyntaxNode) -> Option<Self> {
-									node.children_with_tokens().find_map(|x| match x {
-										SyntaxElementRef::Node(node) => match node.kind() {
-											#(SyntaxKind::#struct_variants => AstNode::cast(node.clone()).map(Self::#struct_variants),)*
-											_ => {
-												None #(.or_else(|| AstNode::cast(node.clone()).map(Self::#enum_variants)))*
-											},
-										},
-										SyntaxElementRef::Token(tok) => match tok.kind() {
-											#(SyntaxKind::#token_variants => AstToken::cast(tok.clone()).map(Self::#token_variants),)*
-											_ => None
-										},
-									})
-								}
-							}
+							impl AstNode for #name {}
 
 							impl AstElement for #name {
 								fn can_cast(kind: SyntaxKind) -> bool {
@@ -422,13 +399,24 @@ impl<'a> Generator<'a> {
 								}
 
 								fn cast(elem: SyntaxElement) -> Option<Self> {
-									AstNode::cast(elem.into_node()?)
+									match elem.kind() {
+										#(SyntaxKind::#struct_variants => AstElement::cast(elem.clone()).map(Self::#struct_variants),)*
+										#(SyntaxKind::#token_variants => AstElement::cast(elem.clone()).map(Self::#token_variants),)*
+										_ => None,
+									} #(.or_else(|| AstElement::cast(elem.clone()).map(Self::#enum_variants)))*
 								}
 
 								fn span(&self) -> FileSpan {
 									match self {
 										#(Self::#token_variants(x) => x.span(),)*
 										#(Self::#node_variants(x) => x.span(),)*
+									}
+								}
+
+								fn inner(self) -> SyntaxElement {
+									match self {
+										#(Self::#token_variants(x) => x.inner(),)*
+										#(Self::#node_variants(x) => x.inner(),)*
 									}
 								}
 							}

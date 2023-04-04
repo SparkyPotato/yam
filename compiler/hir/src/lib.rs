@@ -9,37 +9,66 @@ use syntax::{
 use text::Text;
 use verde::{storage, Id, Interned, Tracked};
 
-use crate::ast::{AstId, FileAstMap};
+use crate::ast::AstId;
 
 #[storage]
-pub struct Storage(RawPath, Item, FileAstMap);
+pub struct Storage(RawPath, RawPathInner, Value, TypeDecl);
 
 #[derive(Interned, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct RawPath {
+	pub inner: RawPathInner,
+	pub ns: Namespace,
+}
+
+#[derive(Interned, Copy, Clone, PartialEq, Eq, Hash)]
+pub struct RawPathInner {
 	pub prec: Option<Id<Self>>,
 	pub ident: Text,
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, Hash)]
+pub enum Namespace {
+	Type,
+	Value,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub enum Attr {}
 
 #[derive(Tracked, Clone, PartialEq, Eq)]
-pub struct Item {
+pub struct Value {
 	#[id]
 	pub path: Id<RawPath>,
-	pub attrs: Vec<Attr>,
-	pub kind: ItemKind,
-	pub exprs: Arena<Expr>,
-	pub types: Arena<Type>,
-	pub locals: Arena<Local>,
+	pub kind: ValueKind,
+	pub common: ItemCommon,
 }
 
 #[derive(Clone, PartialEq, Eq)]
-pub enum ItemKind {
+pub enum ValueKind {
 	Fn(Fn),
+	Static(Static),
+}
+
+#[derive(Tracked, Clone, PartialEq, Eq)]
+pub struct TypeDecl {
+	#[id]
+	pub path: Id<RawPath>,
+	pub kind: TypeDeclKind,
+	pub common: ItemCommon,
+}
+
+#[derive(Clone, PartialEq, Eq)]
+pub enum TypeDeclKind {
 	Struct(Struct),
 	Enum(Enum),
-	Static(Static),
+}
+
+#[derive(Clone, PartialEq, Eq)]
+pub struct ItemCommon {
+	pub attrs: Vec<Attr>,
+	pub exprs: Arena<Expr>,
+	pub types: Arena<Type>,
+	pub locals: Arena<Local>,
 }
 
 #[derive(Clone, PartialEq, Eq)]
@@ -99,7 +128,7 @@ pub enum TypeKind {
 	Array(ArrayType),
 	Fn(FnType),
 	Infer,
-	Path(Id<Item>),
+	Path(Id<TypeDecl>),
 	Ptr(PtrType),
 }
 
@@ -141,7 +170,7 @@ pub enum ExprKind {
 	Literal(Literal),
 	Loop(LoopExpr),
 	Match(MatchExpr),
-	Item(Id<Item>),
+	Path(Id<Value>),
 	Local(u32),
 	Ref(RefExpr),
 	Prefix(PrefixExpr),

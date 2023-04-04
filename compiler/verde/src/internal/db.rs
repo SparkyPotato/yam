@@ -46,6 +46,35 @@ impl<'a> Ctx<'a> {
 	}
 
 	/// Get a reference to the value `id` points to.
+	/// ```rust
+	/// # use verde::{query, Tracked, Ctx, Id, storage, db};
+	/// #[derive(Tracked, Eq, PartialEq)]
+	/// # #[cfg_attr(feature = "serde", derive(verde::serde::Serialize, verde::serde::Deserialize))]
+	/// struct S {
+	/// 	#[id]
+	/// 	id: u32,
+	/// 	value: u32,
+	/// }
+	///
+	/// # #[storage]
+	/// # struct Storage(S, foo);
+	/// # #[db]
+	/// # struct Database(Storage);
+	/// #[query]
+	/// fn foo(ctx: &Ctx, id: Id<S>) -> S {
+	/// 	let s = ctx.get(id);
+	/// 	assert_eq!(s.value, 0);
+	/// 	S {
+	/// 		id: s.id,
+	/// 		value: s.value + 1,
+	/// 	}
+	/// }
+	///
+	/// # let mut db = Database::default();
+	/// # let db = &mut db as &mut dyn verde::Db;
+	/// let id = db.set_input(S { id: 0, value: 0 });
+	/// db.execute(|ctx| foo(ctx, id));
+	/// ```
 	pub fn get<T: Tracked>(&self, id: Id<T>) -> tracked::Get<'_, T> {
 		let id = id.get();
 		span!(
@@ -71,12 +100,105 @@ impl<'a> Ctx<'a> {
 	}
 
 	/// Get a reference to the value `id` points to.
+	/// ```rust
+	/// # use verde::{query, Tracked, Ctx, Id, storage, db};
+	/// #[derive(Tracked, Eq, PartialEq)]
+	/// # #[cfg_attr(feature = "serde", derive(verde::serde::Serialize, verde::serde::Deserialize))]
+	/// struct S {
+	/// 	#[id]
+	/// 	id: u32,
+	/// 	value: u32,
+	/// }
+	///
+	/// # #[storage]
+	/// # struct Storage(S, String, foo);
+	/// # #[db]
+	/// # struct Database(Storage);
+	/// #[query]
+	/// fn foo(ctx: &Ctx, id: Id<S>, id2: Id<String>) -> S {
+	/// 	let s = ctx.get(id);
+	/// 	let i = ctx.geti(id2);
+	/// 	assert_eq!(*i, "Hello");
+	/// 	S {
+	/// 		id: s.id,
+	/// 		value: s.value + 1,
+	/// 	}
+	/// }
+	///
+	/// # let mut db = Database::default();
+	/// # let db = &mut db as &mut dyn verde::Db;
+	/// let id = db.set_input(S { id: 0, value: 0 });
+	/// let id2 = db.add("Hello".to_string());
+	/// db.execute(|ctx| foo(ctx, id, id2));
+	/// ```
 	pub fn geti<T: Interned>(&self, id: Id<T>) -> interned::Get<'_, T> { self.db.geti(id) }
 
 	/// Intern a value.
+	/// ```rust
+	/// # use verde::{query, Tracked, Ctx, Id, storage, db};
+	/// #[derive(Tracked, Eq, PartialEq)]
+	/// # #[cfg_attr(feature = "serde", derive(verde::serde::Serialize, verde::serde::Deserialize))]
+	/// struct S {
+	/// 	#[id]
+	/// 	id: u32,
+	/// 	value: u32,
+	/// }
+	///
+	/// # #[storage]
+	/// # struct Storage(S, String, foo);
+	/// # #[db]
+	/// # struct Database(Storage);
+	/// #[query]
+	/// fn foo(ctx: &Ctx, id: Id<S>) -> S {
+	/// 	let s = ctx.get(id);
+	/// 	let id2 = ctx.add("Hello".to_string());
+	/// 	let i = ctx.geti(id2);
+	/// 	assert_eq!(*i, "Hello");
+	/// 	S {
+	/// 		id: s.id,
+	/// 		value: s.value + 1,
+	/// 	}
+	/// }
+	///
+	/// # let mut db = Database::default();
+	/// # let db = &mut db as &mut dyn verde::Db;
+	/// let id = db.set_input(S { id: 0, value: 0 });
+	/// db.execute(|ctx| foo(ctx, id));
+	/// ```
 	pub fn add<T: Interned>(&self, value: T) -> Id<T> { self.db.add(value) }
 
 	/// Intern a value through a reference.
+	/// ```rust
+	/// # use verde::{query, Tracked, Ctx, Id, storage, db};
+	/// #[derive(Tracked, Eq, PartialEq)]
+	/// # #[cfg_attr(feature = "serde", derive(verde::serde::Serialize, verde::serde::Deserialize))]
+	/// struct S {
+	/// 	#[id]
+	/// 	id: u32,
+	/// 	value: u32,
+	/// }
+	///
+	/// # #[storage]
+	/// # struct Storage(S, String, foo);
+	/// # #[db]
+	/// # struct Database(Storage);
+	/// #[query]
+	/// fn foo(ctx: &Ctx, id: Id<S>) -> S {
+	/// 	let s = ctx.get(id);
+	/// 	let id2 = ctx.add_ref("Hello");
+	/// 	let i = ctx.geti(id2);
+	/// 	assert_eq!(*i, "Hello");
+	/// 	S {
+	/// 		id: s.id,
+	/// 		value: s.value + 1,
+	/// 	}
+	/// }
+	///
+	/// # let mut db = Database::default();
+	/// # let db = &mut db as &mut dyn verde::Db;
+	/// let id = db.set_input(S { id: 0, value: 0 });
+	/// db.execute(|ctx| foo(ctx, id));
+	/// ```
 	pub fn add_ref<T, U>(&self, value: &U) -> Id<T>
 	where
 		U: ToOwned<Owned = T> + Hash + Eq + ?Sized,
@@ -86,6 +208,43 @@ impl<'a> Ctx<'a> {
 	}
 
 	/// Push a value to the database from this query.
+	/// Get a reference to the value `id` points to.
+	/// ```rust
+	/// # use verde::{query, Tracked, Pushable, Ctx, Id, storage, db};
+	/// #[derive(Tracked, Eq, PartialEq)]
+	/// # #[cfg_attr(feature = "serde", derive(verde::serde::Serialize, verde::serde::Deserialize))]
+	/// struct S {
+	/// 	#[id]
+	/// 	id: u32,
+	/// 	value: u32,
+	/// }
+	///
+	/// #[derive(Pushable, Eq, PartialEq, Debug)]
+	/// # #[cfg_attr(feature = "serde", derive(verde::serde::Serialize, verde::serde::Deserialize))]
+	/// struct P {
+	/// 	value: u32,
+	/// }
+	///
+	/// # #[storage]
+	/// # struct Storage(S, P, foo);
+	/// # #[db]
+	/// # struct Database(Storage);
+	/// #[query]
+	/// fn foo(ctx: &Ctx, id: Id<S>) -> S {
+	/// 	let s = ctx.get(id);
+	/// 	ctx.push(P { value: s.value + 1 });
+	/// 	S {
+	/// 		id: s.id,
+	/// 		value: s.value + 1,
+	/// 	}
+	/// }
+	///
+	/// # let mut db = Database::default();
+	/// # let db = &mut db as &mut dyn verde::Db;
+	/// let id = db.set_input(S { id: 0, value: 0 });
+	/// db.execute(|ctx| foo(ctx, id));
+	/// assert_eq!(db.get_all::<P>().next(), Some(&P { value: 1 }));
+	/// ```
 	pub fn push<T: Pushable>(&self, value: T) {
 		span!(enter debug, "push", ty = std::any::type_name::<T>());
 		let route = self.db.routing_table().route::<T>();
@@ -157,9 +316,51 @@ impl<'a> Ctx<'a> {
 
 impl dyn Db + '_ {
 	/// Set an input value.
+	/// ```rust
+	/// # use verde::{Tracked, Ctx, Id, storage, db};
+	/// #[derive(Tracked, Eq, PartialEq, Debug)]
+	/// # #[cfg_attr(feature = "serde", derive(verde::serde::Serialize, verde::serde::Deserialize))]
+	/// struct S {
+	/// 	#[id]
+	/// 	id: u32,
+	/// 	value: u32,
+	/// }
+	///
+	/// # #[storage]
+	/// # struct Storage(S);
+	/// # #[db]
+	/// # struct Database(Storage);
+	///
+	/// # let mut db = Database::default();
+	/// # let db = &mut db as &mut dyn verde::Db;
+	/// let id = db.set_input(S { id: 0, value: 0 });
+	/// let s = db.get(id);
+	/// assert_eq!(*s, S { id: 0, value: 0 });
+	/// ```
 	pub fn set_input<T: Tracked>(&mut self, value: T) -> Id<T> { (self as &dyn Db).insert(Route::input(), value) }
 
 	/// Get a reference to the value `id` points to.
+	/// ```rust
+	/// # use verde::{Tracked, Ctx, Id, storage, db};
+	/// #[derive(Tracked, Eq, PartialEq, Debug)]
+	/// # #[cfg_attr(feature = "serde", derive(verde::serde::Serialize, verde::serde::Deserialize))]
+	/// struct S {
+	/// 	#[id]
+	/// 	id: u32,
+	/// 	value: u32,
+	/// }
+	///
+	/// # #[storage]
+	/// # struct Storage(S);
+	/// # #[db]
+	/// # struct Database(Storage);
+	///
+	/// # let mut db = Database::default();
+	/// # let db = &mut db as &mut dyn verde::Db;
+	/// let id = db.set_input(S { id: 0, value: 0 });
+	/// let s = db.get(id);
+	/// assert_eq!(*s, S { id: 0, value: 0 });
+	/// ```
 	pub fn get<T: Tracked>(&self, id: Id<T>) -> tracked::Get<'_, T> {
 		let id = id.get();
 		span!(
@@ -176,6 +377,20 @@ impl dyn Db + '_ {
 	}
 
 	/// Get a reference to the value `id` points to.
+	/// ```rust
+	/// # use verde::{Interned, Ctx, Id, storage, db};
+	///
+	/// # #[storage]
+	/// # struct Storage(String);
+	/// # #[db]
+	/// # struct Database(Storage);
+	///
+	/// # let mut db = Database::default();
+	/// # let db = &mut db as &mut dyn verde::Db;
+	/// let id = db.add("Hello".to_string());
+	/// let s = db.geti(id);
+	/// assert_eq!(*s, "Hello");
+	/// ```
 	pub fn geti<T: Interned>(&self, id: Id<T>) -> interned::Get<'_, T> {
 		let id = id.get();
 		span!(
@@ -192,6 +407,20 @@ impl dyn Db + '_ {
 	}
 
 	/// Intern a value.
+	/// ```rust
+	/// # use verde::{Interned, Ctx, Id, storage, db};
+	///
+	/// # #[storage]
+	/// # struct Storage(String);
+	/// # #[db]
+	/// # struct Database(Storage);
+	///
+	/// # let mut db = Database::default();
+	/// # let db = &mut db as &mut dyn verde::Db;
+	/// let id = db.add("Hello".to_string());
+	/// let s = db.geti(id);
+	/// assert_eq!(*s, "Hello");
+	/// ```
 	pub fn add<T: Interned>(&self, value: T) -> Id<T> {
 		let span = span!(
 			trace,
@@ -212,6 +441,20 @@ impl dyn Db + '_ {
 	}
 
 	/// Intern a value through a reference.
+	/// ```rust
+	/// # use verde::{Interned, Ctx, Id, storage, db};
+	///
+	/// # #[storage]
+	/// # struct Storage(String);
+	/// # #[db]
+	/// # struct Database(Storage);
+	///
+	/// # let mut db = Database::default();
+	/// # let db = &mut db as &mut dyn verde::Db;
+	/// let id = db.add_ref("Hello");
+	/// let s = db.geti(id);
+	/// assert_eq!(*s, "Hello");
+	/// ```
 	pub fn add_ref<T, U>(&self, value: &U) -> Id<T>
 	where
 		U: ToOwned<Owned = T> + Hash + Eq + ?Sized,
@@ -236,6 +479,42 @@ impl dyn Db + '_ {
 	}
 
 	/// Get all pushed `T`s.
+	/// ```rust
+	/// # use verde::{query, Tracked, Pushable, Ctx, Id, storage, db};
+	/// #[derive(Tracked, Eq, PartialEq)]
+	/// # #[cfg_attr(feature = "serde", derive(verde::serde::Serialize, verde::serde::Deserialize))]
+	/// struct S {
+	/// 	#[id]
+	/// 	id: u32,
+	/// 	value: u32,
+	/// }
+	///
+	/// #[derive(Pushable, Eq, PartialEq, Debug)]
+	/// # #[cfg_attr(feature = "serde", derive(verde::serde::Serialize, verde::serde::Deserialize))]
+	/// struct P {
+	/// 	value: u32,
+	/// }
+	///
+	/// # #[storage]
+	/// # struct Storage(S, P, foo);
+	/// # #[db]
+	/// # struct Database(Storage);
+	/// #[query]
+	/// fn foo(ctx: &Ctx, id: Id<S>) -> S {
+	/// 	let s = ctx.get(id);
+	/// 	ctx.push(P { value: s.value + 1 });
+	/// 	S {
+	/// 		id: s.id,
+	/// 		value: s.value + 1,
+	/// 	}
+	/// }
+	///
+	/// # let mut db = Database::default();
+	/// # let db = &mut db as &mut dyn verde::Db;
+	/// let id = db.set_input(S { id: 0, value: 0 });
+	/// db.execute(|ctx| foo(ctx, id));
+	/// assert_eq!(db.get_all::<P>().next(), Some(&P { value: 1 }));
+	/// ```
 	pub fn get_all<T: Pushable>(&self) -> impl Iterator<Item = &'_ T> {
 		let route = self.routing_table().route::<T>();
 		let storage = self
@@ -246,6 +525,54 @@ impl dyn Db + '_ {
 	}
 
 	/// Get all pushed `T`s from the query `Q`.
+	/// ```rust
+	/// # use verde::{query, Tracked, Pushable, Ctx, Id, storage, db};
+	/// #[derive(Tracked, Eq, PartialEq)]
+	/// # #[cfg_attr(feature = "serde", derive(verde::serde::Serialize, verde::serde::Deserialize))]
+	/// struct S {
+	/// 	#[id]
+	/// 	id: u32,
+	/// 	value: u32,
+	/// }
+	///
+	/// #[derive(Pushable, Eq, PartialEq, Debug)]
+	/// # #[cfg_attr(feature = "serde", derive(verde::serde::Serialize, verde::serde::Deserialize))]
+	/// struct P {
+	/// 	value: u32,
+	/// }
+	///
+	/// # #[storage]
+	/// # struct Storage(S, P, foo, boo);
+	/// # #[db]
+	/// # struct Database(Storage);
+	/// #[query]
+	/// fn foo(ctx: &Ctx, id: Id<S>) -> S {
+	/// 	let s = ctx.get(id);
+	/// 	ctx.push(P { value: s.value + 1 });
+	/// 	S {
+	/// 		id: s.id,
+	/// 		value: s.value + 1,
+	/// 	}
+	/// }
+	///
+	/// #[query]
+	/// fn boo(ctx: &Ctx, id: Id<S>) -> S {
+	/// 	let s = ctx.get(id);
+	/// 	ctx.push(P { value: s.value + 1 });
+	/// 	S {
+	/// 		id: s.id,
+	/// 		value: s.value + 1,
+	/// 	}
+	/// }
+	///
+	/// # let mut db = Database::default();
+	/// # let db = &mut db as &mut dyn verde::Db;
+	/// let id = db.set_input(S { id: 0, value: 0 });
+	/// let id2 = db.set_input(S { id: 0, value: 1 });
+	/// db.execute(|ctx| foo(ctx, id));
+	/// db.execute(|ctx| boo(ctx, id));
+	/// assert_eq!(db.get_query::<boo, P>().next(), Some(&P { value: 2 }));
+	/// ```
 	pub fn get_query<Q: Query, T: Pushable>(&self) -> impl Iterator<Item = &'_ T> {
 		let route = self.routing_table().route::<T>();
 		let query = self.routing_table().route::<Q>();
@@ -256,7 +583,36 @@ impl dyn Db + '_ {
 		unsafe { storage.get_query(query) }
 	}
 
-	#[doc(hidden)]
+	/// Execute a closure in the context of the database.
+	/// ```rust
+	/// # use verde::{query, Tracked, Ctx, Id, storage, db};
+	/// #[derive(Tracked, Eq, PartialEq)]
+	/// # #[cfg_attr(feature = "serde", derive(verde::serde::Serialize, verde::serde::Deserialize))]
+	/// struct S {
+	/// 	#[id]
+	/// 	id: u32,
+	/// 	value: u32,
+	/// }
+	///
+	/// # #[storage]
+	/// # struct Storage(S, foo);
+	/// # #[db]
+	/// # struct Database(Storage);
+	/// #[query]
+	/// fn foo(ctx: &Ctx, id: Id<S>) -> S {
+	/// 	let s = ctx.get(id);
+	/// 	assert_eq!(s.value, 0);
+	/// 	S {
+	/// 		id: s.id,
+	/// 		value: s.value + 1,
+	/// 	}
+	/// }
+	///
+	/// # let mut db = Database::default();
+	/// # let db = &mut db as &mut dyn verde::Db;
+	/// let id = db.set_input(S { id: 0, value: 0 });
+	/// db.execute(|ctx| foo(ctx, id));
+	/// ```
 	pub fn execute<R>(&self, f: impl FnOnce(&Ctx) -> R) -> R {
 		let ctx = Ctx::new(
 			self,

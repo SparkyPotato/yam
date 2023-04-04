@@ -1,17 +1,23 @@
 use diagnostics::FileSpan;
+use text::Text;
 
-use crate::{SyntaxElement, SyntaxKind, SyntaxNode, SyntaxToken};
+use crate::{
+	ast::{Name, PathSegment},
+	SyntaxElement,
+	SyntaxElementRef,
+	SyntaxKind,
+	SyntaxNode,
+	SyntaxToken,
+};
 
 pub mod ast;
 pub mod kind;
 pub mod token;
 
-pub trait AstNode: Sized {
-	fn cast(node: SyntaxNode) -> Option<Self>;
-}
+pub trait AstNode: Sized {}
 
 pub trait AstToken: Sized {
-	fn cast(tok: SyntaxToken) -> Option<Self>;
+	fn text(&self) -> Text;
 }
 
 pub trait AstElement: Sized {
@@ -20,31 +26,28 @@ pub trait AstElement: Sized {
 	fn cast(elem: SyntaxElement) -> Option<Self>;
 
 	fn span(&self) -> FileSpan;
+
+	fn inner(self) -> SyntaxElement;
 }
 
-fn node_children<'a, T: 'a + AstNode>(node: &'a SyntaxNode) -> impl Iterator<Item = T> + 'a {
-	node.children().cloned().filter_map(T::cast)
-}
-
-fn token_children<'a, T: 'a + AstToken>(node: &'a SyntaxNode) -> impl Iterator<Item = T> + 'a {
+fn children<'a, T: 'a + AstElement>(node: &'a SyntaxNode) -> impl Iterator<Item = T> + 'a {
 	node.children_with_tokens()
-		.filter_map(|it| it.into_token().cloned().and_then(T::cast))
+		.map(|x| match x {
+			SyntaxElementRef::Node(node) => SyntaxElement::Node(node.clone()),
+			SyntaxElementRef::Token(token) => SyntaxElement::Token(token.clone()),
+		})
+		.filter_map(T::cast)
 }
 
 pub struct TokenTree(SyntaxNode);
-impl AstNode for TokenTree {
-	fn cast(node: SyntaxNode) -> Option<Self> {
-		if Self::can_cast(node.kind()) {
-			Some(Self(node))
-		} else {
-			None
-		}
-	}
-}
+impl AstNode for TokenTree {}
 impl AstElement for TokenTree {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::TokenTree }
 
-	fn cast(elem: SyntaxElement) -> Option<Self> { AstNode::cast(elem.into_node()?) }
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let node = elem.into_node()?;
+		Self::can_cast(node.kind()).then(|| Self(node))
+	}
 
 	fn span(&self) -> FileSpan {
 		let range = self.0.text_range();
@@ -53,5 +56,27 @@ impl AstElement for TokenTree {
 			end: range.end().into(),
 			relative: (),
 		}
+	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
+}
+
+pub trait OptionNameExt {
+	fn text(&self) -> Option<Text>;
+}
+
+impl OptionNameExt for Option<Name> {
+	fn text(&self) -> Option<Text> { self.as_ref().and_then(|x| x.ident()).map(|x| x.text()) }
+}
+
+impl OptionNameExt for Option<PathSegment> {
+	fn text(&self) -> Option<Text> {
+		self.as_ref()
+			.and_then(|x| match x {
+				PathSegment::Name(name) => Some(name),
+				PathSegment::Dot(_) => None,
+			})
+			.and_then(|x| x.ident())
+			.map(|x| x.text())
 	}
 }

@@ -60,6 +60,8 @@ impl Parser<'_, '_> {
 					self.api.finish_node(b);
 				},
 				T![type] => self.type_alias(),
+				T![import] => self.import(),
+				T![static] => self.static_(),
 			}
 		}
 
@@ -133,13 +135,12 @@ impl Parser<'_, '_> {
 
 		self.expect(T![enum], &TOKS);
 		self.expect(T![ident], &TOKS[1..]);
-		self.expect(T!['{'], &TOKS[2..]);
 
 		let v = self.api.start_node(SyntaxKind::VariantList);
+		self.expect(T!['{'], &TOKS[2..]);
 		self.comma_sep_list(T!['}'], |this| this.name(&TOKS[2..]));
-		self.api.finish_node(v);
-
 		self.expect(T!['}'], &[]);
+		self.api.finish_node(v);
 
 		self.api.finish_node(b);
 	}
@@ -155,6 +156,76 @@ impl Parser<'_, '_> {
 		self.ty();
 		self.expect(T![;], &[]);
 
+		self.api.finish_node(b);
+	}
+
+	fn import(&mut self) {
+		let b = self.api.start_node(SyntaxKind::Import);
+
+		let toks = [T![ident], T![;], T![.], T!['{'], T!['}']];
+
+		self.expect(T![import], &toks);
+		self.import_tree();
+		self.expect(T![;], &[]);
+
+		self.api.finish_node(b);
+	}
+
+	fn static_(&mut self) {
+		let b = self.api.start_node(SyntaxKind::Static);
+
+		let toks = [T![ident], T![:], T![=], T![;]];
+
+		self.expect(T![static], &toks);
+		self.name(&toks[1..]);
+		self.expect(T![:], &toks[2..]);
+		self.ty();
+		self.expect(T![=], &toks[2..]);
+		self.expr();
+		self.expect(T![;], &[]);
+
+		self.api.finish_node(b);
+	}
+
+	fn import_tree(&mut self) {
+		let path = |this: &mut Self| {
+			let c = this.api.checkpoint();
+			this.path();
+			if matches!(this.api.peek().kind, T![.]) {
+				let b = this.api.start_node_at(c, SyntaxKind::ListImport);
+				this.api.bump();
+				this.import_tree_list();
+				this.api.finish_node(b);
+			} else {
+				let b = this.api.start_node_at(c, SyntaxKind::RenameImport);
+				if matches!(this.api.peek().kind, T![as]) {
+					let b = this.api.start_node(SyntaxKind::Rename);
+					this.api.bump();
+					this.name(&[T![;], T!['}'], T![,]]);
+					this.api.finish_node(b);
+				}
+				this.api.finish_node(b);
+			}
+		};
+
+		select! {
+			self {
+				T!['{'] => {
+					let b = self.api.start_node(SyntaxKind::ListImport);
+					self.import_tree_list();
+					self.api.finish_node(b);
+				},
+				T![.] => path(self),
+				T![ident] => path(self),
+			}
+		}
+	}
+
+	fn import_tree_list(&mut self) {
+		let b = self.api.start_node(SyntaxKind::ImportTreeList);
+		self.expect(T!['{'], &[T!['}'], T![,], T![.], T![ident]]);
+		self.comma_sep_list(T!['}'], |this| this.import_tree());
+		self.expect(T!['}'], &[T![;], T![,], T![ident]]);
 		self.api.finish_node(b);
 	}
 
@@ -543,25 +614,29 @@ impl Parser<'_, '_> {
 	}
 
 	fn path(&mut self) {
-		let b = self.api.start_node(SyntaxKind::Path);
+		let c = self.api.checkpoint();
 
 		if matches!(self.api.peek().kind, T![.]) {
+			let b = self.api.start_node_at(c, SyntaxKind::Path);
 			self.api.bump();
+			self.api.finish_node(b);
 		}
 
 		loop {
-			let c = self.api.checkpoint();
-			self.name(&[T![.], T![ident]]);
-			if matches!(self.api.peek().kind, T![.]) {
-				let b = self.api.start_node_at(c, SyntaxKind::PathSegment);
+			if matches!(self.api.peek().kind, T![ident]) {
+				let b = self.api.start_node_at(c, SyntaxKind::Path);
 				self.api.bump();
 				self.api.finish_node(b);
-			} else {
-				break;
-			}
-		}
 
-		self.api.finish_node(b);
+				if matches!(self.api.peek().kind, T![.]) && matches!(self.api.peek_n(1).kind, T![ident]) {
+					let b = self.api.start_node_at(c, SyntaxKind::Path);
+					self.api.bump();
+					self.api.finish_node(b);
+					continue;
+				}
+			}
+			break;
+		}
 	}
 
 	fn name(&mut self, next: &[TokenKind]) {
