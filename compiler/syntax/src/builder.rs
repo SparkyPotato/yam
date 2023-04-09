@@ -1,5 +1,3 @@
-use std::marker::PhantomData;
-
 use cstree::{GreenNode, GreenNodeBuilder, NodeCache};
 
 use crate::SyntaxKind;
@@ -21,15 +19,16 @@ impl Default for TreeBuilderContext {
 	fn default() -> Self { Self::new() }
 }
 
-#[repr(transparent)]
 pub struct TreeBuilder<'c> {
 	builder: GreenNodeBuilder<'c, 'static, &'static text::Interner>,
+	node_depth: usize,
 }
 
 impl<'c> TreeBuilder<'c> {
 	pub fn new(context: &'c mut TreeBuilderContext) -> Self {
 		Self {
 			builder: GreenNodeBuilder::with_cache(&mut context.cache),
+			node_depth: 0,
 		}
 	}
 }
@@ -37,33 +36,32 @@ impl<'c> TreeBuilder<'c> {
 impl TreeBuilder<'_> {
 	pub fn token(&mut self, kind: SyntaxKind, text: &str) { self.builder.token(kind.into(), text) }
 
-	pub fn start_node(&mut self, kind: SyntaxKind) -> Branch {
+	pub fn node_depth(&self) -> usize { self.node_depth }
+
+	pub fn start_node(&mut self, kind: SyntaxKind) {
 		self.builder.start_node(kind.into());
-		Branch(PhantomData)
+		self.node_depth += 1;
 	}
 
-	pub fn finish_node(&mut self, branch: Branch) {
-		// Defuse the drop bomb
-		std::mem::forget(branch);
+	pub fn finish_node(&mut self) {
+		self.node_depth -= 1;
 		self.builder.finish_node();
+	}
+
+	pub fn finish_node_at(&mut self, node_depth: usize) {
+		while self.node_depth > node_depth {
+			self.finish_node();
+		}
 	}
 
 	pub fn checkpoint(&self) -> Checkpoint { Checkpoint(self.builder.checkpoint()) }
 
-	pub fn start_node_at(&mut self, checkpoint: Checkpoint, kind: SyntaxKind) -> Branch {
+	pub fn start_node_at(&mut self, checkpoint: Checkpoint, kind: SyntaxKind) {
 		self.builder.start_node_at(checkpoint.0, kind.into());
-		Branch(PhantomData)
+		self.node_depth += 1;
 	}
 
 	pub fn finish(self) -> GreenNode { self.builder.finish().0 }
-}
-
-pub struct Branch(PhantomData<()>);
-
-impl Drop for Branch {
-	fn drop(&mut self) {
-		panic!("TreeBuilder::end_node() was never called in this scope");
-	}
 }
 
 #[repr(transparent)]

@@ -42,8 +42,8 @@ impl Lexer<'_> {
 
 	pub fn eof_span(&self) -> FileSpan {
 		FileSpan {
-			start: self.inner.source().len() as _,
-			end: self.inner.source().len() as u32 + 1,
+			start: self.source().len() as u32 - 1,
+			end: self.source().len() as _,
 			relative: (),
 		}
 	}

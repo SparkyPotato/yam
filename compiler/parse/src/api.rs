@@ -1,9 +1,8 @@
 use std::{collections::VecDeque, ops::Range};
 
-use diagnostics::FileSpan;
 use lex::{token::Token, Lexer, T};
 use syntax::{
-	builder::{Branch, Checkpoint, TreeBuilder, TreeBuilderContext},
+	builder::{Checkpoint, TreeBuilder, TreeBuilderContext},
 	SyntaxKind,
 };
 
@@ -13,7 +12,6 @@ pub struct Api<'c, 's> {
 	lookahead: [Token; Api::MAX_LOOKAHEAD],
 	trivia_ranges: [Range<usize>; Api::MAX_LOOKAHEAD],
 	trivia_buf: VecDeque<Token>,
-	finish: Branch,
 }
 
 impl<'c, 's> Api<'c, 's> {
@@ -21,14 +19,13 @@ impl<'c, 's> Api<'c, 's> {
 		const EMPTY_RANGE: Range<usize> = 0..0;
 
 		let mut builder = TreeBuilder::new(ctx);
-		let finish = builder.start_node(SyntaxKind::File);
+		builder.start_node(SyntaxKind::File);
 		let mut this = Api {
 			builder,
 			lexer: Lexer::new(source),
 			lookahead: [Token::default(); Self::MAX_LOOKAHEAD],
 			trivia_ranges: [EMPTY_RANGE; Self::MAX_LOOKAHEAD],
 			trivia_buf: VecDeque::new(),
-			finish,
 		};
 
 		this.fill_lookahead();
@@ -43,7 +40,7 @@ impl<'c, 's> Api<'c, 's> {
 			self.push_lookahead(next, range);
 		}
 
-		self.builder.finish_node(self.finish);
+		self.builder.finish_node();
 		self.builder
 	}
 }
@@ -68,25 +65,27 @@ impl Api<'_, '_> {
 
 	pub fn peek(&self) -> Token { self.peek_n(0) }
 
-	pub fn start_node(&mut self, kind: SyntaxKind) -> Branch {
+	pub fn node_depth(&self) -> usize { self.builder.node_depth() }
+
+	pub fn start_node(&mut self, kind: SyntaxKind) {
 		self.output_trivia();
-		self.builder.start_node(kind)
+		self.builder.start_node(kind);
 	}
 
-	pub fn finish_node(&mut self, branch: Branch) {
-		self.builder.finish_node(branch);
+	pub fn finish_node(&mut self) {
+		self.builder.finish_node();
+		self.output_trivia();
+	}
+
+	pub fn finish_node_at(&mut self, node_depth: usize) {
+		self.builder.finish_node_at(node_depth);
 		self.output_trivia();
 	}
 
 	pub fn checkpoint(&self) -> Checkpoint { self.builder.checkpoint() }
 
-	pub fn start_node_at(&mut self, checkpoint: Checkpoint, kind: SyntaxKind) -> Branch {
-		self.builder.start_node_at(checkpoint, kind)
-	}
-
-	pub fn is_span_eof(&self, span: FileSpan) -> bool {
-		let len = self.lexer.source().len();
-		span.start >= len as u32
+	pub fn start_node_at(&mut self, checkpoint: Checkpoint, kind: SyntaxKind) {
+		self.builder.start_node_at(checkpoint, kind);
 	}
 
 	fn push_lookahead(&mut self, tok: Token, trivia_range: Range<usize>) {

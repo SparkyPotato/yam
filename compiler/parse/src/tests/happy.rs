@@ -1,9 +1,6 @@
-use diagnostics::test::emit_test;
-use expect_test::{expect, Expect};
-use pretty_assertions::assert_eq;
-use syntax::{builder::TreeBuilderContext, ResolvedNode};
+use expect_test::expect;
 
-use crate::Parser;
+use super::harness;
 
 #[test]
 fn attributes() {
@@ -67,11 +64,12 @@ fn ty() {
 		type X = *T;
 		type Z = [T; 10];
 		type A = _;
+		type F = fn(T) -> T;
 	"#;
 
 	let ast = {
 		expect![[r#"
-    File@0..76
+    File@0..99
       Whitespace@0..3 "\n\t\t"
       Item@3..28
         TypeAlias@3..25
@@ -131,7 +129,7 @@ fn ty() {
             RBracket@58..59 "]"
           Semi@59..60 ";"
         Whitespace@60..63 "\n\t\t"
-      Item@63..76
+      Item@63..77
         TypeAlias@63..74
           TypeKw@63..67 "type"
           Whitespace@67..68 " "
@@ -143,7 +141,33 @@ fn ty() {
           InferType@72..73
             Underscore@72..73 "_"
           Semi@73..74 ";"
-        Whitespace@74..76 "\n\t""#]]
+        Whitespace@74..77 "\n\t\t"
+      Item@77..99
+        TypeAlias@77..97
+          TypeKw@77..81 "type"
+          Whitespace@81..82 " "
+          Name@82..83
+            Ident@82..83 "F"
+          Whitespace@83..84 " "
+          Eq@84..85 "="
+          Whitespace@85..86 " "
+          FnType@86..96
+            FnKw@86..88 "fn"
+            TyParamList@88..91
+              LParen@88..89 "("
+              PathType@89..90
+                Path@89..90
+                  Ident@89..90 "T"
+              RParen@90..91 ")"
+            Whitespace@91..92 " "
+            RetTy@92..96
+              Arrow@92..94 "->"
+              Whitespace@94..95 " "
+              PathType@95..96
+                Path@95..96
+                  Ident@95..96 "T"
+          Semi@96..97 ";"
+        Whitespace@97..99 "\n\t""#]]
 	};
 
 	let diags = expect![""];
@@ -274,6 +298,117 @@ fn fn_() {
             Whitespace@73..74 " "
             RBrace@74..75 "}"
           Whitespace@75..77 "\n\t""#]]
+	};
+
+	let diags = expect![""];
+
+	harness(source, ast, diags);
+}
+
+#[test]
+fn import() {
+	let source = r#"
+		import hello;
+		import hello.hello;
+		import .;
+		import .hello;
+		import hello.{
+			hello,
+			hello.{
+				hello,
+				hello.hello,
+			}
+		};
+	"#;
+
+	let ast = {
+		expect![[r#"
+    File@0..145
+      Whitespace@0..3 "\n\t\t"
+      Item@3..19
+        Import@3..16
+          ImportKw@3..9 "import"
+          RenameImport@9..15
+            Path@9..15
+              Whitespace@9..10 " "
+              Ident@10..15 "hello"
+          Semi@15..16 ";"
+        Whitespace@16..19 "\n\t\t"
+      Item@19..41
+        Import@19..38
+          ImportKw@19..25 "import"
+          RenameImport@25..37
+            Path@25..37
+              Path@25..32
+                Path@25..31
+                  Whitespace@25..26 " "
+                  Ident@26..31 "hello"
+                Dot@31..32 "."
+              Ident@32..37 "hello"
+          Semi@37..38 ";"
+        Whitespace@38..41 "\n\t\t"
+      Item@41..53
+        Import@41..50
+          ImportKw@41..47 "import"
+          RenameImport@47..49
+            Path@47..49
+              Whitespace@47..48 " "
+              Dot@48..49 "."
+          Semi@49..50 ";"
+        Whitespace@50..53 "\n\t\t"
+      Item@53..70
+        Import@53..67
+          ImportKw@53..59 "import"
+          RenameImport@59..66
+            Path@59..66
+              Path@59..61
+                Whitespace@59..60 " "
+                Dot@60..61 "."
+              Ident@61..66 "hello"
+          Semi@66..67 ";"
+        Whitespace@67..70 "\n\t\t"
+      Item@70..145
+        Import@70..143
+          ImportKw@70..76 "import"
+          ListImport@76..142
+            Path@76..82
+              Whitespace@76..77 " "
+              Ident@77..82 "hello"
+            Dot@82..83 "."
+            ImportTreeList@83..142
+              LBrace@83..84 "{"
+              RenameImport@84..93
+                Path@84..93
+                  Whitespace@84..88 "\n\t\t\t"
+                  Ident@88..93 "hello"
+              Comma@93..94 ","
+              ListImport@94..141
+                Path@94..103
+                  Whitespace@94..98 "\n\t\t\t"
+                  Ident@98..103 "hello"
+                Dot@103..104 "."
+                ImportTreeList@104..138
+                  LBrace@104..105 "{"
+                  RenameImport@105..115
+                    Path@105..115
+                      Whitespace@105..110 "\n\t\t\t\t"
+                      Ident@110..115 "hello"
+                  Comma@115..116 ","
+                  RenameImport@116..132
+                    Path@116..132
+                      Path@116..127
+                        Path@116..126
+                          Whitespace@116..121 "\n\t\t\t\t"
+                          Ident@121..126 "hello"
+                        Dot@126..127 "."
+                      Ident@127..132 "hello"
+                  Comma@132..133 ","
+                  Whitespace@133..137 "\n\t\t\t"
+                  RBrace@137..138 "}"
+                Whitespace@138..141 "\n\t\t"
+              RBrace@141..142 "}"
+          Semi@142..143 ";"
+        Whitespace@143..145 "\n\t""#]]
 	};
 
 	let diags = expect![""];
@@ -617,63 +752,68 @@ fn infix() {
             Whitespace@26..30 "\n\t\t\t"
             SemiExpr@30..40
               InfixExpr@30..39
-                InfixExpr@30..36
-                  IntLit@30..32 "10"
-                  Whitespace@32..33 " "
-                  Plus@33..34 "+"
+                IntLit@30..32 "10"
+                Whitespace@32..33 " "
+                Plus@33..34 "+"
+                PrefixExpr@34..39
                   Whitespace@34..35 " "
                   Minus@35..36 "-"
-                Minus@36..37 "-"
-                IntLit@37..39 "20"
+                  PrefixExpr@36..39
+                    Minus@36..37 "-"
+                    IntLit@37..39 "20"
               Semi@39..40 ";"
             Whitespace@40..44 "\n\t\t\t"
             SemiExpr@44..55
               InfixExpr@44..54
-                InfixExpr@44..50
-                  IntLit@44..46 "10"
-                  Whitespace@46..47 " "
-                  Plus@47..48 "+"
+                IntLit@44..46 "10"
+                Whitespace@46..47 " "
+                Plus@47..48 "+"
+                InfixExpr@48..54
                   Whitespace@48..49 " "
                   IntLit@49..50 "4"
-                Whitespace@50..51 " "
-                Star@51..52 "*"
-                Whitespace@52..53 " "
-                IntLit@53..54 "5"
+                  Whitespace@50..51 " "
+                  Star@51..52 "*"
+                  Whitespace@52..53 " "
+                  IntLit@53..54 "5"
               Semi@54..55 ";"
             Whitespace@55..59 "\n\t\t\t"
             SemiExpr@59..71
               InfixExpr@59..70
-                InfixExpr@59..65
-                  IntLit@59..60 "5"
-                  Whitespace@60..61 " "
-                  AmpAmp@61..63 "&&"
+                IntLit@59..60 "5"
+                Whitespace@60..61 " "
+                AmpAmp@61..63 "&&"
+                InfixExpr@63..70
                   Whitespace@63..64 " "
                   IntLit@64..65 "6"
-                Whitespace@65..66 " "
-                EqEq@66..68 "=="
-                Whitespace@68..69 " "
-                IntLit@69..70 "3"
+                  Whitespace@65..66 " "
+                  EqEq@66..68 "=="
+                  Whitespace@68..69 " "
+                  IntLit@69..70 "3"
               Semi@70..71 ";"
             Whitespace@71..75 "\n\t\t\t"
             SemiExpr@75..89
               InfixExpr@75..88
-                InfixExpr@75..84
-                  InfixExpr@75..80
-                    PathExpr@75..77
-                      Path@75..76
-                        Ident@75..76 "a"
-                      Whitespace@76..77 " "
-                    Eq@77..78 "="
-                    Whitespace@78..79 " "
-                    Ident@79..80 "b"
-                  Whitespace@80..81 " "
+                PathExpr@75..77
+                  Path@75..76
+                    Ident@75..76 "a"
+                  Whitespace@76..77 " "
+                Eq@77..78 "="
+                InfixExpr@78..88
+                  Whitespace@78..79 " "
+                  PathExpr@79..81
+                    Path@79..80
+                      Ident@79..80 "b"
+                    Whitespace@80..81 " "
                   Eq@81..82 "="
-                  Whitespace@82..83 " "
-                  Ident@83..84 "c"
-                Whitespace@84..85 " "
-                Plus@85..86 "+"
-                Whitespace@86..87 " "
-                IntLit@87..88 "3"
+                  InfixExpr@82..88
+                    Whitespace@82..83 " "
+                    PathExpr@83..85
+                      Path@83..84
+                        Ident@83..84 "c"
+                      Whitespace@84..85 " "
+                    Plus@85..86 "+"
+                    Whitespace@86..87 " "
+                    IntLit@87..88 "3"
               Semi@88..89 ";"
             Whitespace@89..92 "\n\t\t"
             RBrace@92..93 "}"
@@ -856,138 +996,4 @@ fn match_() {
 	let diags = expect![""];
 
 	harness(source, ast, diags);
-}
-
-#[test]
-fn import() {
-	let source = r#"
-		import hello;
-		import hello.hello;
-		import .;
-		import .hello;
-		import hello.{
-			hello,
-			hello.{
-				hello,
-				hello.hello,
-			}
-		};
-	"#;
-
-	let ast = {
-		expect![[r#"
-    File@0..145
-      Whitespace@0..3 "\n\t\t"
-      Item@3..19
-        Import@3..16
-          ImportKw@3..9 "import"
-          RenameImport@9..15
-            Path@9..15
-              Whitespace@9..10 " "
-              Ident@10..15 "hello"
-          Semi@15..16 ";"
-        Whitespace@16..19 "\n\t\t"
-      Item@19..41
-        Import@19..38
-          ImportKw@19..25 "import"
-          RenameImport@25..37
-            Path@25..37
-              Path@25..32
-                Path@25..31
-                  Whitespace@25..26 " "
-                  Ident@26..31 "hello"
-                Dot@31..32 "."
-              Ident@32..37 "hello"
-          Semi@37..38 ";"
-        Whitespace@38..41 "\n\t\t"
-      Item@41..53
-        Import@41..50
-          ImportKw@41..47 "import"
-          RenameImport@47..49
-            Path@47..49
-              Whitespace@47..48 " "
-              Dot@48..49 "."
-          Semi@49..50 ";"
-        Whitespace@50..53 "\n\t\t"
-      Item@53..70
-        Import@53..67
-          ImportKw@53..59 "import"
-          RenameImport@59..66
-            Path@59..66
-              Path@59..61
-                Whitespace@59..60 " "
-                Dot@60..61 "."
-              Ident@61..66 "hello"
-          Semi@66..67 ";"
-        Whitespace@67..70 "\n\t\t"
-      Item@70..145
-        Import@70..143
-          ImportKw@70..76 "import"
-          ListImport@76..142
-            Path@76..82
-              Whitespace@76..77 " "
-              Ident@77..82 "hello"
-            Dot@82..83 "."
-            ImportTreeList@83..142
-              LBrace@83..84 "{"
-              RenameImport@84..93
-                Path@84..93
-                  Whitespace@84..88 "\n\t\t\t"
-                  Ident@88..93 "hello"
-              Comma@93..94 ","
-              ListImport@94..141
-                Path@94..103
-                  Whitespace@94..98 "\n\t\t\t"
-                  Ident@98..103 "hello"
-                Dot@103..104 "."
-                ImportTreeList@104..138
-                  LBrace@104..105 "{"
-                  RenameImport@105..115
-                    Path@105..115
-                      Whitespace@105..110 "\n\t\t\t\t"
-                      Ident@110..115 "hello"
-                  Comma@115..116 ","
-                  RenameImport@116..132
-                    Path@116..132
-                      Path@116..127
-                        Path@116..126
-                          Whitespace@116..121 "\n\t\t\t\t"
-                          Ident@121..126 "hello"
-                        Dot@126..127 "."
-                      Ident@127..132 "hello"
-                  Comma@132..133 ","
-                  Whitespace@133..137 "\n\t\t\t"
-                  RBrace@137..138 "}"
-                Whitespace@138..141 "\n\t\t"
-              RBrace@141..142 "}"
-          Semi@142..143 ";"
-        Whitespace@143..145 "\n\t""#]]
-	};
-
-	let diags = expect![""];
-
-	harness(source, ast, diags);
-}
-
-fn harness(source: &str, ast: Expect, diagnostics: Expect) {
-	let mut ctx = TreeBuilderContext::new();
-	let (builder, out) = Parser::new(source, &mut ctx).parse();
-	let node = builder.finish();
-
-	let resolved = ResolvedNode::new_root_with_resolver(node, text::get_interner());
-
-	let text = resolved.text();
-	assert_eq!(text, source, "CST is not lossless");
-
-	let debug = fmt(&resolved);
-	ast.assert_eq(&debug);
-
-	let diags = emit_test(source, out, &());
-	diagnostics.assert_eq(&diags);
-}
-
-fn fmt(node: &ResolvedNode) -> String {
-	let mut s = node.debug(node.resolver().as_ref(), true);
-	s.pop();
-	s
 }

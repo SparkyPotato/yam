@@ -1,3 +1,5 @@
+#![feature(try_trait_v2)]
+
 use diagnostics::FileDiagnostic;
 pub use syntax;
 use syntax::{ast::File, builder::TreeBuilderContext, AstElement, SyntaxNode};
@@ -5,7 +7,6 @@ use syntax::{ast::File, builder::TreeBuilderContext, AstElement, SyntaxNode};
 use crate::parse::Parser;
 
 mod api;
-mod helpers;
 mod parse;
 #[cfg(test)]
 mod tests;

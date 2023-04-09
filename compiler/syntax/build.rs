@@ -579,58 +579,64 @@ impl<'a> Generator<'a> {
 }
 
 fn map_token(x: &str) -> (String, String) {
+	macro_rules! t {
+		($fmt:expr, $name:expr) => {
+			(backtick($fmt), $name.to_string())
+		};
+	}
+
 	match x {
 		// Lexer tokens
-		x @ "bool" => (x.to_string(), "BoolLit".to_string()),
-		x @ "char" => (x.to_string(), "CharLit".to_string()),
-		x @ "float" => (x.to_string(), "FloatLit".to_string()),
-		x @ "int" => (x.to_string(), "IntLit".to_string()),
-		x @ "string" => (x.to_string(), "StringLit".to_string()),
-		x @ "ident" => (x.to_string(), "Ident".to_string()),
-		x @ "@" => (x.to_string(), "At".to_string()),
-		x @ "(" => (x.to_string(), "LParen".to_string()),
-		"{" => ("{{".to_string(), "LBrace".to_string()),
-		x @ "[" => (x.to_string(), "LBracket".to_string()),
-		x @ ")" => (x.to_string(), "RParen".to_string()),
-		"}" => ("}}".to_string(), "RBrace".to_string()),
-		x @ "]" => (x.to_string(), "RBracket".to_string()),
-		x @ "=" => (x.to_string(), "Eq".to_string()),
-		x @ "." => (x.to_string(), "Dot".to_string()),
-		x @ ":" => (x.to_string(), "Colon".to_string()),
-		x @ "," => (x.to_string(), "Comma".to_string()),
-		x @ ";" => (x.to_string(), "Semi".to_string()),
-		x @ "->" => (x.to_string(), "Arrow".to_string()),
-		x @ "=>" => (x.to_string(), "FatArrow".to_string()),
-		x @ "_" => (x.to_string(), "Underscore".to_string()),
-		x @ "||" => (x.to_string(), "PipePipe".to_string()),
-		x @ "&&" => (x.to_string(), "AmpAmp".to_string()),
-		x @ "!" => (x.to_string(), "Not".to_string()),
-		x @ "==" => (x.to_string(), "EqEq".to_string()),
-		x @ "!=" => (x.to_string(), "Neq".to_string()),
-		x @ "<" => (x.to_string(), "Lt".to_string()),
-		x @ ">" => (x.to_string(), "Gt".to_string()),
-		x @ "<=" => (x.to_string(), "Leq".to_string()),
-		x @ ">=" => (x.to_string(), "Geq".to_string()),
-		x @ "+" => (x.to_string(), "Plus".to_string()),
-		x @ "-" => (x.to_string(), "Minus".to_string()),
-		x @ "*" => (x.to_string(), "Star".to_string()),
-		x @ "/" => (x.to_string(), "Slash".to_string()),
-		x @ "%" => (x.to_string(), "Percent".to_string()),
-		x @ "^" => (x.to_string(), "Caret".to_string()),
-		x @ "&" => (x.to_string(), "Amp".to_string()),
-		x @ "|" => (x.to_string(), "Pipe".to_string()),
-		x @ "<<" => (x.to_string(), "Shl".to_string()),
-		x @ ">>" => (x.to_string(), "Shr".to_string()),
-		x @ "+=" => (x.to_string(), "PlusEq".to_string()),
-		x @ "-=" => (x.to_string(), "MinusEq".to_string()),
-		x @ "*=" => (x.to_string(), "StarEq".to_string()),
-		x @ "/=" => (x.to_string(), "SlashEq".to_string()),
-		x @ "%=" => (x.to_string(), "PercentEq".to_string()),
-		x @ "^=" => (x.to_string(), "CaretEq".to_string()),
-		x @ "&=" => (x.to_string(), "AmpEq".to_string()),
-		x @ "|=" => (x.to_string(), "PipeEq".to_string()),
-		x @ "<<=" => (x.to_string(), "ShlEq".to_string()),
-		x @ ">>=" => (x.to_string(), "ShrEq".to_string()),
+		"bool" => ("boolean".into(), "BoolLit".into()),
+		"char" => ("character".into(), "CharLit".into()),
+		"float" => ("floating-point number".into(), "FloatLit".into()),
+		"int" => ("integer".into(), "IntLit".into()),
+		"string" => ("string".into(), "StringLit".into()),
+		"ident" => ("identifier".into(), "Ident".into()),
+		x @ "@" => t!(x, "At"),
+		x @ "(" => t!(x, "LParen"),
+		"{" => t!("{{", "LBrace"),
+		x @ "[" => t!(x, "LBracket"),
+		x @ ")" => t!(x, "RParen"),
+		"}" => t!("}}", "RBrace"),
+		x @ "]" => t!(x, "RBracket"),
+		x @ "=" => t!(x, "Eq"),
+		x @ "." => t!(x, "Dot"),
+		x @ ":" => t!(x, "Colon"),
+		x @ "," => t!(x, "Comma"),
+		x @ ";" => t!(x, "Semi"),
+		x @ "->" => t!(x, "Arrow"),
+		x @ "=>" => t!(x, "FatArrow"),
+		x @ "_" => t!(x, "Underscore"),
+		x @ "||" => t!(x, "PipePipe"),
+		x @ "&&" => t!(x, "AmpAmp"),
+		x @ "!" => t!(x, "Not"),
+		x @ "==" => t!(x, "EqEq"),
+		x @ "!=" => t!(x, "Neq"),
+		x @ "<" => t!(x, "Lt"),
+		x @ ">" => t!(x, "Gt"),
+		x @ "<=" => t!(x, "Leq"),
+		x @ ">=" => t!(x, "Geq"),
+		x @ "+" => t!(x, "Plus"),
+		x @ "-" => t!(x, "Minus"),
+		x @ "*" => t!(x, "Star"),
+		x @ "/" => t!(x, "Slash"),
+		x @ "%" => t!(x, "Percent"),
+		x @ "^" => t!(x, "Caret"),
+		x @ "&" => t!(x, "Amp"),
+		x @ "|" => t!(x, "Pipe"),
+		x @ "<<" => t!(x, "Shl"),
+		x @ ">>" => t!(x, "Shr"),
+		x @ "+=" => t!(x, "PlusEq"),
+		x @ "-=" => t!(x, "MinusEq"),
+		x @ "*=" => t!(x, "StarEq"),
+		x @ "/=" => t!(x, "SlashEq"),
+		x @ "%=" => t!(x, "PercentEq"),
+		x @ "^=" => t!(x, "CaretEq"),
+		x @ "&=" => t!(x, "AmpEq"),
+		x @ "|=" => t!(x, "PipeEq"),
+		x @ "<<=" => t!(x, "ShlEq"),
+		x @ ">>=" => t!(x, "ShrEq"),
 		x => {
 			let mut s = String::with_capacity(x.len() + 2);
 			s.push_str(&x[0..1].to_ascii_uppercase());
@@ -639,6 +645,14 @@ fn map_token(x: &str) -> (String, String) {
 			(x.to_string(), s)
 		},
 	}
+}
+
+fn backtick(x: &str) -> String {
+	let mut s = String::with_capacity(x.len() + 2);
+	s.push('`');
+	s.push_str(x);
+	s.push('`');
+	s
 }
 
 fn to_snake_case(x: &str) -> String {
