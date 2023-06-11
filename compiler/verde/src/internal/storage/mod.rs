@@ -1,3 +1,5 @@
+#![allow(ambiguous_glob_reexports)]
+
 use std::{fmt::Debug, hash::BuildHasherDefault, marker::PhantomData, num::NonZeroU64};
 
 use rustc_hash::FxHasher;

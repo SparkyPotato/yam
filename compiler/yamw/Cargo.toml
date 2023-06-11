@@ -1,0 +1,19 @@
+[package]
+name = "yamw"
+version = "0.0.0"
+edition = "2021"
+
+[dependencies]
+diagnostics = { path = "../diagnostics" }
+parse = { path = "../parse" }
+hir = { path = "../hir" }
+hir-lower = { path = "../hir-lower" }
+verde = { path = "../verde", features = ["tracing"] }
+
+clap = { version = "4.2.1", features = ["derive"] }
+crossbeam-channel = "0.5.7"
+notify-debouncer-mini = "0.2.1"
+rustc-hash = "1.1.0"
+tracing = "0.1.37"
+tracing-subscriber = { version = "0.3.16", features = ["env-filter"] }
+walkdir = "2.3.2"

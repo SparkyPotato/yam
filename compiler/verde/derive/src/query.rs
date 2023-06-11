@@ -45,7 +45,13 @@ pub(crate) fn query(input: ItemFn) -> Result<TokenStream> {
 	let arg_types: Vec<_> = inputs.iter().map(|x| &x.ty).collect();
 	let query_inputs: Vec<_> = inputs.iter().filter(|x| !x.ignore).collect();
 	let query_input_names: Vec<_> = query_inputs.iter().map(|x| &x.name).collect();
-	let query_input_types: Vec<_> = query_inputs.iter().map(|x| &x.ty).collect();
+	let query_input_types: Vec<_> = query_inputs
+		.iter()
+		.map(|x| match &x.ty {
+			Type::Reference(r) => r.elem.as_ref(),
+			x => x,
+		})
+		.collect();
 
 	let ctx_name = &ctx.name;
 	let ctx_ty = match ctx.ty {
@@ -72,7 +78,7 @@ pub(crate) fn query(input: ItemFn) -> Result<TokenStream> {
 		#[derive(Clone, PartialEq, Eq, Hash)]
 		#derive
 		#vis struct #input_type_name {
-			#(#query_input_names: #query_input_types,)*
+			#(#query_input_names: <#query_input_types as ::std::borrow::ToOwned>::Owned,)*
 		}
 
 		impl ::std::ops::Deref for #name {
@@ -81,7 +87,7 @@ pub(crate) fn query(input: ItemFn) -> Result<TokenStream> {
 			fn deref(&self) -> &Self::Target {
 				fn inner<#(#lifetimes)*>(#ctx_name: &#ctx_ty, #(#inputs,)*) -> ::verde::Id<#ret_ty> {
 					let __verde_internal_query_input = #input_type_name {
-						#(#query_input_names: ::std::clone::Clone::clone(&#query_input_names),)*
+						#(#query_input_names: <#query_input_types as ::std::borrow::ToOwned>::to_owned(&#query_input_names),)*
 					};
 					let __verde_internal_ctx = #ctx_name.start_query::<#name>(__verde_internal_query_input);
 					let #ctx_name = &__verde_internal_ctx;

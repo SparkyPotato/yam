@@ -2,18 +2,20 @@ use std::{fmt::Debug, hash::Hash, marker::PhantomData};
 
 use diagnostics::{FilePath, FullSpan, RawSpan, Span};
 use rustc_hash::FxHashMap;
-use syntax::{ast::Item, AstElement, SyntaxElement};
-use verde::Id;
-
-use crate::AbsolutePath;
+use syntax::{
+	ast::{File, Item},
+	AstElement,
+	SyntaxElement,
+};
+use text::Text;
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash)]
 pub struct ErasedAstId {
-	item: Id<AbsolutePath>,
+	item: Text,
 	index: u32,
 }
 impl Span for ErasedAstId {
-	type Ctx = AstMap;
+	type Ctx = ModuleMap;
 
 	fn to_raw(self, ctx: &Self::Ctx) -> FullSpan {
 		let item = ctx.items.get(&self.item).unwrap();
@@ -21,7 +23,7 @@ impl Span for ErasedAstId {
 		RawSpan {
 			start: span.start().into(),
 			end: span.end().into(),
-			relative: item.file,
+			relative: ctx.file,
 		}
 	}
 }
@@ -59,17 +61,26 @@ impl<T> AstId<T> {
 #[derive(Debug)]
 struct ItemData {
 	node: Item,
-	file: FilePath,
 	sub: Vec<SyntaxElement>,
 }
 
-#[derive(Debug, Default)]
-pub struct AstMap {
-	items: FxHashMap<Id<AbsolutePath>, ItemData>,
+#[derive(Debug)]
+pub struct ModuleMap {
+	ast: File,
+	file: FilePath,
+	items: FxHashMap<Text, ItemData>,
 }
 
-impl AstMap {
-	pub fn new() -> Self { Self::default() }
+impl ModuleMap {
+	pub fn new(ast: File, file: FilePath) -> Self {
+		Self {
+			ast,
+			file,
+			items: FxHashMap::default(),
+		}
+	}
+
+	pub fn ast(&self) -> &File { &self.ast }
 
 	pub fn get<T: AstElement>(&self, id: AstId<T>) -> T {
 		let item = self.items.get(&id.0.item).unwrap();
@@ -77,22 +88,25 @@ impl AstMap {
 		T::cast(node).expect("invalid AstId")
 	}
 
-	pub fn build_item(&mut self, path: Id<AbsolutePath>) -> ItemBuilder {
-		let item = self.items.get_mut(&path).unwrap();
-		item.sub.clear();
-		ItemBuilder { map: item, path }
+	pub fn add(&mut self, name: Text, item: Item) -> ItemBuilder {
+		let map = self.items.entry(name).or_insert(ItemData {
+			node: item,
+			sub: Vec::new(),
+		});
+		map.sub.clear();
+		ItemBuilder { map, item: name }
 	}
 }
 
 pub struct ItemBuilder<'a> {
 	map: &'a mut ItemData,
-	path: Id<AbsolutePath>,
+	item: Text,
 }
 
 impl ItemBuilder<'_> {
 	pub fn add<T: AstElement>(&mut self, node: T) -> AstId<T> {
 		let index = self.map.sub.len() as u32;
 		self.map.sub.push(node.inner());
-		AstId(ErasedAstId { item: self.path, index }, PhantomData)
+		AstId(ErasedAstId { item: self.item, index }, PhantomData)
 	}
 }

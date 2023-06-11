@@ -1,17 +1,14 @@
 [package]
-name = "parse"
+name = "br-lower"
 version = "0.0.0"
 edition = "2021"
 
 [dependencies]
+arena = { path = "../arena" }
+br = { path = "../br" }
 diagnostics = { path = "../diagnostics" }
-lex = { path = "../lex" }
 syntax = { path = "../syntax" }
 text = { path = "../text" }
+verde = { path = "../verde" }
 
 rustc-hash = "1.1.0"
-tracing = "0.1.37"
-
-[dev-dependencies]
-expect-test = "1.4.0"
-pretty_assertions = "1.2.1"

@@ -9,6 +9,7 @@ use std::{
 pub mod dense;
 pub mod sparse;
 
+/// An index into an arena.
 pub struct Ix<T>(NonZeroU32, PhantomData<fn() -> T>);
 
 impl<T> Ix<T> {
@@ -17,6 +18,7 @@ impl<T> Ix<T> {
 	pub fn index(self) -> usize { self.0.get() as usize - 1 }
 }
 
+/// An arena of elements of type `T`.
 #[derive(Clone, Eq, PartialEq)]
 pub struct Arena<T> {
 	elems: Vec<T>,
@@ -44,6 +46,10 @@ impl<T> IndexMut<Ix<T>> for Arena<T> {
 
 impl<T> Default for Arena<T> {
 	fn default() -> Self { Self::new() }
+}
+
+impl<T: Debug> Debug for Arena<T> {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { self.elems.fmt(f) }
 }
 
 impl<T> Clone for Ix<T> {

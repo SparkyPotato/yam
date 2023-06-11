@@ -1,4 +1,4 @@
-use diagnostics::test::emit_test;
+use diagnostics::{test::emit_test, FilePath};
 use expect_test::Expect;
 use pretty_assertions::assert_eq;
 use syntax::{builder::TreeBuilderContext, ResolvedNode};
@@ -21,7 +21,7 @@ fn harness(source: &str, ast: Expect, diagnostics: Expect) {
 	let debug = fmt(&resolved);
 	ast.assert_eq(&debug);
 
-	let diags = emit_test(source, out, &());
+	let diags = emit_test(source, out, &FilePath::new("test"));
 	diagnostics.assert_eq(&diags);
 }
 

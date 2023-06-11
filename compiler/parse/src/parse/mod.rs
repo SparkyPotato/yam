@@ -309,7 +309,7 @@ macro_rules! select {
 								format!("expected one of: {}", crate::parse::fmt_kinds(&expected))
 							}
 						})
-						.label(tok.span.label(format!("found `{}`", SyntaxKind::from(tok.kind)))),
+						.label(tok.span.label(format!("found {}", SyntaxKind::from(tok.kind)))),
 				);
 				p!($self.recover());
 			},

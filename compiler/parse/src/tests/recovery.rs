@@ -87,21 +87,21 @@ fn expr() {
        |
      3 |          3 + ;
        |              |  
-       |              `-- found ``;``
+       |              `-- found `;`
     ---'
     Error: expected expression
        ,-[<unknown>:5:5]
        |
      5 |          -;
        |           |  
-       |           `-- found ``;``
+       |           `-- found `;`
     ---'
     Error: expected expression
        ,-[<unknown>:7:6]
        |
      7 |          b[;
        |            |  
-       |            `-- found ``;``
+       |            `-- found `;`
     ---'
 "#]];
 
@@ -184,14 +184,14 @@ fn item() {
        |
      4 |          v: ,
        |             |  
-       |             `-- found ``,``
+       |             `-- found `,`
     ---'
     Error: expected struct field
        ,-[<unknown>:7:3]
        |
      7 |        fn main() {
        |        ^|  
-       |         `-- found fn
+       |         `-- found `fn`
     ---'
     Error: expected block
        ,-[<unknown>:8:1]

@@ -9,23 +9,31 @@ use text::Text;
 
 use crate::{DiagKind, Diagnostic, Label};
 
+/// A span of source code.
 pub trait Span: Sized {
+	/// A context for resolving the span to a full span.
 	type Ctx;
-	type Relative;
 
-	fn to_raw(self, ctx: &Self::Ctx) -> RawSpan<Self::Relative>;
+	/// Resolve the span.
+	fn to_raw(self, ctx: &Self::Ctx) -> FullSpan;
 
+	/// Create an error diagnostic pointing at this span.
 	fn error(self, message: impl ToString) -> Diagnostic<Self> { Diagnostic::new(DiagKind::Error, message, self) }
 
+	/// Create a warning diagnostic pointing at this span.
 	fn warning(self, message: impl ToString) -> Diagnostic<Self> { Diagnostic::new(DiagKind::Warning, message, self) }
 
+	/// Create an advice diagnostic pointing at this span.
 	fn advice(self, message: impl ToString) -> Diagnostic<Self> { Diagnostic::new(DiagKind::Advice, message, self) }
 
+	/// Create a label pointing at this span.
 	fn label(self, message: impl ToString) -> Label<Self> { Label::new(self, message) }
 
+	/// Create a label pointing at this span with no message.
 	fn mark(self) -> Label<Self> { Label::no_message(self) }
 }
 
+/// The path of a file.
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 pub struct FilePath(Text);
 
@@ -39,6 +47,7 @@ impl FilePath {
 	pub fn path(&self) -> &'static Path { Path::new(self.0.as_str()) }
 }
 
+/// A span of source code.
 #[derive(Debug, Default, Copy, Clone)]
 pub struct RawSpan<F> {
 	pub start: u32,
@@ -86,15 +95,28 @@ impl<F: Clone + PartialEq> ariadne::Span for RawSpan<F> {
 	fn end(&self) -> usize { self.end as _ }
 }
 
-impl<F> Span for RawSpan<F> {
-	type Ctx = ();
-	type Relative = F;
+/// A span of source code.
+pub type FullSpan = RawSpan<FilePath>;
+/// A span of source that is local to a file, but we don't know which one.
+pub type FileSpan = RawSpan<()>;
 
-	fn to_raw(self, _: &Self::Ctx) -> Self { self }
+impl Span for FullSpan {
+	type Ctx = ();
+
+	fn to_raw(self, _: &Self::Ctx) -> FullSpan { self }
 }
 
-pub type FullSpan = RawSpan<FilePath>;
-pub type FileSpan = RawSpan<()>;
+impl Span for FileSpan {
+	type Ctx = FilePath;
+
+	fn to_raw(self, ctx: &Self::Ctx) -> FullSpan {
+		FullSpan {
+			start: self.start,
+			end: self.end,
+			relative: *ctx,
+		}
+	}
+}
 
 impl FileSpan {
 	pub fn with<T>(self, span: T) -> RawSpan<T> {

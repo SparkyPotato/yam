@@ -642,7 +642,7 @@ fn map_token(x: &str) -> (String, String) {
 			s.push_str(&x[0..1].to_ascii_uppercase());
 			s.push_str(&x[1..]);
 			s.push_str("Kw");
-			(x.to_string(), s)
+			(backtick(x), s)
 		},
 	}
 }

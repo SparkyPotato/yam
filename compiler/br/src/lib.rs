@@ -7,13 +7,26 @@ use syntax::{
 use text::Text;
 use verde::{storage, Db, Id, Interned, Tracked};
 
-pub use crate::ast::AstMap;
+pub use crate::ast::ModuleMap;
 use crate::ast::{AstId, ErasedAstId};
 
 pub mod ast;
 
 #[storage]
-pub struct Storage(AbsolutePath, Path, Item, Diagnostic<ErasedAstId>);
+pub struct Storage(AbsolutePath, Path, Diagnostic<ErasedAstId>);
+
+pub struct BrModule {
+	pub module: Id<Module>,
+	pub map: ModuleMap,
+}
+
+/// A path, optionally preceded by a `.`, indicating that name resolution should start from the global scope.
+#[derive(Interned, Copy, Clone, PartialEq, Eq, Hash)]
+pub struct Path {
+	pub prec: Option<Id<Path>>,
+	/// Can be `.` if this is a root path.
+	pub ident: Text,
+}
 
 /// The identifier of a package. A package is a compilation unit, and as such, packages form a dependency DAG.
 #[derive(Copy, Clone, PartialEq, Eq, Hash)]
@@ -26,45 +39,44 @@ pub struct AbsolutePath {
 	pub path: Id<Path>,
 }
 
-#[derive(Interned, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct Path {
-	pub prec: Option<Id<Self>>,
-	pub ident: Text,
-}
-
 impl Path {
 	pub fn stringify(db: &dyn Db, this: Id<Self>) -> String {
 		let this = db.geti(this);
-		let mut path = if let Some(prec) = this.prec {
-			Self::stringify(db, prec)
-		} else {
-			String::new()
-		};
-		if !path.is_empty() {
+		let mut path = this.prec.map(|prec| Self::stringify(db, prec)).unwrap_or_default();
+		let ident = this.ident.as_str();
+		path.reserve(ident.len() + 1);
+		if !matches!(path.chars().last(), Some('.')) {
 			path.push_str(".");
 		}
-		path.push_str(this.ident.as_str());
+		path.push_str(ident);
 		path
 	}
 
-	/// Returns the path and if it is a root path.
-	pub fn from_ast(db: &mut dyn Db, path: a::Path) -> (Option<Id<Self>>, bool) {
-		let (prec, root) = path
-			.qualifier()
-			.map(|prec| Self::from_ast(db, prec))
-			.unwrap_or((None, false));
-		match path.segment() {
-			Some(a::PathSegment::Name(name)) => (name.text().map(|ident| db.add(Self { prec, ident })), root),
-			Some(a::PathSegment::Dot(_)) => (None, true),
-			None => (None, false),
-		}
+	pub fn from_ast(db: &mut dyn Db, path: a::Path) -> Option<Id<Self>> {
+		let prec = path.qualifier().map(|prec| Self::from_ast(db, prec)).unwrap_or(None);
+		let this = match path.segment() {
+			Some(a::PathSegment::Name(name)) => name.text().map(|ident| Self { prec, ident }),
+			Some(a::PathSegment::Dot(_)) => Some(Self {
+				prec,
+				ident: Text::new("."),
+			}),
+			None => None,
+		};
+		this.map(|this| db.add(this))
 	}
+}
+
+#[derive(Tracked, PartialEq, Eq)]
+pub struct Module {
+	#[id]
+	pub path: Id<AbsolutePath>,
+	pub items: Vec<Item>,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub struct Name {
-	name: Text,
-	id: AstId<Ident>,
+	pub name: Text,
+	pub id: AstId<Ident>,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq)]
@@ -91,15 +103,14 @@ pub enum Attr {
 	LangItem(LangItem),
 }
 
-#[derive(Tracked, Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct Item {
-	#[id]
-	pub path: Id<AbsolutePath>,
+	pub name: Name,
 	pub attrs: Vec<Attr>,
+	pub kind: ItemKind,
 	pub exprs: Arena<Expr>,
 	pub types: Arena<Type>,
 	pub locals: Arena<Local>,
-	pub kind: ItemKind,
 }
 
 #[derive(Clone, PartialEq, Eq)]
@@ -167,10 +178,10 @@ pub struct Type {
 
 #[derive(Clone, PartialEq, Eq)]
 pub enum TypeKind {
+	Infer,
 	Array(ArrayType),
 	Fn(FnType),
-	Infer,
-	Path(Id<Item>),
+	Path(Id<Path>),
 	Ptr(PtrType),
 }
 
@@ -212,7 +223,7 @@ pub enum ExprKind {
 	Literal(Literal),
 	Loop(LoopExpr),
 	Match(MatchExpr),
-	Path(Id<Item>),
+	Path(Id<Path>),
 	Local(Ix<Local>),
 	EnumVariant(VariantExpr),
 	Ref(RefExpr),
@@ -374,5 +385,5 @@ pub enum PrefixOp {
 
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub struct ReturnExpr {
-	pub with: Option<Ix<Expr>>,
+	pub value: Option<Ix<Expr>>,
 }

@@ -2,6 +2,7 @@ use rustc_hash::FxHashMap;
 
 use crate::Ix;
 
+/// A map from `Ix<K>` to `V` that expects to have values sparsely populated for all possible `Ix<K>` values.
 #[derive(Clone, Eq, PartialEq)]
 pub struct SparseMap<K, V> {
 	map: FxHashMap<Ix<K>, V>,

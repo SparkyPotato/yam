@@ -66,7 +66,7 @@ pub trait OptionNameExt {
 }
 
 impl OptionNameExt for Option<Name> {
-	fn text(&self) -> Option<Text> { self.as_ref().and_then(|x| x.ident()).map(|x| x.text()) }
+	fn text(&self) -> Option<Text> { self.as_ref().and_then(|x| x.text()) }
 }
 
 impl OptionNameExt for Option<PathSegment> {
@@ -78,5 +78,18 @@ impl OptionNameExt for Option<PathSegment> {
 			})
 			.and_then(|x| x.ident())
 			.map(|x| x.text())
+	}
+}
+
+impl Name {
+	pub fn text(&self) -> Option<Text> { self.ident().map(|x| x.text()) }
+}
+
+impl PathSegment {
+	pub fn name(&self) -> Option<Name> {
+		match self {
+			PathSegment::Name(name) => Some(name.clone()),
+			PathSegment::Dot(_) => None,
+		}
 	}
 }

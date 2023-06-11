@@ -2,6 +2,7 @@ use std::marker::PhantomData;
 
 use crate::Ix;
 
+/// A map from `Ix<K>` to `V` that expects to have values densely populated for all possible `Ix<K>` values.
 #[derive(Clone, Eq, PartialEq)]
 pub struct DenseMap<K, V> {
 	map: Vec<Option<V>>,

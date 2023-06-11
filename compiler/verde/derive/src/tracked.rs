@@ -18,22 +18,14 @@ use syn::{
 use crate::{Error, Result};
 
 pub(crate) fn tracked(input: DeriveInput) -> Result<TokenStream> {
-	if !input.generics.params.is_empty() {
-		return Err(Error::new(
-			input.generics.span(),
-			"Tracked cannot be derived for generic types",
-		));
-	}
-
 	match input.data {
 		Data::Struct(s) => {
-			let tracked = generate(&s)?;
-
-			let (id_field, id_ty) = &tracked.fields[tracked.id];
+			let (id_field, id_ty) = generate(&s)?;
+			let (generics, ty_generics, where_clause) = input.generics.split_for_impl();
 			let ty = input.ident;
 
 			Ok(quote! {
-				impl ::verde::Tracked for #ty {
+				impl #generics ::verde::Tracked for #ty #ty_generics #where_clause {
 					type Id = #id_ty;
 
 					fn id(&self) -> &Self::Id {
@@ -41,7 +33,7 @@ pub(crate) fn tracked(input: DeriveInput) -> Result<TokenStream> {
 					}
 				}
 
-				impl ::verde::internal::Storable for #ty {
+				impl #generics ::verde::internal::Storable for #ty #ty_generics #where_clause {
 					type Storage = ::verde::internal::storage::TrackedStorage<Self>;
 
 					const IS_PUSHABLE: bool = false;
@@ -98,42 +90,23 @@ impl ToTokens for Field {
 	}
 }
 
-struct TrackedStruct {
-	fields: Vec<(Field, Type)>,
-	id: usize,
-}
-
-fn generate(input: &DataStruct) -> Result<TrackedStruct> {
+fn generate(input: &DataStruct) -> Result<(Field, Type)> {
 	let mut id = None;
 
-	let fields = input
-		.fields
-		.iter()
-		.enumerate()
-		.map(|(i, f)| {
-			if f.attrs
-				.iter()
-				.any(|x| matches!(&x.meta, Meta::Path(p) if p.is_ident("id")))
-			{
-				if id.is_some() {
-					return Err(Error::new(f.span(), "Only a single field can be marked with `#[id]`"));
-				}
-				id = Some(i);
+	for (i, f) in input.fields.iter().enumerate() {
+		if f.attrs
+			.iter()
+			.any(|x| matches!(&x.meta, Meta::Path(p) if p.is_ident("id")))
+		{
+			if id.is_some() {
+				return Err(Error::new(f.span(), "Only a single field can be marked with `#[id]`"));
 			}
-
-			Ok((
+			id = Some((
 				f.ident.clone().map(Field::Ident).unwrap_or(Field::Tuple(i)),
 				f.ty.clone(),
-			))
-		})
-		.collect::<Result<_>>()?;
-
-	if let Some(id) = id {
-		Ok(TrackedStruct { fields, id })
-	} else {
-		Err(Error::new(
-			input.struct_token.span(),
-			"There must be a field marked with `#[id]`",
-		))
+			));
+		}
 	}
+
+	id.ok_or_else(|| Error::new(input.struct_token.span(), "There must be a field marked with `#[id]`"))
 }

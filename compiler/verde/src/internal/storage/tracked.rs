@@ -9,6 +9,7 @@ use parking_lot::{
 };
 
 use crate::{
+	event,
 	internal::storage::{routing::Route, DashMap},
 	Tracked,
 };
@@ -58,7 +59,8 @@ impl<T: Tracked> TrackedStorage<T> {
 				let mut out = slot.value.write();
 
 				if *out != value {
-					slot.generation.fetch_add(1, Ordering::Release);
+					let old = slot.generation.fetch_add(1, Ordering::Release);
+					event!(trace, "value changed, generation: {}", old + 1);
 				}
 				*out = value;
 
@@ -71,6 +73,7 @@ impl<T: Tracked> TrackedStorage<T> {
 					value: RwLock::new(value),
 					generation: AtomicU64::new(0),
 				});
+				event!(trace, "inserting new value");
 				self.map.insert(ident, index);
 				index
 			},

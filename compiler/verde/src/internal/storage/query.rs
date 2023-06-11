@@ -76,11 +76,11 @@ impl<T: Query> QueryStorage<T> {
 
 		match data.output {
 			Some(id) => {
-				event!(debug, "query cache hit");
+				event!(debug, "query already exists");
 				for &(dep, gen) in data.dependencies.iter() {
 					let dep_generation = ctx.get_generation(dep);
 					if dep_generation > gen {
-						event!(debug, "dependencies have changed, re-executing",);
+						event!(debug, "dependencies have changed, re-executing");
 						let ret = f();
 						let output = ctx.db.insert(query, ret);
 						let dependencies = unsafe { ctx.dependencies.borrow_mut().assume_init_read() };
@@ -91,6 +91,7 @@ impl<T: Query> QueryStorage<T> {
 						return output;
 					}
 				}
+				event!(debug, "query is up to date");
 				let _ = unsafe { ctx.dependencies.borrow_mut().assume_init_read() };
 				id
 			},

@@ -26,7 +26,7 @@ impl Lexer<'_> {
 		let span = self.inner.span();
 		match token {
 			Some(token) => Token {
-				kind: token,
+				kind: token.unwrap_or(TokenKind::Error),
 				span: FileSpan {
 					start: span.start as _,
 					end: span.end as _,

@@ -337,7 +337,7 @@ impl dyn Db + '_ {
 	/// let s = db.get(id);
 	/// assert_eq!(*s, S { id: 0, value: 0 });
 	/// ```
-	pub fn set_input<T: Tracked>(&mut self, value: T) -> Id<T> { (self as &dyn Db).insert(Route::input(), value) }
+	pub fn set_input<T: Tracked>(&self, value: T) -> Id<T> { self.insert(Route::input(), value) }
 
 	/// Get a reference to the value `id` points to.
 	/// ```rust

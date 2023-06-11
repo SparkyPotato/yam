@@ -1,7 +1,7 @@
 use ariadne::{Report, ReportKind};
 use verde::Pushable;
 
-use crate::{FileCache, FilePath, FileSpan, FullSpan, Span};
+use crate::{FileCache, FileSpan, FullSpan, Span};
 
 #[derive(Copy, Clone, Eq, PartialEq)]
 pub enum DiagKind {
@@ -79,8 +79,9 @@ impl<S> Diagnostic<S> {
 
 impl<S> Diagnostic<S>
 where
-	S: Span<Relative = FilePath>,
+	S: Span,
 {
+	/// Emit the diagnostic with a cache and span resolution context.
 	pub fn emit(self, cache: &FileCache, ctx: &S::Ctx) {
 		let span = self.span.to_raw(ctx);
 		let mut builder = Report::build(self.kind.into_report_kind(), span.relative, span.start as _);
@@ -97,7 +98,9 @@ where
 	}
 }
 
+/// A diagnostic that is fully resolved.
 pub type FullDiagnostic = Diagnostic<FullSpan>;
+/// A diagnostic that local to a specific file, but we don't know which one.
 pub type FileDiagnostic = Diagnostic<FileSpan>;
 
 pub mod test {
@@ -110,7 +113,6 @@ pub mod test {
 	impl<S> Diagnostic<S>
 	where
 		S: Span,
-		S::Relative: Clone + PartialEq,
 	{
 		pub fn emit_test(self, source: &str, ctx: &S::Ctx) -> String {
 			let cache = Cache {

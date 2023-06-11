@@ -156,7 +156,6 @@ pub enum TokenKind {
 	#[token("mut")]
 	MutKw,
 	Eof,
-	#[error]
 	#[default]
 	Error,
 }
