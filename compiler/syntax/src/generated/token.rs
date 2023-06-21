@@ -120,6 +120,34 @@ impl AstElement for At {
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
+pub struct ModKw(SyntaxToken);
+impl std::fmt::Debug for ModKw {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstToken for ModKw {
+	fn text(&self) -> Text { self.0.text_key().into() }
+}
+impl AstElement for ModKw {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::ModKw }
+
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let tok = elem.into_token()?;
+		Self::can_cast(tok.kind()).then(|| Self(tok))
+	}
+
+	fn span(&self) -> FileSpan {
+		let range = self.0.text_range();
+		FileSpan {
+			start: range.start().into(),
+			end: range.end().into(),
+			relative: (),
+		}
+	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct FnKw(SyntaxToken);
 impl std::fmt::Debug for FnKw {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }

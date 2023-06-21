@@ -516,6 +516,39 @@ impl Import {
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
+pub struct Module(SyntaxNode);
+impl std::fmt::Debug for Module {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
+}
+impl AstNode for Module {}
+impl AstElement for Module {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Module }
+
+	fn cast(elem: SyntaxElement) -> Option<Self> {
+		let node = elem.into_node()?;
+		Self::can_cast(node.kind()).then(|| Self(node))
+	}
+
+	fn span(&self) -> FileSpan {
+		let range = self.0.text_range();
+		FileSpan {
+			start: range.start().into(),
+			end: range.end().into(),
+			relative: (),
+		}
+	}
+
+	fn inner(self) -> SyntaxElement { self.0.into() }
+}
+impl Module {
+	pub fn mod_kw(&self) -> Option<ModKw> { children(&self.0).nth(0usize) }
+
+	pub fn name(&self) -> Option<Name> { children(&self.0).nth(0usize) }
+
+	pub fn semi(&self) -> Option<Semi> { children(&self.0).nth(0usize) }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Abi(SyntaxNode);
 impl std::fmt::Debug for Abi {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }

@@ -53,6 +53,24 @@ impl Rule for Item {
 }
 
 #[derive(Copy, Clone)]
+pub struct Module;
+
+impl Rule for Module {
+	fn rule(&self) -> ParseRule { ParseRule::Module }
+
+	fn parse(self, p: &mut Parser) -> Recovery {
+		p.api.start_node(SyntaxKind::Module);
+
+		p!(p.expect(T![mod]));
+		p!(name(p));
+		p!(p.expect(T![;]));
+
+		p.api.finish_node();
+		Recovery::ok()
+	}
+}
+
+#[derive(Copy, Clone)]
 pub struct Struct;
 
 impl Rule for Struct {

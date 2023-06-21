@@ -23,7 +23,7 @@ impl Route {
 	pub(crate) fn input() -> Self { Self { storage: 0, index: 1 } }
 }
 
-#[cfg(not(feature = "test"))]
+#[cfg(not(any(feature = "test", test)))]
 mod normal {
 	use std::any::TypeId;
 
@@ -115,7 +115,7 @@ mod normal {
 	}
 }
 
-#[cfg(feature = "test")]
+#[cfg(any(feature = "test", test))]
 mod test {
 	use std::{
 		any::TypeId,
@@ -169,7 +169,10 @@ mod test {
 	}
 
 	impl RoutingTable {
-		pub fn route<T: Storable>(&self) -> Route {
+		pub fn route<T: Storable>(&self) -> Route
+		where
+			StorageType: From<<T as Storable>::Storage>,
+		{
 			*self.routes.borrow_mut().entry(TypeId::of::<T>()).or_insert_with(|| {
 				let route = Route {
 					storage: self.dynamic_storage_index,
@@ -279,7 +282,7 @@ mod test {
 	}
 }
 
-#[cfg(not(feature = "test"))]
+#[cfg(not(any(feature = "test", test)))]
 pub use normal::*;
-#[cfg(feature = "test")]
+#[cfg(any(feature = "test", test))]
 pub use test::*;

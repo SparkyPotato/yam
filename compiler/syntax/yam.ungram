@@ -36,6 +36,9 @@ ItemKind =
 | Static
 | Import
 
+Module =
+  'mod' Name ';'
+
 Fn =
   Abi? 'fn' Name ParamList RetTy? FnBody
 

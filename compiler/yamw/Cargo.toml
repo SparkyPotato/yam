@@ -6,8 +6,8 @@ edition = "2021"
 [dependencies]
 diagnostics = { path = "../diagnostics" }
 parse = { path = "../parse" }
-hir = { path = "../hir" }
-hir-lower = { path = "../hir-lower" }
+# hir = { path = "../hir" }
+# hir-lower = { path = "../hir-lower" }
 verde = { path = "../verde", features = ["tracing"] }
 
 clap = { version = "4.2.1", features = ["derive"] }

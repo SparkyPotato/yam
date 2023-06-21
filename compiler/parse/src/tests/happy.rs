@@ -176,9 +176,17 @@ fn ty() {
 }
 
 #[test]
-fn struct_() {
+fn items() {
 	let source = r#"
+		mod x;
+		mod sus;
+
 		struct Sus { inner: T, }
+
+		enum X { A, B, C, }
+
+		fn something(p: T) {}
+		fn returns(x: i32, y: i32, z: i32) -> i32 { 10 }
 	"#;
 
 	let ast = {

@@ -8,7 +8,7 @@ pub use crate::internal::{storage::Id, Ctx, Db, Interned, Pushable, Tracked};
 
 #[doc(hidden)]
 pub mod internal;
-#[cfg(feature = "test")]
+#[cfg(any(feature = "test", test))]
 pub mod test;
 
 #[cfg(feature = "tracing")]

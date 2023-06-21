@@ -115,6 +115,7 @@ pub struct Item {
 
 #[derive(Clone, PartialEq, Eq)]
 pub enum ItemKind {
+	Module(Name),
 	Struct(Struct),
 	Enum(Enum),
 	Fn(Fn),
