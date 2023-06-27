@@ -5,8 +5,8 @@ edition = "2021"
 
 [dependencies]
 diagnostics = { path = "../diagnostics" }
-# hir = { path = "../hir" }
-# hir-lower = { path = "../hir-lower" }
+hir = { path = "../hir" }
+hir-lower = { path = "../hir-lower" }
 parse = { path = "../parse" }
 text = { path = "../text" }
 verde = { path = "../verde", features = ["tracing"] }

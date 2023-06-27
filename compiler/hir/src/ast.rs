@@ -5,12 +5,12 @@ use rustc_hash::FxHashMap;
 use syntax::{ast::Item, AstElement, SyntaxElement};
 use verde::Id;
 
-use crate::AbsolutePath;
+use crate::Path;
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash)]
 pub struct ErasedAstId {
-	item: Id<AbsolutePath>,
-	index: u32,
+	pub item: Id<Path>,
+	pub index: u32,
 }
 impl Span for ErasedAstId {
 	type Ctx = AstMap;
@@ -26,7 +26,7 @@ impl Span for ErasedAstId {
 	}
 }
 
-pub struct AstId<T>(ErasedAstId, PhantomData<fn() -> T>);
+pub struct AstId<T>(pub ErasedAstId, pub PhantomData<fn() -> T>);
 impl<T> Clone for AstId<T> {
 	fn clone(&self) -> Self { *self }
 }
@@ -57,42 +57,28 @@ impl<T> AstId<T> {
 }
 
 #[derive(Debug)]
-struct ItemData {
-	node: Item,
-	file: FilePath,
-	sub: Vec<SyntaxElement>,
+pub struct ItemData {
+	pub item: Item,
+	pub file: FilePath,
+	pub path: Id<Path>,
+	pub sub: Vec<SyntaxElement>,
 }
 
 #[derive(Debug, Default)]
 pub struct AstMap {
-	items: FxHashMap<Id<AbsolutePath>, ItemData>,
+	items: FxHashMap<Id<Path>, ItemData>,
 }
 
 impl AstMap {
-	pub fn new() -> Self { Self::default() }
+	pub fn new(items: impl IntoIterator<Item = ItemData>) -> Self {
+		Self {
+			items: items.into_iter().map(|x| (x.path, x)).collect(),
+		}
+	}
 
 	pub fn get<T: AstElement>(&self, id: AstId<T>) -> T {
 		let item = self.items.get(&id.0.item).unwrap();
 		let node = item.sub[id.0.index as usize].clone();
 		T::cast(node).expect("invalid AstId")
-	}
-
-	pub fn build_item(&mut self, path: Id<AbsolutePath>) -> ItemBuilder {
-		let item = self.items.get_mut(&path).unwrap();
-		item.sub.clear();
-		ItemBuilder { map: item, path }
-	}
-}
-
-pub struct ItemBuilder<'a> {
-	map: &'a mut ItemData,
-	path: Id<AbsolutePath>,
-}
-
-impl ItemBuilder<'_> {
-	pub fn add<T: AstElement>(&mut self, node: T) -> AstId<T> {
-		let index = self.map.sub.len() as u32;
-		self.map.sub.push(node.inner());
-		AstId(ErasedAstId { item: self.path, index }, PhantomData)
 	}
 }

@@ -59,8 +59,11 @@ impl<T: Tracked> TrackedStorage<T> {
 				let mut out = slot.value.write();
 
 				if *out != value {
-					let old = slot.generation.fetch_add(1, Ordering::Release);
-					event!(trace, "value changed, generation: {}", old + 1);
+					event!(
+						trace,
+						"value changed, generation: {}",
+						slot.generation.fetch_add(1, Ordering::Release) + 1
+					);
 				}
 				*out = value;
 

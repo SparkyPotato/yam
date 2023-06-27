@@ -1,6 +1,6 @@
 [workspace]
 members = ["compiler/*", "compiler/verde/derive"]
-exclude = ["compiler/driver", "compiler/hir", "compiler/hir-lower", "compiler/yamc", "compiler/yamw"]
+exclude = ["compiler/yamw"]
 
 resolver = "2"
 

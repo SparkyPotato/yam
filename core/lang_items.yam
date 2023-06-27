@@ -1,0 +1,31 @@
+@lang(u8)
+pub type u8 = u8;
+@lang(u16)
+pub type u16 = u16;
+@lang(u32)
+pub type u32 = u32;
+@lang(u64)
+pub type u64 = u64;
+@lang(u128)
+pub type u128 = u128;
+
+@lang(i8)
+pub type i8 = i8;
+@lang(i16)
+pub type i16 = i16;
+@lang(i32)
+pub type i32 = i32;
+@lang(i64)
+pub type i64 = i64;
+@lang(i128)
+pub type i128 = i128;
+
+@lang(bool)
+pub type bool = bool;
+@lang(char)
+pub type char = char;
+
+@lang(f32)
+pub type f32 = f32;
+@lang(f64)
+pub type f64 = f64;

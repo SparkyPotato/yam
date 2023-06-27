@@ -376,6 +376,7 @@ impl<'a> Generator<'a> {
 						}
 
 						quote! {
+							#[derive(Clone, PartialEq, Eq, Hash)]
 							pub enum #name {
 								#(#token_variants(#token_variants),)*
 								#(#node_variants(#node_variants),)*

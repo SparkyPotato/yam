@@ -13,22 +13,12 @@ use crate::ast::{AstId, ErasedAstId};
 pub mod ast;
 
 #[storage]
-pub struct Storage(AbsolutePath, Path, Item, Diagnostic<ErasedAstId>);
-
-/// The identifier of a package. A package is a compilation unit, and as such, packages form a dependency DAG.
-#[derive(Copy, Clone, PartialEq, Eq, Hash)]
-pub struct PackageId(u32);
-
-/// The absolute path of a definition.
-#[derive(Interned, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct AbsolutePath {
-	pub package: PackageId,
-	pub path: Id<Path>,
-}
+pub struct Storage(Path, Item, Diagnostic<ErasedAstId>);
 
 #[derive(Interned, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct Path {
 	pub prec: Option<Id<Self>>,
+	/// Can be `.` if the path is supposed to be a root-relative path.
 	pub ident: Text,
 }
 
@@ -48,16 +38,22 @@ impl Path {
 	}
 
 	/// Returns the path and if it is a root path.
-	pub fn from_ast(db: &mut dyn Db, path: a::Path) -> (Option<Id<Self>>, bool) {
-		let (prec, root) = path
+	pub fn from_ast(db: &dyn Db, prefix: Option<Id<Self>>, path: a::Path) -> Option<Id<Self>> {
+		let prec = path
 			.qualifier()
-			.map(|prec| Self::from_ast(db, prec))
-			.unwrap_or((None, false));
-		match path.segment() {
-			Some(a::PathSegment::Name(name)) => (name.text().map(|ident| db.add(Self { prec, ident })), root),
-			Some(a::PathSegment::Dot(_)) => (None, true),
-			None => (None, false),
-		}
+			.map(|prec| Self::from_ast(db, prefix, prec))
+			.unwrap_or(prefix);
+		let path = match path.segment()? {
+			a::PathSegment::Name(name) => {
+				let ident = name.text()?;
+				db.add(Self { prec, ident })
+			},
+			a::PathSegment::Dot(_) => db.add(Self {
+				prec,
+				ident: Text::new("."),
+			}),
+		};
+		Some(path)
 	}
 }
 
@@ -94,7 +90,7 @@ pub enum Attr {
 #[derive(Tracked, Clone, PartialEq, Eq)]
 pub struct Item {
 	#[id]
-	pub path: Id<AbsolutePath>,
+	pub path: Id<Path>,
 	pub attrs: Vec<Attr>,
 	pub exprs: Arena<Expr>,
 	pub types: Arena<Type>,

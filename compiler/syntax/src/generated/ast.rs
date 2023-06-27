@@ -38,6 +38,7 @@ impl Path {
 	pub fn segment(&self) -> Option<PathSegment> { children(&self.0).nth(0usize) }
 }
 
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub enum PathSegment {
 	Dot(Dot),
 	Name(Name),
@@ -230,6 +231,7 @@ impl Visibility {
 	pub fn pub_kw(&self) -> Option<PubKw> { children(&self.0).nth(0usize) }
 }
 
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub enum ItemKind {
 	Fn(Fn),
 	Struct(Struct),
@@ -516,39 +518,6 @@ impl Import {
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
-pub struct Module(SyntaxNode);
-impl std::fmt::Debug for Module {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
-}
-impl AstNode for Module {}
-impl AstElement for Module {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Module }
-
-	fn cast(elem: SyntaxElement) -> Option<Self> {
-		let node = elem.into_node()?;
-		Self::can_cast(node.kind()).then(|| Self(node))
-	}
-
-	fn span(&self) -> FileSpan {
-		let range = self.0.text_range();
-		FileSpan {
-			start: range.start().into(),
-			end: range.end().into(),
-			relative: (),
-		}
-	}
-
-	fn inner(self) -> SyntaxElement { self.0.into() }
-}
-impl Module {
-	pub fn mod_kw(&self) -> Option<ModKw> { children(&self.0).nth(0usize) }
-
-	pub fn name(&self) -> Option<Name> { children(&self.0).nth(0usize) }
-
-	pub fn semi(&self) -> Option<Semi> { children(&self.0).nth(0usize) }
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Abi(SyntaxNode);
 impl std::fmt::Debug for Abi {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
@@ -643,6 +612,7 @@ impl RetTy {
 	pub fn type_(&self) -> Option<Type> { children(&self.0).nth(0usize) }
 }
 
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub enum FnBody {
 	Semi(Semi),
 	Block(Block),
@@ -748,6 +718,7 @@ impl Param {
 	pub fn type_(&self) -> Option<Type> { children(&self.0).nth(0usize) }
 }
 
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub enum Type {
 	ArrayType(ArrayType),
 	FnType(FnType),
@@ -840,6 +811,7 @@ impl VariantList {
 	pub fn r_brace(&self) -> Option<RBrace> { children(&self.0).nth(0usize) }
 }
 
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub enum Expr {
 	ContinueKw(ContinueKw),
 	ArrayExpr(ArrayExpr),
@@ -1026,6 +998,7 @@ impl Rename {
 	pub fn name(&self) -> Option<Name> { children(&self.0).nth(0usize) }
 }
 
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub enum ImportTree {
 	ListImport(ListImport),
 	RenameImport(RenameImport),
@@ -1356,6 +1329,7 @@ impl TyParamList {
 	pub fn r_paren(&self) -> Option<RParen> { children(&self.0).nth(0usize) }
 }
 
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub enum Stmt {
 	Semi(Semi),
 	SemiExpr(SemiExpr),
@@ -1741,6 +1715,7 @@ impl IndexExpr {
 	pub fn r_bracket(&self) -> Option<RBracket> { children(&self.0).nth(0usize) }
 }
 
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub enum Literal {
 	BoolLit(BoolLit),
 	CharLit(CharLit),
@@ -2101,6 +2076,7 @@ impl LetExpr {
 	pub fn init(&self) -> Option<Expr> { children(&self.0).nth(0usize) }
 }
 
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub enum ArrayInit {
 	ArrayList(ArrayList),
 	ArrayRepeat(ArrayRepeat),
@@ -2202,6 +2178,7 @@ impl ArrayRepeat {
 	pub fn len(&self) -> Option<Expr> { children(&self.0).nth(1usize) }
 }
 
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub enum InfixOp {
 	PipePipe(PipePipe),
 	AmpAmp(AmpAmp),
@@ -2473,6 +2450,7 @@ impl MatchArm {
 	pub fn comma(&self) -> Option<Comma> { children(&self.0).nth(0usize) }
 }
 
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub enum PrefixOp {
 	Minus(Minus),
 	Not(Not),

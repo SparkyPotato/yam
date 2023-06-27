@@ -53,24 +53,6 @@ impl Rule for Item {
 }
 
 #[derive(Copy, Clone)]
-pub struct Module;
-
-impl Rule for Module {
-	fn rule(&self) -> ParseRule { ParseRule::Module }
-
-	fn parse(self, p: &mut Parser) -> Recovery {
-		p.api.start_node(SyntaxKind::Module);
-
-		p!(p.expect(T![mod]));
-		p!(name(p));
-		p!(p.expect(T![;]));
-
-		p.api.finish_node();
-		Recovery::ok()
-	}
-}
-
-#[derive(Copy, Clone)]
 pub struct Struct;
 
 impl Rule for Struct {
@@ -241,7 +223,7 @@ impl Rule for ImportTree {
 	fn parse(self, p: &mut Parser) -> Recovery {
 		let path = |p: &mut Parser| -> Recovery {
 			let c = p.api.checkpoint();
-			path(p);
+			p!(path(p));
 			if matches!(p.api.peek().kind, T![.]) {
 				p.api.start_node_at(c, SyntaxKind::ListImport);
 				p.api.bump();
@@ -262,14 +244,14 @@ impl Rule for ImportTree {
 		};
 
 		select! {
-		p,
-		T!['{'] => {
-			p.api.start_node(SyntaxKind::ListImport);
-			p!(import_tree_list(p));
-			p.api.finish_node();
-		},
-		T![.] => p!(path(p)),
-		T![ident] => p!(path(p)),
+			p,
+			T!['{'] => {
+				p.api.start_node(SyntaxKind::ListImport);
+				p!(import_tree_list(p));
+				p.api.finish_node();
+			},
+			T![.] => p!(path(p)),
+			T![ident] => p!(path(p)),
 		}
 		Recovery::ok()
 	}
@@ -333,12 +315,12 @@ impl Rule for Type {
 			},
 			T![ident] => {
 				p.api.start_node(SyntaxKind::PathType);
-				path(p);
+				p!(path(p));
 				p.api.finish_node();
 			},
 			T![.] => {
 				p.api.start_node(SyntaxKind::PathType);
-				path(p);
+				p!(path(p));
 				p.api.finish_node();
 			},
 			T![*] => {
@@ -482,7 +464,7 @@ fn name(p: &mut Parser) -> Recovery {
 	Recovery::ok()
 }
 
-fn path(p: &mut Parser) {
+fn path(p: &mut Parser) -> Recovery {
 	let c = p.api.checkpoint();
 
 	if matches!(p.api.peek().kind, T![.]) {
@@ -494,7 +476,7 @@ fn path(p: &mut Parser) {
 	loop {
 		if matches!(p.api.peek().kind, T![ident]) {
 			p.api.start_node_at(c, SyntaxKind::Path);
-			p.api.bump();
+			p!(name(p));
 			p.api.finish_node();
 
 			if matches!(p.api.peek().kind, T![.]) && matches!(p.api.peek_n(1).kind, T![ident]) {
@@ -504,7 +486,7 @@ fn path(p: &mut Parser) {
 				continue;
 			}
 		}
-		break;
+		break Recovery::ok();
 	}
 }
 
@@ -613,12 +595,12 @@ mod expr {
 			},
 			T![ident] => {
 				p.api.start_node(SyntaxKind::PathExpr);
-				path(p);
+				p!(path(p));
 				p.api.finish_node();
 			},
 			T![.] => {
 				p.api.start_node(SyntaxKind::PathExpr);
-				path(p);
+				p!(path(p));
 				p.api.finish_node();
 			},
 			T![break] => {

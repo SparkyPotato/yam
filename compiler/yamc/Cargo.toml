@@ -4,8 +4,10 @@ version = "0.0.0"
 edition = "2021"
 
 [dependencies]
+diagnostics = { path = "../diagnostics" }
 driver = { path = "../driver" }
 
 clap = { version = "4.2.1", features = ["derive"] }
 tracing = "0.1.37"
 tracing-subscriber = { version = "0.3.16", features = ["env-filter"] }
+walkdir = "2.3.3"

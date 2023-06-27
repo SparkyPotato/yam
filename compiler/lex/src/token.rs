@@ -155,8 +155,6 @@ pub enum TokenKind {
 	AsKw,
 	#[token("mut")]
 	MutKw,
-	#[token("mod")]
-	ModKw,
 	Eof,
 	#[default]
 	Error,
@@ -388,9 +386,6 @@ macro_rules! T {
 	};
 	(mut) => {
 		$crate::token::TokenKind::MutKw
-	};
-	(mod) => {
-		$crate::token::TokenKind::ModKw
 	};
 	(eof) => {
 		$crate::token::TokenKind::Eof
