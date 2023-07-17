@@ -13,7 +13,7 @@ impl std::fmt::Debug for Dot {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
 impl AstToken for Dot {
-	fn text(&self) -> Text { self.0.text_key().into() }
+	fn text(&self) -> Text { unsafe { std::mem::transmute(self.0.text_key().unwrap()) } }
 }
 impl AstElement for Dot {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Dot }
@@ -41,7 +41,7 @@ impl std::fmt::Debug for Ident {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
 impl AstToken for Ident {
-	fn text(&self) -> Text { self.0.text_key().into() }
+	fn text(&self) -> Text { unsafe { std::mem::transmute(self.0.text_key().unwrap()) } }
 }
 impl AstElement for Ident {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Ident }
@@ -69,7 +69,7 @@ impl std::fmt::Debug for Semi {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
 impl AstToken for Semi {
-	fn text(&self) -> Text { self.0.text_key().into() }
+	fn text(&self) -> Text { unsafe { std::mem::transmute(self.0.text_key().unwrap()) } }
 }
 impl AstElement for Semi {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Semi }
@@ -97,7 +97,7 @@ impl std::fmt::Debug for At {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
 impl AstToken for At {
-	fn text(&self) -> Text { self.0.text_key().into() }
+	fn text(&self) -> Text { unsafe { std::mem::transmute(self.0.text_key().unwrap()) } }
 }
 impl AstElement for At {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::At }
@@ -125,7 +125,7 @@ impl std::fmt::Debug for FnKw {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
 impl AstToken for FnKw {
-	fn text(&self) -> Text { self.0.text_key().into() }
+	fn text(&self) -> Text { unsafe { std::mem::transmute(self.0.text_key().unwrap()) } }
 }
 impl AstElement for FnKw {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::FnKw }
@@ -153,7 +153,7 @@ impl std::fmt::Debug for LParen {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
 impl AstToken for LParen {
-	fn text(&self) -> Text { self.0.text_key().into() }
+	fn text(&self) -> Text { unsafe { std::mem::transmute(self.0.text_key().unwrap()) } }
 }
 impl AstElement for LParen {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::LParen }
@@ -181,7 +181,7 @@ impl std::fmt::Debug for Comma {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
 impl AstToken for Comma {
-	fn text(&self) -> Text { self.0.text_key().into() }
+	fn text(&self) -> Text { unsafe { std::mem::transmute(self.0.text_key().unwrap()) } }
 }
 impl AstElement for Comma {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Comma }
@@ -209,7 +209,7 @@ impl std::fmt::Debug for RParen {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
 impl AstToken for RParen {
-	fn text(&self) -> Text { self.0.text_key().into() }
+	fn text(&self) -> Text { unsafe { std::mem::transmute(self.0.text_key().unwrap()) } }
 }
 impl AstElement for RParen {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::RParen }
@@ -237,7 +237,7 @@ impl std::fmt::Debug for Colon {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
 impl AstToken for Colon {
-	fn text(&self) -> Text { self.0.text_key().into() }
+	fn text(&self) -> Text { unsafe { std::mem::transmute(self.0.text_key().unwrap()) } }
 }
 impl AstElement for Colon {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Colon }
@@ -265,7 +265,7 @@ impl std::fmt::Debug for Arrow {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
 impl AstToken for Arrow {
-	fn text(&self) -> Text { self.0.text_key().into() }
+	fn text(&self) -> Text { unsafe { std::mem::transmute(self.0.text_key().unwrap()) } }
 }
 impl AstElement for Arrow {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Arrow }
@@ -293,7 +293,7 @@ impl std::fmt::Debug for PubKw {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
 impl AstToken for PubKw {
-	fn text(&self) -> Text { self.0.text_key().into() }
+	fn text(&self) -> Text { unsafe { std::mem::transmute(self.0.text_key().unwrap()) } }
 }
 impl AstElement for PubKw {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::PubKw }
@@ -321,7 +321,7 @@ impl std::fmt::Debug for ExternKw {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
 impl AstToken for ExternKw {
-	fn text(&self) -> Text { self.0.text_key().into() }
+	fn text(&self) -> Text { unsafe { std::mem::transmute(self.0.text_key().unwrap()) } }
 }
 impl AstElement for ExternKw {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::ExternKw }
@@ -349,7 +349,7 @@ impl std::fmt::Debug for StringLit {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
 impl AstToken for StringLit {
-	fn text(&self) -> Text { self.0.text_key().into() }
+	fn text(&self) -> Text { unsafe { std::mem::transmute(self.0.text_key().unwrap()) } }
 }
 impl AstElement for StringLit {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::StringLit }
@@ -377,7 +377,7 @@ impl std::fmt::Debug for StructKw {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
 impl AstToken for StructKw {
-	fn text(&self) -> Text { self.0.text_key().into() }
+	fn text(&self) -> Text { unsafe { std::mem::transmute(self.0.text_key().unwrap()) } }
 }
 impl AstElement for StructKw {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::StructKw }
@@ -405,7 +405,7 @@ impl std::fmt::Debug for LBrace {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
 impl AstToken for LBrace {
-	fn text(&self) -> Text { self.0.text_key().into() }
+	fn text(&self) -> Text { unsafe { std::mem::transmute(self.0.text_key().unwrap()) } }
 }
 impl AstElement for LBrace {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::LBrace }
@@ -433,7 +433,7 @@ impl std::fmt::Debug for RBrace {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
 impl AstToken for RBrace {
-	fn text(&self) -> Text { self.0.text_key().into() }
+	fn text(&self) -> Text { unsafe { std::mem::transmute(self.0.text_key().unwrap()) } }
 }
 impl AstElement for RBrace {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::RBrace }
@@ -461,7 +461,7 @@ impl std::fmt::Debug for EnumKw {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
 impl AstToken for EnumKw {
-	fn text(&self) -> Text { self.0.text_key().into() }
+	fn text(&self) -> Text { unsafe { std::mem::transmute(self.0.text_key().unwrap()) } }
 }
 impl AstElement for EnumKw {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::EnumKw }
@@ -489,7 +489,7 @@ impl std::fmt::Debug for TypeKw {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
 impl AstToken for TypeKw {
-	fn text(&self) -> Text { self.0.text_key().into() }
+	fn text(&self) -> Text { unsafe { std::mem::transmute(self.0.text_key().unwrap()) } }
 }
 impl AstElement for TypeKw {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::TypeKw }
@@ -517,7 +517,7 @@ impl std::fmt::Debug for Eq {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
 impl AstToken for Eq {
-	fn text(&self) -> Text { self.0.text_key().into() }
+	fn text(&self) -> Text { unsafe { std::mem::transmute(self.0.text_key().unwrap()) } }
 }
 impl AstElement for Eq {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Eq }
@@ -545,7 +545,7 @@ impl std::fmt::Debug for StaticKw {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
 impl AstToken for StaticKw {
-	fn text(&self) -> Text { self.0.text_key().into() }
+	fn text(&self) -> Text { unsafe { std::mem::transmute(self.0.text_key().unwrap()) } }
 }
 impl AstElement for StaticKw {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::StaticKw }
@@ -573,7 +573,7 @@ impl std::fmt::Debug for AsKw {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
 impl AstToken for AsKw {
-	fn text(&self) -> Text { self.0.text_key().into() }
+	fn text(&self) -> Text { unsafe { std::mem::transmute(self.0.text_key().unwrap()) } }
 }
 impl AstElement for AsKw {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::AsKw }
@@ -601,7 +601,7 @@ impl std::fmt::Debug for ImportKw {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
 impl AstToken for ImportKw {
-	fn text(&self) -> Text { self.0.text_key().into() }
+	fn text(&self) -> Text { unsafe { std::mem::transmute(self.0.text_key().unwrap()) } }
 }
 impl AstElement for ImportKw {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::ImportKw }
@@ -629,7 +629,7 @@ impl std::fmt::Debug for LBracket {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
 impl AstToken for LBracket {
-	fn text(&self) -> Text { self.0.text_key().into() }
+	fn text(&self) -> Text { unsafe { std::mem::transmute(self.0.text_key().unwrap()) } }
 }
 impl AstElement for LBracket {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::LBracket }
@@ -657,7 +657,7 @@ impl std::fmt::Debug for RBracket {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
 impl AstToken for RBracket {
-	fn text(&self) -> Text { self.0.text_key().into() }
+	fn text(&self) -> Text { unsafe { std::mem::transmute(self.0.text_key().unwrap()) } }
 }
 impl AstElement for RBracket {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::RBracket }
@@ -685,7 +685,7 @@ impl std::fmt::Debug for Underscore {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
 impl AstToken for Underscore {
-	fn text(&self) -> Text { self.0.text_key().into() }
+	fn text(&self) -> Text { unsafe { std::mem::transmute(self.0.text_key().unwrap()) } }
 }
 impl AstElement for Underscore {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Underscore }
@@ -713,7 +713,7 @@ impl std::fmt::Debug for Star {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
 impl AstToken for Star {
-	fn text(&self) -> Text { self.0.text_key().into() }
+	fn text(&self) -> Text { unsafe { std::mem::transmute(self.0.text_key().unwrap()) } }
 }
 impl AstElement for Star {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Star }
@@ -741,7 +741,7 @@ impl std::fmt::Debug for MutKw {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
 impl AstToken for MutKw {
-	fn text(&self) -> Text { self.0.text_key().into() }
+	fn text(&self) -> Text { unsafe { std::mem::transmute(self.0.text_key().unwrap()) } }
 }
 impl AstElement for MutKw {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::MutKw }
@@ -769,7 +769,7 @@ impl std::fmt::Debug for ContinueKw {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
 impl AstToken for ContinueKw {
-	fn text(&self) -> Text { self.0.text_key().into() }
+	fn text(&self) -> Text { unsafe { std::mem::transmute(self.0.text_key().unwrap()) } }
 }
 impl AstElement for ContinueKw {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::ContinueKw }
@@ -797,7 +797,7 @@ impl std::fmt::Debug for LetKw {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
 impl AstToken for LetKw {
-	fn text(&self) -> Text { self.0.text_key().into() }
+	fn text(&self) -> Text { unsafe { std::mem::transmute(self.0.text_key().unwrap()) } }
 }
 impl AstElement for LetKw {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::LetKw }
@@ -825,7 +825,7 @@ impl std::fmt::Debug for PipePipe {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
 impl AstToken for PipePipe {
-	fn text(&self) -> Text { self.0.text_key().into() }
+	fn text(&self) -> Text { unsafe { std::mem::transmute(self.0.text_key().unwrap()) } }
 }
 impl AstElement for PipePipe {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::PipePipe }
@@ -853,7 +853,7 @@ impl std::fmt::Debug for AmpAmp {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
 impl AstToken for AmpAmp {
-	fn text(&self) -> Text { self.0.text_key().into() }
+	fn text(&self) -> Text { unsafe { std::mem::transmute(self.0.text_key().unwrap()) } }
 }
 impl AstElement for AmpAmp {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::AmpAmp }
@@ -881,7 +881,7 @@ impl std::fmt::Debug for EqEq {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
 impl AstToken for EqEq {
-	fn text(&self) -> Text { self.0.text_key().into() }
+	fn text(&self) -> Text { unsafe { std::mem::transmute(self.0.text_key().unwrap()) } }
 }
 impl AstElement for EqEq {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::EqEq }
@@ -909,7 +909,7 @@ impl std::fmt::Debug for Neq {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
 impl AstToken for Neq {
-	fn text(&self) -> Text { self.0.text_key().into() }
+	fn text(&self) -> Text { unsafe { std::mem::transmute(self.0.text_key().unwrap()) } }
 }
 impl AstElement for Neq {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Neq }
@@ -937,7 +937,7 @@ impl std::fmt::Debug for Leq {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
 impl AstToken for Leq {
-	fn text(&self) -> Text { self.0.text_key().into() }
+	fn text(&self) -> Text { unsafe { std::mem::transmute(self.0.text_key().unwrap()) } }
 }
 impl AstElement for Leq {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Leq }
@@ -965,7 +965,7 @@ impl std::fmt::Debug for Geq {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
 impl AstToken for Geq {
-	fn text(&self) -> Text { self.0.text_key().into() }
+	fn text(&self) -> Text { unsafe { std::mem::transmute(self.0.text_key().unwrap()) } }
 }
 impl AstElement for Geq {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Geq }
@@ -993,7 +993,7 @@ impl std::fmt::Debug for Lt {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
 impl AstToken for Lt {
-	fn text(&self) -> Text { self.0.text_key().into() }
+	fn text(&self) -> Text { unsafe { std::mem::transmute(self.0.text_key().unwrap()) } }
 }
 impl AstElement for Lt {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Lt }
@@ -1021,7 +1021,7 @@ impl std::fmt::Debug for Gt {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
 impl AstToken for Gt {
-	fn text(&self) -> Text { self.0.text_key().into() }
+	fn text(&self) -> Text { unsafe { std::mem::transmute(self.0.text_key().unwrap()) } }
 }
 impl AstElement for Gt {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Gt }
@@ -1049,7 +1049,7 @@ impl std::fmt::Debug for Plus {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
 impl AstToken for Plus {
-	fn text(&self) -> Text { self.0.text_key().into() }
+	fn text(&self) -> Text { unsafe { std::mem::transmute(self.0.text_key().unwrap()) } }
 }
 impl AstElement for Plus {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Plus }
@@ -1077,7 +1077,7 @@ impl std::fmt::Debug for Minus {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
 impl AstToken for Minus {
-	fn text(&self) -> Text { self.0.text_key().into() }
+	fn text(&self) -> Text { unsafe { std::mem::transmute(self.0.text_key().unwrap()) } }
 }
 impl AstElement for Minus {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Minus }
@@ -1105,7 +1105,7 @@ impl std::fmt::Debug for Slash {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
 impl AstToken for Slash {
-	fn text(&self) -> Text { self.0.text_key().into() }
+	fn text(&self) -> Text { unsafe { std::mem::transmute(self.0.text_key().unwrap()) } }
 }
 impl AstElement for Slash {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Slash }
@@ -1133,7 +1133,7 @@ impl std::fmt::Debug for Percent {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
 impl AstToken for Percent {
-	fn text(&self) -> Text { self.0.text_key().into() }
+	fn text(&self) -> Text { unsafe { std::mem::transmute(self.0.text_key().unwrap()) } }
 }
 impl AstElement for Percent {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Percent }
@@ -1161,7 +1161,7 @@ impl std::fmt::Debug for Shl {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
 impl AstToken for Shl {
-	fn text(&self) -> Text { self.0.text_key().into() }
+	fn text(&self) -> Text { unsafe { std::mem::transmute(self.0.text_key().unwrap()) } }
 }
 impl AstElement for Shl {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Shl }
@@ -1189,7 +1189,7 @@ impl std::fmt::Debug for Shr {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
 impl AstToken for Shr {
-	fn text(&self) -> Text { self.0.text_key().into() }
+	fn text(&self) -> Text { unsafe { std::mem::transmute(self.0.text_key().unwrap()) } }
 }
 impl AstElement for Shr {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Shr }
@@ -1217,7 +1217,7 @@ impl std::fmt::Debug for Caret {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
 impl AstToken for Caret {
-	fn text(&self) -> Text { self.0.text_key().into() }
+	fn text(&self) -> Text { unsafe { std::mem::transmute(self.0.text_key().unwrap()) } }
 }
 impl AstElement for Caret {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Caret }
@@ -1245,7 +1245,7 @@ impl std::fmt::Debug for Pipe {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
 impl AstToken for Pipe {
-	fn text(&self) -> Text { self.0.text_key().into() }
+	fn text(&self) -> Text { unsafe { std::mem::transmute(self.0.text_key().unwrap()) } }
 }
 impl AstElement for Pipe {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Pipe }
@@ -1273,7 +1273,7 @@ impl std::fmt::Debug for Amp {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
 impl AstToken for Amp {
-	fn text(&self) -> Text { self.0.text_key().into() }
+	fn text(&self) -> Text { unsafe { std::mem::transmute(self.0.text_key().unwrap()) } }
 }
 impl AstElement for Amp {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Amp }
@@ -1301,7 +1301,7 @@ impl std::fmt::Debug for PlusEq {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
 impl AstToken for PlusEq {
-	fn text(&self) -> Text { self.0.text_key().into() }
+	fn text(&self) -> Text { unsafe { std::mem::transmute(self.0.text_key().unwrap()) } }
 }
 impl AstElement for PlusEq {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::PlusEq }
@@ -1329,7 +1329,7 @@ impl std::fmt::Debug for SlashEq {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
 impl AstToken for SlashEq {
-	fn text(&self) -> Text { self.0.text_key().into() }
+	fn text(&self) -> Text { unsafe { std::mem::transmute(self.0.text_key().unwrap()) } }
 }
 impl AstElement for SlashEq {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::SlashEq }
@@ -1357,7 +1357,7 @@ impl std::fmt::Debug for StarEq {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
 impl AstToken for StarEq {
-	fn text(&self) -> Text { self.0.text_key().into() }
+	fn text(&self) -> Text { unsafe { std::mem::transmute(self.0.text_key().unwrap()) } }
 }
 impl AstElement for StarEq {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::StarEq }
@@ -1385,7 +1385,7 @@ impl std::fmt::Debug for PercentEq {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
 impl AstToken for PercentEq {
-	fn text(&self) -> Text { self.0.text_key().into() }
+	fn text(&self) -> Text { unsafe { std::mem::transmute(self.0.text_key().unwrap()) } }
 }
 impl AstElement for PercentEq {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::PercentEq }
@@ -1413,7 +1413,7 @@ impl std::fmt::Debug for ShrEq {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
 impl AstToken for ShrEq {
-	fn text(&self) -> Text { self.0.text_key().into() }
+	fn text(&self) -> Text { unsafe { std::mem::transmute(self.0.text_key().unwrap()) } }
 }
 impl AstElement for ShrEq {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::ShrEq }
@@ -1441,7 +1441,7 @@ impl std::fmt::Debug for ShlEq {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
 impl AstToken for ShlEq {
-	fn text(&self) -> Text { self.0.text_key().into() }
+	fn text(&self) -> Text { unsafe { std::mem::transmute(self.0.text_key().unwrap()) } }
 }
 impl AstElement for ShlEq {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::ShlEq }
@@ -1469,7 +1469,7 @@ impl std::fmt::Debug for MinusEq {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
 impl AstToken for MinusEq {
-	fn text(&self) -> Text { self.0.text_key().into() }
+	fn text(&self) -> Text { unsafe { std::mem::transmute(self.0.text_key().unwrap()) } }
 }
 impl AstElement for MinusEq {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::MinusEq }
@@ -1497,7 +1497,7 @@ impl std::fmt::Debug for PipeEq {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
 impl AstToken for PipeEq {
-	fn text(&self) -> Text { self.0.text_key().into() }
+	fn text(&self) -> Text { unsafe { std::mem::transmute(self.0.text_key().unwrap()) } }
 }
 impl AstElement for PipeEq {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::PipeEq }
@@ -1525,7 +1525,7 @@ impl std::fmt::Debug for AmpEq {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
 impl AstToken for AmpEq {
-	fn text(&self) -> Text { self.0.text_key().into() }
+	fn text(&self) -> Text { unsafe { std::mem::transmute(self.0.text_key().unwrap()) } }
 }
 impl AstElement for AmpEq {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::AmpEq }
@@ -1553,7 +1553,7 @@ impl std::fmt::Debug for CaretEq {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
 impl AstToken for CaretEq {
-	fn text(&self) -> Text { self.0.text_key().into() }
+	fn text(&self) -> Text { unsafe { std::mem::transmute(self.0.text_key().unwrap()) } }
 }
 impl AstElement for CaretEq {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::CaretEq }
@@ -1581,7 +1581,7 @@ impl std::fmt::Debug for BreakKw {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
 impl AstToken for BreakKw {
-	fn text(&self) -> Text { self.0.text_key().into() }
+	fn text(&self) -> Text { unsafe { std::mem::transmute(self.0.text_key().unwrap()) } }
 }
 impl AstElement for BreakKw {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::BreakKw }
@@ -1609,7 +1609,7 @@ impl std::fmt::Debug for ForKw {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
 impl AstToken for ForKw {
-	fn text(&self) -> Text { self.0.text_key().into() }
+	fn text(&self) -> Text { unsafe { std::mem::transmute(self.0.text_key().unwrap()) } }
 }
 impl AstElement for ForKw {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::ForKw }
@@ -1637,7 +1637,7 @@ impl std::fmt::Debug for InKw {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
 impl AstToken for InKw {
-	fn text(&self) -> Text { self.0.text_key().into() }
+	fn text(&self) -> Text { unsafe { std::mem::transmute(self.0.text_key().unwrap()) } }
 }
 impl AstElement for InKw {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::InKw }
@@ -1665,7 +1665,7 @@ impl std::fmt::Debug for IfKw {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
 impl AstToken for IfKw {
-	fn text(&self) -> Text { self.0.text_key().into() }
+	fn text(&self) -> Text { unsafe { std::mem::transmute(self.0.text_key().unwrap()) } }
 }
 impl AstElement for IfKw {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::IfKw }
@@ -1693,7 +1693,7 @@ impl std::fmt::Debug for ElseKw {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
 impl AstToken for ElseKw {
-	fn text(&self) -> Text { self.0.text_key().into() }
+	fn text(&self) -> Text { unsafe { std::mem::transmute(self.0.text_key().unwrap()) } }
 }
 impl AstElement for ElseKw {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::ElseKw }
@@ -1721,7 +1721,7 @@ impl std::fmt::Debug for BoolLit {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
 impl AstToken for BoolLit {
-	fn text(&self) -> Text { self.0.text_key().into() }
+	fn text(&self) -> Text { unsafe { std::mem::transmute(self.0.text_key().unwrap()) } }
 }
 impl AstElement for BoolLit {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::BoolLit }
@@ -1749,7 +1749,7 @@ impl std::fmt::Debug for CharLit {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
 impl AstToken for CharLit {
-	fn text(&self) -> Text { self.0.text_key().into() }
+	fn text(&self) -> Text { unsafe { std::mem::transmute(self.0.text_key().unwrap()) } }
 }
 impl AstElement for CharLit {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::CharLit }
@@ -1777,7 +1777,7 @@ impl std::fmt::Debug for FloatLit {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
 impl AstToken for FloatLit {
-	fn text(&self) -> Text { self.0.text_key().into() }
+	fn text(&self) -> Text { unsafe { std::mem::transmute(self.0.text_key().unwrap()) } }
 }
 impl AstElement for FloatLit {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::FloatLit }
@@ -1805,7 +1805,7 @@ impl std::fmt::Debug for IntLit {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
 impl AstToken for IntLit {
-	fn text(&self) -> Text { self.0.text_key().into() }
+	fn text(&self) -> Text { unsafe { std::mem::transmute(self.0.text_key().unwrap()) } }
 }
 impl AstElement for IntLit {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::IntLit }
@@ -1833,7 +1833,7 @@ impl std::fmt::Debug for LoopKw {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
 impl AstToken for LoopKw {
-	fn text(&self) -> Text { self.0.text_key().into() }
+	fn text(&self) -> Text { unsafe { std::mem::transmute(self.0.text_key().unwrap()) } }
 }
 impl AstElement for LoopKw {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::LoopKw }
@@ -1861,7 +1861,7 @@ impl std::fmt::Debug for WhileKw {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
 impl AstToken for WhileKw {
-	fn text(&self) -> Text { self.0.text_key().into() }
+	fn text(&self) -> Text { unsafe { std::mem::transmute(self.0.text_key().unwrap()) } }
 }
 impl AstElement for WhileKw {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::WhileKw }
@@ -1889,7 +1889,7 @@ impl std::fmt::Debug for MatchKw {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
 impl AstToken for MatchKw {
-	fn text(&self) -> Text { self.0.text_key().into() }
+	fn text(&self) -> Text { unsafe { std::mem::transmute(self.0.text_key().unwrap()) } }
 }
 impl AstElement for MatchKw {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::MatchKw }
@@ -1917,7 +1917,7 @@ impl std::fmt::Debug for FatArrow {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
 impl AstToken for FatArrow {
-	fn text(&self) -> Text { self.0.text_key().into() }
+	fn text(&self) -> Text { unsafe { std::mem::transmute(self.0.text_key().unwrap()) } }
 }
 impl AstElement for FatArrow {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::FatArrow }
@@ -1945,7 +1945,7 @@ impl std::fmt::Debug for Not {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
 impl AstToken for Not {
-	fn text(&self) -> Text { self.0.text_key().into() }
+	fn text(&self) -> Text { unsafe { std::mem::transmute(self.0.text_key().unwrap()) } }
 }
 impl AstElement for Not {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::Not }
@@ -1973,7 +1973,7 @@ impl std::fmt::Debug for ReturnKw {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
 impl AstToken for ReturnKw {
-	fn text(&self) -> Text { self.0.text_key().into() }
+	fn text(&self) -> Text { unsafe { std::mem::transmute(self.0.text_key().unwrap()) } }
 }
 impl AstElement for ReturnKw {
 	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::ReturnKw }

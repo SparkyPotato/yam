@@ -7,4 +7,4 @@ edition = "2021"
 text = { path = "../text" }
 verde = { path = "../verde" }
 
-ariadne = "0.2.0"
+ariadne = "0.3"

@@ -1,4 +1,7 @@
-use cstree::{GreenNode, GreenNodeBuilder, NodeCache};
+use cstree::{
+	build::{GreenNodeBuilder, NodeCache},
+	green::GreenNode,
+};
 
 use crate::SyntaxKind;
 
@@ -20,7 +23,7 @@ impl Default for TreeBuilderContext {
 }
 
 pub struct TreeBuilder<'c> {
-	builder: GreenNodeBuilder<'c, 'static, &'static text::Interner>,
+	builder: GreenNodeBuilder<'c, 'static, SyntaxKind, &'static text::Interner>,
 	node_depth: usize,
 }
 
@@ -66,4 +69,4 @@ impl TreeBuilder<'_> {
 
 #[repr(transparent)]
 #[derive(Clone, Copy, Debug)]
-pub struct Checkpoint(cstree::Checkpoint);
+pub struct Checkpoint(cstree::build::Checkpoint);

@@ -1,37 +1,19 @@
-pub use cstree::{GreenNode, GreenToken, NodeOrToken, TextRange, TextSize};
+pub use cstree::{
+	green::{GreenNode, GreenToken},
+	text::{TextRange, TextSize},
+	util::NodeOrToken,
+};
 
 pub use crate::generated::{ast, kind::SyntaxKind, token, AstElement, AstNode, AstToken, OptionNameExt};
 pub mod builder;
 mod generated;
 
-pub type SyntaxNode = cstree::SyntaxNode<Lang>;
-pub type SyntaxToken = cstree::SyntaxToken<Lang>;
-pub type SyntaxElement = cstree::SyntaxElement<Lang>;
-pub type SyntaxElementRef<'a> = cstree::SyntaxElementRef<'a, Lang>;
-pub type SyntaxNodeChildren<'a> = cstree::SyntaxNodeChildren<'a, Lang>;
+pub type SyntaxNode = cstree::syntax::SyntaxNode<SyntaxKind>;
+pub type SyntaxToken = cstree::syntax::SyntaxToken<SyntaxKind>;
+pub type SyntaxElement = cstree::syntax::SyntaxElement<SyntaxKind>;
+pub type SyntaxElementRef<'a> = cstree::syntax::SyntaxElementRef<'a, SyntaxKind>;
+pub type SyntaxNodeChildren<'a> = cstree::syntax::SyntaxNodeChildren<'a, SyntaxKind>;
 
-pub type ResolvedNode = cstree::ResolvedNode<Lang>;
-pub type ResolvedToken = cstree::ResolvedToken<Lang>;
-pub type ResolvedElement = cstree::ResolvedElement<Lang>;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Lang;
-
-impl cstree::Language for Lang {
-	type Kind = SyntaxKind;
-
-	fn kind_from_raw(raw: cstree::SyntaxKind) -> Self::Kind { raw.into() }
-
-	fn kind_to_raw(kind: Self::Kind) -> cstree::SyntaxKind { kind.into() }
-}
-
-impl From<SyntaxKind> for cstree::SyntaxKind {
-	fn from(v: SyntaxKind) -> Self { Self(v as _) }
-}
-
-impl From<cstree::SyntaxKind> for SyntaxKind {
-	fn from(v: cstree::SyntaxKind) -> Self {
-		assert!(v.0 < SyntaxKind::__Last as _);
-		unsafe { std::mem::transmute(v.0) }
-	}
-}
+pub type ResolvedNode = cstree::syntax::ResolvedNode<SyntaxKind>;
+pub type ResolvedToken = cstree::syntax::ResolvedToken<SyntaxKind>;
+pub type ResolvedElement = cstree::syntax::ResolvedElement<SyntaxKind>;

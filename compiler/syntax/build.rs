@@ -163,8 +163,8 @@ impl<'a> Generator<'a> {
 		let node_kinds: Vec<_> = node_kinds.iter().map(|x| format_ident!("{}", x)).collect();
 
 		let def = quote! {
-			#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-			#[repr(u16)]
+			#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, cstree::Syntax)]
+			#[repr(u32)]
 			pub enum SyntaxKind {
 				/// Terminal tokens
 				#(#token_kinds,)*
@@ -174,9 +174,6 @@ impl<'a> Generator<'a> {
 
 				#[doc(hidden)]
 				Eof,
-				#[doc(hidden)]
-				/// Always keep last, is not actually allowed to appear anywhere.
-				__Last,
 			}
 		};
 
@@ -187,7 +184,6 @@ impl<'a> Generator<'a> {
 						#(Self::#token_kinds => write!(f, #token_display),)*
 						#(Self::#node_kinds => write!(f, #node_display),)*
 						Self::Eof => write!(f, "<eof>"),
-						Self::__Last => unreachable!("Invalid SyntaxKind used"),
 					}
 				}
 			}
@@ -225,7 +221,7 @@ impl<'a> Generator<'a> {
 						}
 
 						impl AstToken for #ident {
-							fn text(&self) -> Text { self.0.text_key().into() }
+							fn text(&self) -> Text { unsafe { std::mem::transmute(self.0.text_key().unwrap()) } }
 						}
 
 						impl AstElement for #ident {

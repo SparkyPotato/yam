@@ -1,5 +1,6 @@
 use diagnostics::{FileDiagnostic, FilePath, Span};
-use rustc_hash::{FxHashMap, FxHashSet};
+use hir::ident::AbsPath;
+use rustc_hash::FxHashSet;
 use syntax::{
 	ast,
 	ast::{ImportTree, ItemKind, Name},
@@ -9,7 +10,7 @@ use text::Text;
 use tracing::{span, Level};
 use verde::{Db, Id, Tracked};
 
-use crate::{Declaration, Module, ModuleMap};
+use crate::module::{Declaration, Module, ModuleMap, RelPath};
 
 /// An index for the public interface of a module - visible to modules outside itself.
 pub type PublicIndex = InnerIndex<true>;
@@ -33,7 +34,9 @@ impl<const PUBLIC: bool> InnerIndex<PUBLIC> {
 	}
 }
 
+#[derive(Clone)]
 pub struct Index {
+	pub path: Id<AbsPath>,
 	pub public: Id<PublicIndex>,
 	pub private: Id<PrivateIndex>,
 	pub map: ModuleMap,
@@ -77,7 +80,7 @@ pub fn generate_index(db: &dyn Db, module: &Module) -> (Index, Vec<FileDiagnosti
 		match item.item_kind() {
 			Some(ItemKind::Import(i)) => {
 				fn visit_tree(
-					db: &dyn Db, public: bool, tree: ImportTree, prefix: Option<Id<hir::Path>>,
+					db: &dyn Db, public: bool, tree: ImportTree, prefix: Option<RelPath>,
 					insert: &mut impl FnMut(Declaration<ast::Item>, bool),
 				) {
 					match tree {
@@ -88,14 +91,14 @@ pub fn generate_index(db: &dyn Db, module: &Module) -> (Index, Vec<FileDiagnosti
 										db,
 										public,
 										tree,
-										i.path().and_then(|path| hir::Path::from_ast(db, prefix, path)),
+										i.path().and_then(|path| RelPath::from_ast(db, prefix, path)),
 										insert,
 									);
 								}
 							}
 						},
 						ImportTree::RenameImport(i) => {
-							let path = i.path().and_then(|path| hir::Path::from_ast(db, prefix, path));
+							let path = i.path().and_then(|path| RelPath::from_ast(db, prefix, path));
 							let name = i
 								.rename()
 								.and_then(|r| r.name())
@@ -111,18 +114,19 @@ pub fn generate_index(db: &dyn Db, module: &Module) -> (Index, Vec<FileDiagnosti
 						},
 					}
 				}
+
 				if let Some(tree) = i.import_tree() {
 					visit_tree(db, public, tree, None, &mut insert);
 				}
-				continue;
 			},
 			Some(_) => insert(Declaration::Item(item), public),
-			None => continue,
+			None => {},
 		}
 	}
 
 	(
 		Index {
+			path: module.path,
 			public: db.set_input(public),
 			private: db.set_input(private),
 			map,
@@ -147,35 +151,5 @@ fn name_of_item(item: &ast::Item) -> Option<Name> {
 		Some(ItemKind::Static(s)) => s.name(),
 		Some(ItemKind::Import(_)) => None,
 		None => None,
-	}
-}
-
-#[derive(Debug)]
-pub struct ModuleTree {
-	children: FxHashMap<Text, ModuleTree>,
-}
-
-impl ModuleTree {
-	pub fn new<'a>(db: &dyn Db, indices: impl IntoIterator<Item = &'a Index>) -> Self {
-		let mut this = Self {
-			children: FxHashMap::default(),
-		};
-		for index in indices {
-			fn insert<'a>(db: &dyn Db, current: &'a mut ModuleTree, path: Option<Id<hir::Path>>) -> &'a mut ModuleTree {
-				match path {
-					Some(path) => {
-						let path = db.geti(path);
-						let tree = insert(db, current, path.prec);
-						tree.children.entry(path.ident).or_insert_with(|| ModuleTree {
-							children: FxHashMap::default(),
-						})
-					},
-					None => current,
-				}
-			}
-
-			insert(db, &mut this, index.map.module);
-		}
-		this
 	}
 }

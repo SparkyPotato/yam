@@ -10,10 +10,10 @@ parse = { path = "../parse" }
 # hir-lower = { path = "../hir-lower" }
 verde = { path = "../verde", features = ["tracing"] }
 
-clap = { version = "4.2.1", features = ["derive"] }
-crossbeam-channel = "0.5.7"
-notify-debouncer-mini = "0.2.1"
-rustc-hash = "1.1.0"
-tracing = "0.1.37"
-tracing-subscriber = { version = "0.3.16", features = ["env-filter"] }
-walkdir = "2.3.2"
+clap = { version = "4.3", features = ["derive"] }
+crossbeam-channel = "0.5"
+notify-debouncer-mini = "0.3"
+rustc-hash = "1.1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+walkdir = "2.3"

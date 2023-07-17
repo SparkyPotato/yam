@@ -10,7 +10,7 @@ syntax = { path = "../syntax" }
 text = { path = "../text" }
 verde = { path = "../verde" }
 
-rustc-hash = "1.1.0"
+rustc-hash = "1.1"
 
 [target.test.dependencies]
 verde = { path = "../verde", features = ["test"] }

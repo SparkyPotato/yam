@@ -9,9 +9,9 @@ lex = { path = "../lex" }
 syntax = { path = "../syntax" }
 text = { path = "../text" }
 
-rustc-hash = "1.1.0"
-tracing = "0.1.37"
+rustc-hash = "1.1"
+tracing = "0.1"
 
 [dev-dependencies]
-expect-test = "1.4.0"
-pretty_assertions = "1.2.1"
+expect-test = "1.4"
+pretty_assertions = "1.4"

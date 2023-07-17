@@ -1,61 +1,21 @@
 use arena::{Arena, Ix};
 use diagnostics::Diagnostic;
+use ident::AbsPath;
 use syntax::{
 	ast as a,
 	token::{Ident, StringLit},
 };
 use text::Text;
-use verde::{storage, Db, Id, Interned, Tracked};
+use verde::{storage, Id, Tracked};
 
 pub use crate::ast::AstMap;
 use crate::ast::{AstId, ErasedAstId};
 
 pub mod ast;
+pub mod ident;
 
 #[storage]
-pub struct Storage(Path, Item, Diagnostic<ErasedAstId>);
-
-#[derive(Interned, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct Path {
-	pub prec: Option<Id<Self>>,
-	/// Can be `.` if the path is supposed to be a root-relative path.
-	pub ident: Text,
-}
-
-impl Path {
-	pub fn stringify(db: &dyn Db, this: Id<Self>) -> String {
-		let this = db.geti(this);
-		let mut path = if let Some(prec) = this.prec {
-			Self::stringify(db, prec)
-		} else {
-			String::new()
-		};
-		if !path.is_empty() {
-			path.push_str(".");
-		}
-		path.push_str(this.ident.as_str());
-		path
-	}
-
-	/// Returns the path and if it is a root path.
-	pub fn from_ast(db: &dyn Db, prefix: Option<Id<Self>>, path: a::Path) -> Option<Id<Self>> {
-		let prec = path
-			.qualifier()
-			.map(|prec| Self::from_ast(db, prefix, prec))
-			.unwrap_or(prefix);
-		let path = match path.segment()? {
-			a::PathSegment::Name(name) => {
-				let ident = name.text()?;
-				db.add(Self { prec, ident })
-			},
-			a::PathSegment::Dot(_) => db.add(Self {
-				prec,
-				ident: Text::new("."),
-			}),
-		};
-		Some(path)
-	}
-}
+pub struct Storage(ident::AbsPath, ident::InnerPath, Item, Diagnostic<ErasedAstId>);
 
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub struct Name {
@@ -90,7 +50,7 @@ pub enum Attr {
 #[derive(Tracked, Clone, PartialEq, Eq)]
 pub struct Item {
 	#[id]
-	pub path: Id<Path>,
+	pub path: Id<AbsPath>,
 	pub attrs: Vec<Attr>,
 	pub exprs: Arena<Expr>,
 	pub types: Arena<Type>,

@@ -5,11 +5,11 @@ use rustc_hash::FxHashMap;
 use syntax::{ast::Item, AstElement, SyntaxElement};
 use verde::Id;
 
-use crate::Path;
+use crate::ident::AbsPath;
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash)]
 pub struct ErasedAstId {
-	pub item: Id<Path>,
+	pub item: Id<AbsPath>,
 	pub index: u32,
 }
 impl Span for ErasedAstId {
@@ -56,17 +56,17 @@ impl<T> AstId<T> {
 	pub fn erased(self) -> ErasedAstId { self.0 }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ItemData {
 	pub item: Item,
 	pub file: FilePath,
-	pub path: Id<Path>,
+	pub path: Id<AbsPath>,
 	pub sub: Vec<SyntaxElement>,
 }
 
 #[derive(Debug, Default)]
 pub struct AstMap {
-	items: FxHashMap<Id<Path>, ItemData>,
+	items: FxHashMap<Id<AbsPath>, ItemData>,
 }
 
 impl AstMap {

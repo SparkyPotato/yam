@@ -4,12 +4,12 @@ version = "0.0.0"
 edition = "2021"
 
 [build-dependencies]
-ungrammar = "1.16.1"
-quote = "1.0.23"
+ungrammar = "1.16"
+quote = "1.0"
 
 [dependencies]
 diagnostics = { path = "../diagnostics" }
 lex = { path = "../lex" }
 text = { path = "../text" }
 
-cstree = "0.11.1"
+cstree = { version = "0.12", features = ["derive", "multi_threaded_interning"] }

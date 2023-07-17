@@ -14,15 +14,20 @@ description = "A refreshingly simple incremental computation library"
 all-features = true
 
 [features]
-serde = ["dep:serde", "dashmap/serde", "verde-derive/serde", "parking_lot/serde"]
+serde = [
+    "dep:serde",
+    "dashmap/serde",
+    "verde-derive/serde",
+    "parking_lot/serde",
+]
 test = []
 tracing = ["dep:tracing"]
 
 [dependencies]
 verde-derive = { version = "0.1.0", path = "derive" }
 
-dashmap = "5.4.0"
-parking_lot = "0.12.1"
-rustc-hash = "1.1.0"
-serde = { version = "1.0.156", optional = true, features = ["derive"] }
-tracing = { version = "0.1.29", optional = true }
+dashmap = "5.5"
+parking_lot = "0.12"
+rustc-hash = "1.1"
+serde = { version = "1.0", optional = true, features = ["derive"] }
+tracing = { version = "0.1", optional = true }

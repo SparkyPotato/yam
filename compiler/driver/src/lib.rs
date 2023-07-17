@@ -1,7 +1,8 @@
 use diagnostics::{emit, FileCache, FilePath, FullDiagnostic};
+use hir::ident::{AbsPath, PackageId};
 use hir_lower::{
-	index::{generate_index, ModuleTree},
-	Module,
+	index::generate_index,
+	module::{Module, ModuleTree},
 };
 use parse::ParseContext;
 use verde::{db, Db};
@@ -28,7 +29,6 @@ pub struct CompileOutput {
 	pub db: Database,
 }
 
-/// Compile.
 pub fn compile(input: CompileInput) -> CompileOutput {
 	assert!(!input.files.is_empty(), "no files to compile");
 
@@ -43,8 +43,8 @@ pub fn compile(input: CompileInput) -> CompileOutput {
 			emit(diags, &cache, &x.file);
 			index
 		})
-		.collect();
-	let tree = ModuleTree::new(db, indices.iter());
+		.collect(); 
+	let tree = ModuleTree::new(db, indices);
 
 	CompileOutput { db: dbc }
 }
@@ -88,7 +88,11 @@ impl<'a> Parser<'a> {
 		self.diagnostics
 			.extend(diags.into_iter().map(|x| x.map_span(|x| x.with(file.path))));
 
-		Module::from_file(self.db, self.root, ast, file.path, None)
+		let prefix = self.db.add(AbsPath {
+			package: PackageId(0),
+			path: None,
+		});
+		Module::from_file(self.db, self.root, ast, file.path, prefix)
 	}
 
 	fn finish(self) -> (Vec<FullDiagnostic>, FileCache) { (self.diagnostics, self.cache) }
