@@ -1,7 +1,7 @@
 use text::Text;
 use verde::{Id, Interned};
 
-#[derive(Copy, Clone, PartialEq, Eq, Hash)]
+#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
 pub struct PackageId(pub u32);
 
 /// An absolute path.

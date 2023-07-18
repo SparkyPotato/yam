@@ -31,9 +31,9 @@ pub trait Db {
 
 /// A context into the database. Used by query functions to access the database.
 pub struct Ctx<'a> {
-	pub db: &'a dyn Db,
-	pub dependencies: RefCell<MaybeUninit<FxHashSet<(ErasedId, u64)>>>,
-	pub curr_query: ErasedQueryId,
+	pub(crate) db: &'a dyn Db,
+	pub(crate) dependencies: RefCell<MaybeUninit<FxHashSet<(ErasedId, u64)>>>,
+	pub(crate) curr_query: ErasedQueryId,
 }
 
 impl<'a> Ctx<'a> {
@@ -44,6 +44,43 @@ impl<'a> Ctx<'a> {
 			curr_query,
 		}
 	}
+
+	/// Insert a tracked value. Useful for returning tracked values other than the query output. These values *must*
+	/// influence query output comparision in some way (such as being stored in it) - since changes to `insert`ed values
+	/// are not tracked as outputs.
+	///
+	/// Unlike `set_input` called on the database, these values must be unique across only this query type, not
+	/// globally.
+	/// ```rust
+	/// # use verde::{query, Tracked, Ctx, Id, storage, db};
+	/// #[derive(Tracked, Eq, PartialEq)]
+	/// # #[cfg_attr(feature = "serde", derive(verde::serde::Serialize, verde::serde::Deserialize))]
+	/// struct S {
+	/// 	#[id]
+	/// 	id: u32,
+	/// 	value: u32,
+	/// }
+	///
+	/// # #[storage]
+	/// # struct Storage(S, String, foo);
+	/// # #[db]
+	/// # struct Database(Storage);
+	/// #[query]
+	/// fn foo(ctx: &Ctx, id: Id<S>) -> S {
+	/// 	let s = ctx.get(id);
+	/// 	let s2 = ctx.insert(S { id: 0, value: 1 }); // Turns out to be same as the return value!
+	/// 	S {
+	/// 		id: s.id,
+	/// 		value: s.value + 1,
+	/// 	}
+	/// }
+	///
+	/// # let mut db = Database::default();
+	/// # let db = &mut db as &mut dyn verde::Db;
+	/// let id = db.set_input(S { id: 0, value: 0 });
+	/// db.execute(|ctx| foo(ctx, id));
+	/// ```
+	pub fn insert<T: Tracked>(&self, value: T) -> Id<T> { self.db.insert(self.curr_query.route, value) }
 
 	/// Get a reference to the value `id` points to.
 	/// ```rust
@@ -641,4 +678,14 @@ impl dyn Db + '_ {
 		span.record("id", id);
 		Id::new(id, route)
 	}
+}
+
+impl Db for Ctx<'_> {
+	fn init_routing(_: &mut RoutingTableBuilder) {
+		panic!("Cannot call `init_routing` on a `Ctx`");
+	}
+
+	fn routing_table(&self) -> &RoutingTable { self.db.routing_table() }
+
+	fn storage_struct(&self, storage: u16) -> &dyn Storage { self.db.storage_struct(storage) }
 }

@@ -1,7 +1,10 @@
-use std::ops::Deref;
+use std::{ops::Deref, time::Duration};
 
 use dashmap::mapref::{multiple::RefMulti, one::Ref};
-use parking_lot::{lock_api::RawMutex, Mutex};
+use parking_lot::{
+	lock_api::{RawMutex, RawMutexTimed},
+	Mutex,
+};
 
 use crate::{
 	internal::storage::{query::ErasedQueryId, DashMap, Route},
@@ -162,8 +165,11 @@ struct VecIter<'a, T> {
 impl<'a, T> VecIter<'a, T> {
 	fn new(vec: &'a Mutex<Vec<T>>) -> Self {
 		let iter = unsafe {
-			vec.raw().lock();
-			(*vec.data_ptr()).iter()
+			if vec.raw().try_lock_for(Duration::from_secs(2)) {
+				(*vec.data_ptr()).iter()
+			} else {
+				panic!("Query timed out: perhaps you have a deadlock?");
+			}
 		};
 		Self { vec, iter }
 	}

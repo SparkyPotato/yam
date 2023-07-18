@@ -1,4 +1,4 @@
-use diagnostics::{FileDiagnostic, FilePath, Span};
+use diagnostics::Span;
 use hir::ident::AbsPath;
 use rustc_hash::FxHashSet;
 use syntax::{
@@ -8,54 +8,53 @@ use syntax::{
 };
 use text::Text;
 use tracing::{span, Level};
-use verde::{Db, Id, Tracked};
+use verde::{query, Ctx, Id, Tracked};
 
 use crate::module::{Declaration, Module, ModuleMap, RelPath};
 
-/// An index for the public interface of a module - visible to modules outside itself.
-pub type PublicIndex = InnerIndex<true>;
-/// An index for the private interface of a module - visible only to modules inside itself (and itself).
-pub type PrivateIndex = InnerIndex<false>;
-
 #[derive(Tracked, Debug, Eq, PartialEq)]
-pub struct InnerIndex<const PUBLIC: bool> {
+pub struct InnerIndex {
 	#[id]
-	path: FilePath,
+	path: (Id<AbsPath>, bool),
 	/// The names that exist in this module. Use the `ModuleMap` to figure out what they actually point to.
 	names: FxHashSet<Text>,
 }
 
-impl<const PUBLIC: bool> InnerIndex<PUBLIC> {
-	pub fn new(path: FilePath) -> Self {
+impl InnerIndex {
+	pub fn new(path: Id<AbsPath>, public: bool) -> Self {
 		Self {
-			path,
+			path: (path, public),
 			names: FxHashSet::default(),
 		}
 	}
 }
 
-#[derive(Clone)]
+#[derive(Eq, PartialEq, Tracked)]
 pub struct Index {
+	#[id]
 	pub path: Id<AbsPath>,
-	pub public: Id<PublicIndex>,
-	pub private: Id<PrivateIndex>,
-	pub map: ModuleMap,
+	pub public: Id<InnerIndex>,
+	pub private: Id<InnerIndex>,
 }
 
 /// Generate an index for the given module. This should be rerun on every reparse.
-pub fn generate_index(db: &dyn Db, module: &Module) -> (Index, Vec<FileDiagnostic>) {
-	let s = span!(Level::TRACE, "generate index", path = %module.file.path().display());
+///
+/// Note: the `ModuleMap` is a stable side-channel used to allow mapping from items to spans without invalidating
+/// everything if a span changes.
+#[query]
+pub fn generate_index(ctx: &Ctx, module: Id<Module>, #[ignore] map: &mut ModuleMap) -> Index {
+	let module = ctx.get(module);
+
+	let s = span!(Level::DEBUG, "generate index", path = %module.file.path().display());
 	let _e = s.enter();
 
-	let mut diags = Vec::new();
-	let mut public = InnerIndex::new(module.file);
-	let mut private = InnerIndex::new(module.file);
-	let mut map = ModuleMap::new(module.path, module.file);
+	let mut public = InnerIndex::new(module.path, true);
+	let mut private = InnerIndex::new(module.path, false);
 
 	let mut insert = |decl: Declaration<ast::Item>, is_public: bool| {
 		if let Some(name) = name_of_decl(&decl) {
 			if let Some(text) = name.text() {
-				let old = map.declare(db, text, decl);
+				let old = map.declare(ctx, text, decl);
 
 				private.names.insert(text);
 				if is_public {
@@ -64,11 +63,12 @@ pub fn generate_index(db: &dyn Db, module: &Module) -> (Index, Vec<FileDiagnosti
 
 				if let Some(old) = old {
 					let old = name_of_decl(&old).unwrap().ident().unwrap().span();
-					diags.push(
+					ctx.push(
 						name.span()
+							.with(map.file)
 							.error("duplicate definition")
-							.label(old.label("old definition here"))
-							.label(name.span().label("redefined here")),
+							.label(old.with(map.file).label("old definition here"))
+							.label(name.span().with(map.file).label("redefined here")),
 					);
 				}
 			}
@@ -80,7 +80,7 @@ pub fn generate_index(db: &dyn Db, module: &Module) -> (Index, Vec<FileDiagnosti
 		match item.item_kind() {
 			Some(ItemKind::Import(i)) => {
 				fn visit_tree(
-					db: &dyn Db, public: bool, tree: ImportTree, prefix: Option<RelPath>,
+					ctx: &Ctx, public: bool, tree: ImportTree, prefix: Option<RelPath>,
 					insert: &mut impl FnMut(Declaration<ast::Item>, bool),
 				) {
 					match tree {
@@ -88,17 +88,17 @@ pub fn generate_index(db: &dyn Db, module: &Module) -> (Index, Vec<FileDiagnosti
 							if let Some(list) = i.import_tree_list() {
 								for tree in list.import_trees() {
 									visit_tree(
-										db,
+										ctx,
 										public,
 										tree,
-										i.path().and_then(|path| RelPath::from_ast(db, prefix, path)),
+										i.path().and_then(|path| RelPath::from_ast(ctx, prefix, path)),
 										insert,
 									);
 								}
 							}
 						},
 						ImportTree::RenameImport(i) => {
-							let path = i.path().and_then(|path| RelPath::from_ast(db, prefix, path));
+							let path = i.path().and_then(|path| RelPath::from_ast(ctx, prefix, path));
 							let name = i
 								.rename()
 								.and_then(|r| r.name())
@@ -116,7 +116,7 @@ pub fn generate_index(db: &dyn Db, module: &Module) -> (Index, Vec<FileDiagnosti
 				}
 
 				if let Some(tree) = i.import_tree() {
-					visit_tree(db, public, tree, None, &mut insert);
+					visit_tree(ctx, public, tree, None, &mut insert);
 				}
 			},
 			Some(_) => insert(Declaration::Item(item), public),
@@ -124,15 +124,11 @@ pub fn generate_index(db: &dyn Db, module: &Module) -> (Index, Vec<FileDiagnosti
 		}
 	}
 
-	(
-		Index {
-			path: module.path,
-			public: db.set_input(public),
-			private: db.set_input(private),
-			map,
-		},
-		diags,
-	)
+	Index {
+		path: module.path,
+		public: ctx.insert(public),
+		private: ctx.insert(private),
+	}
 }
 
 fn name_of_decl(decl: &Declaration<ast::Item>) -> Option<Name> {

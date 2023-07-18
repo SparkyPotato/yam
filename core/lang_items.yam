@@ -20,8 +20,6 @@ pub type i64 = i64;
 @lang(i128)
 pub type i128 = i128;
 
-@lang(bool)
-pub type bool = bool;
 @lang(char)
 pub type char = char;
 
@@ -29,3 +27,7 @@ pub type char = char;
 pub type f32 = f32;
 @lang(f64)
 pub type f64 = f64;
+
+// TODO: Switch bool to an enum.
+@lang(bool)
+pub type bool = bool;

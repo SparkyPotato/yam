@@ -42,7 +42,7 @@ impl<T> Declaration<T> {
 #[derive(Debug, Clone)]
 pub struct ModuleMap {
 	module: Id<AbsPath>,
-	file: FilePath,
+	pub(crate) file: FilePath,
 	items: FxHashMap<Text, Declaration<ItemData>>,
 }
 
@@ -58,8 +58,10 @@ impl ModuleMap {
 	pub fn declare(&mut self, db: &dyn Db, name: Text, item: Declaration<ast::Item>) -> Option<Declaration<ast::Item>> {
 		let prec = db.geti(self.module);
 		let path = db.add(InnerPath { prec: prec.path, name });
+		let package = prec.package;
+		drop(prec);
 		let path = db.add(AbsPath {
-			package: prec.package,
+			package,
 			path: Some(path),
 		});
 		let old = self.items.insert(
@@ -104,10 +106,23 @@ impl ItemBuilder<'_> {
 	}
 }
 
+#[derive(Tracked)]
 pub struct Module {
+	#[id]
 	pub path: Id<AbsPath>,
 	pub file: FilePath,
 	pub ast: ast::File,
+}
+
+impl Eq for Module {}
+impl PartialEq for Module {
+	fn eq(&self, other: &Self) -> bool {
+		// This does a pointer comparison, which is surprsingly what we want.
+		// On every reparse, this pointer will change and we want to invalidate the index as well the lowered HIR for
+		// this module. However, if there wasn't a reparse, we want to keep the old index and HIR if possible - and the
+		// pointer wouldn't have changed.
+		self.path == other.path && self.ast == other.ast
+	}
 }
 
 impl Module {
@@ -182,83 +197,46 @@ impl RelPath {
 	}
 }
 
+#[derive(Debug)]
 pub struct ModuleTree {
-	pub modules: FxHashMap<Id<AbsPath>, Index>,
-	pub packages: FxHashMap<PackageId, Id<PackageTree>>,
+	pub modules: FxHashMap<Id<AbsPath>, Id<Index>>,
+	pub packages: FxHashMap<PackageId, PackageTree>,
 }
 
-#[derive(Tracked, Eq, PartialEq)]
+#[derive(Default, Debug)]
 pub struct PackageTree {
-	#[id]
-	path: Id<AbsPath>,
-	modules: FxHashMap<Text, Id<PackageTree>>,
-}
-
-struct TempTree {
-	path: Id<AbsPath>,
-	modules: FxHashMap<Text, TempTree>,
+	modules: FxHashMap<Text, PackageTree>,
 }
 
 impl ModuleTree {
-	pub fn new(db: &dyn Db, indices: impl IntoIterator<Item = Index>) -> Self {
+	pub fn new(db: &dyn Db, indices: impl IntoIterator<Item = Id<Index>>) -> Self {
 		let mut modules = FxHashMap::default();
 		let mut packages = FxHashMap::default();
 
 		for index in indices {
-			let path = db.geti(index.path);
-			let mut tree = packages.entry(path.package).or_insert_with(|| TempTree {
-				path: db.add(AbsPath {
-					package: path.package,
-					path: None,
-				}),
-				modules: FxHashMap::default(),
-			});
+			let i = db.get(index);
+			let path = db.geti(i.path);
+			let mut tree = packages.entry(path.package).or_default();
 
-			fn visit<'a>(db: &dyn Db, tree: &'a mut TempTree, path: Id<AbsPath>) -> &'a mut TempTree {
+			fn visit<'a>(db: &dyn Db, tree: &'a mut PackageTree, path: Id<AbsPath>) -> &'a mut PackageTree {
 				// borrowck doesn't let me use combinators :(.
 				let path = db.geti(path);
-				if let Some(inner) = path.path {
+				let package = path.package;
+				let ipath = path.path;
+				drop(path);
+				if let Some(inner) = ipath {
 					let p = db.geti(inner);
-					let tree = visit(
-						db,
-						tree,
-						db.add(AbsPath {
-							package: path.package,
-							path: p.prec,
-						}),
-					);
-
-					tree.modules.entry(p.name).or_insert_with(|| TempTree {
-						path: db.add(AbsPath {
-							package: path.package,
-							path: Some(inner),
-						}),
-						modules: FxHashMap::default(),
-					})
+					let tree = visit(db, tree, db.add(AbsPath { package, path: p.prec }));
+					tree.modules.entry(p.name).or_default()
 				} else {
 					tree
 				}
 			}
 
-			visit(db, &mut tree, index.path);
-			modules.insert(index.path, index);
+			visit(db, &mut tree, i.path);
+			modules.insert(i.path, index);
 		}
 
-		fn temp_to_ptree(db: &dyn Db, tree: TempTree) -> Id<PackageTree> {
-			let mut modules = FxHashMap::default();
-			for (name, tree) in tree.modules {
-				modules.insert(name, temp_to_ptree(db, tree));
-			}
-			db.set_input(PackageTree {
-				path: tree.path,
-				modules,
-			})
-		}
-
-		let packages = packages
-			.into_iter()
-			.map(|(id, tree)| (id, temp_to_ptree(db, tree)))
-			.collect();
 		Self { modules, packages }
 	}
 }

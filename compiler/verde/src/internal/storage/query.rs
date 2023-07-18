@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use parking_lot::{Mutex, RwLock};
 use rustc_hash::FxHashSet;
 
@@ -50,7 +52,10 @@ impl<T: Query> QueryStorage<T> {
 		match self.map.get(&input) {
 			Some(index) => *index,
 			None => {
-				let mut values = self.values.write();
+				let mut values = self
+					.values
+					.try_write_for(Duration::from_secs(2))
+					.expect("Query timed out: perhaps you have a deadlock?");
 				let index = values.len() as u32;
 				values.push(Mutex::new(QueryData {
 					dependencies: Default::default(),
@@ -71,8 +76,13 @@ impl<T: Query> QueryStorage<T> {
 		};
 		let query = ctx.curr_query.route;
 		let index = ctx.curr_query.index;
-		let values = self.values.read();
-		let mut data = values[index as usize].lock();
+		let values = self
+			.values
+			.try_read_for(Duration::from_secs(2))
+			.expect("Query timed out: perhaps you have a deadlock?");
+		let mut data = values[index as usize]
+			.try_lock_for(Duration::from_secs(2))
+			.expect("Query timed out: perhaps you have a deadlock?");
 
 		match data.output {
 			Some(id) => {

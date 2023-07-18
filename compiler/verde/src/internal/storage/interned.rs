@@ -1,7 +1,7 @@
-use std::{borrow::Borrow, hash::Hash, ops::Deref};
+use std::{borrow::Borrow, hash::Hash, ops::Deref, time::Duration};
 
 use parking_lot::{
-	lock_api::{RawRwLock, RawRwLockFair},
+	lock_api::{RawRwLockFair, RawRwLockTimed},
 	RwLock,
 };
 
@@ -28,7 +28,10 @@ impl<T: Interned> InternedStorage<T> {
 		match self.map.get(&value) {
 			Some(index) => *index,
 			None => {
-				let mut values = self.values.write();
+				let mut values = self
+					.values
+					.try_write_for(Duration::from_secs(2))
+					.expect("Interning timed out: perhaps you have a deadlock?");
 				let index = values.len() as u32;
 				values.push(RwLock::new(value.clone()));
 				self.map.insert(value, index);
@@ -45,7 +48,10 @@ impl<T: Interned> InternedStorage<T> {
 		match self.map.get(value) {
 			Some(index) => *index,
 			None => {
-				let mut values = self.values.write();
+				let mut values = self
+					.values
+					.try_write_for(Duration::from_secs(2))
+					.expect("Interning timed out: perhaps you have a deadlock?");
 				let index = values.len() as u32;
 				values.push(RwLock::new(value.to_owned()));
 				self.map.insert(value.to_owned(), index);
@@ -56,12 +62,19 @@ impl<T: Interned> InternedStorage<T> {
 
 	pub fn get(&self, index: u32) -> Get<'_, T> {
 		unsafe {
-			self.values.raw().lock_shared();
-			let slot = &(*self.values.data_ptr())[index as usize];
-			slot.raw().lock_shared();
-			Get {
-				slot,
-				values: &self.values,
+			if self.values.raw().try_lock_shared_for(Duration::from_secs(2)) {
+				let slot = &(*self.values.data_ptr())[index as usize];
+
+				if slot.raw().try_lock_shared_for(Duration::from_secs(2)) {
+					Get {
+						slot,
+						values: &self.values,
+					}
+				} else {
+					panic!("Interning timed out: perhaps you have a deadlock?");
+				}
+			} else {
+				panic!("Interning timed out: perhaps you have a deadlock?");
 			}
 		}
 	}

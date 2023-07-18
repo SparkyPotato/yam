@@ -2,10 +2,11 @@ use diagnostics::{emit, FileCache, FilePath, FullDiagnostic};
 use hir::ident::{AbsPath, PackageId};
 use hir_lower::{
 	index::generate_index,
-	module::{Module, ModuleTree},
+	lower::{get_hir_sea, lower_to_hir, VisibilityMap},
+	module::{Module, ModuleMap, ModuleTree},
 };
 use parse::ParseContext;
-use verde::{db, Db};
+use verde::{db, Db, Id};
 
 #[db]
 pub struct Database(hir::Storage, hir_lower::Storage);
@@ -32,30 +33,48 @@ pub struct CompileOutput {
 pub fn compile(input: CompileInput) -> CompileOutput {
 	assert!(!input.files.is_empty(), "no files to compile");
 
-	let mut dbc = input.db;
-	let db = &mut dbc as &mut dyn Db;
+	let dbc = input.db;
+	let db = &dbc as &dyn Db;
 
+	// Get ready for lowering to HIR: parse, generate indices, and build the module tree.
 	let Parsed { modules, cache } = parse(db, input.files);
-	let indices: Vec<_> = modules
-		.iter()
-		.map(|x| {
-			let (index, diags) = generate_index(db, x);
-			emit(diags, &cache, &x.file);
-			index
-		})
-		.collect(); 
+	let (indices, maps): (Vec<_>, Vec<_>) = db.execute(|ctx| {
+		modules
+			.iter()
+			.map(|&x| {
+				let m = db.get(x);
+				let mut map = ModuleMap::new(m.path, m.file);
+				drop(m);
+
+				let index = generate_index(ctx, x, &mut map);
+				(index, map)
+			})
+			.unzip()
+	});
+
 	let tree = ModuleTree::new(db, indices);
+
+	// Lower to HIR.
+	let items = db.execute(|ctx| {
+		let modules = modules.into_iter().map(move |x| {
+			let vis_map = VisibilityMap::new(db, &tree, x);
+			lower_to_hir(ctx, x, vis_map)
+		});
+		get_hir_sea(db, modules)
+	});
+
+	emit(db.get_all::<FullDiagnostic>().cloned(), &cache, &());
 
 	CompileOutput { db: dbc }
 }
 
 struct Parsed {
-	modules: Vec<Module>,
+	modules: Vec<Id<Module>>,
 	cache: FileCache,
 }
 
 fn parse(db: &dyn Db, files: Vec<SourceFile>) -> Parsed {
-	let mut parser = Parser::new(db, files[0].path);
+	let mut parser = Parser::new(db, files.get(0).expect("No source files provided").path);
 	let modules: Vec<_> = files.into_iter().map(|x| parser.parse(x)).collect();
 	let (diags, cache) = parser.finish();
 	emit(diags, &cache, &());
@@ -81,7 +100,7 @@ impl<'a> Parser<'a> {
 		}
 	}
 
-	fn parse(&mut self, file: SourceFile) -> Module {
+	fn parse(&mut self, file: SourceFile) -> Id<Module> {
 		let (ast, diags) = self.context.parse_file(&file.source);
 		self.cache.set_file(file.path, file.source);
 
@@ -92,7 +111,8 @@ impl<'a> Parser<'a> {
 			package: PackageId(0),
 			path: None,
 		});
-		Module::from_file(self.db, self.root, ast, file.path, prefix)
+		self.db
+			.set_input(Module::from_file(self.db, self.root, ast, file.path, prefix))
 	}
 
 	fn finish(self) -> (Vec<FullDiagnostic>, FileCache) { (self.diagnostics, self.cache) }

@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use clap::Parser;
 use diagnostics::{quick_diagnostic, DiagKind, FilePath};
 use driver::{CompileInput, Database, SourceFile};
-use tracing_subscriber::{fmt, EnvFilter};
+use tracing_subscriber::{fmt, fmt::format::FmtSpan, EnvFilter};
 use walkdir::WalkDir;
 
 #[derive(Parser)]
@@ -14,8 +14,13 @@ struct Options {
 }
 
 fn main() {
-	let _ =
-		tracing::subscriber::set_global_default(fmt().pretty().with_env_filter(EnvFilter::from_env("YAMLOG")).finish());
+	let _ = tracing::subscriber::set_global_default(
+		fmt()
+			.pretty()
+			.with_span_events(FmtSpan::ACTIVE)
+			.with_env_filter(EnvFilter::from_env("YAMLOG"))
+			.finish(),
+	);
 
 	let options = Options::parse();
 

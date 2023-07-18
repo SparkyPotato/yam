@@ -1,10 +1,11 @@
 use std::{
 	ops::Deref,
 	sync::atomic::{AtomicU64, Ordering},
+	time::Duration,
 };
 
 use parking_lot::{
-	lock_api::{RawRwLock, RawRwLockFair},
+	lock_api::{RawRwLockFair, RawRwLockTimed},
 	RwLock,
 };
 
@@ -38,7 +39,10 @@ pub struct TrackedStorage<T: Tracked> {
 
 impl<T: Tracked> ErasedTrackedStorage for TrackedStorage<T> {
 	fn get_generation(&self, index: u32) -> u64 {
-		let values = self.values.read();
+		let values = self
+			.values
+			.try_read_for(Duration::from_secs(2))
+			.expect("Tracked timed out: perhaps you have a deadlock?");
 		let slot = &values[index as usize];
 		slot.generation.load(Ordering::Acquire)
 	}
@@ -54,9 +58,15 @@ impl<T: Tracked> TrackedStorage<T> {
 		match self.map.get(&ident) {
 			Some(index) => {
 				let index = *index;
-				let values = self.values.read();
+				let values = self
+					.values
+					.try_read_for(Duration::from_secs(2))
+					.expect("Tracked timed out: perhaps you have a deadlock?");
 				let slot = &values[index as usize];
-				let mut out = slot.value.write();
+				let mut out = slot
+					.value
+					.try_write_for(Duration::from_secs(2))
+					.expect("Tracked timed out: perhaps you have a deadlock?");
 
 				if *out != value {
 					event!(
@@ -70,7 +80,10 @@ impl<T: Tracked> TrackedStorage<T> {
 				index
 			},
 			None => {
-				let mut values = self.values.write();
+				let mut values = self
+					.values
+					.try_write_for(Duration::from_secs(2))
+					.expect("Tracked timed out: perhaps you have a deadlock?");
 				let index = values.len() as u32;
 				values.push(Slot {
 					value: RwLock::new(value),
@@ -85,12 +98,18 @@ impl<T: Tracked> TrackedStorage<T> {
 
 	pub fn get(&self, index: u32) -> Get<'_, T> {
 		unsafe {
-			self.values.raw().lock_shared();
-			let slot = &(*self.values.data_ptr())[index as usize].value;
-			slot.raw().lock_shared();
-			Get {
-				slot,
-				values: &self.values,
+			if self.values.raw().try_lock_shared_for(Duration::from_secs(2)) {
+				let slot = &(*self.values.data_ptr())[index as usize].value;
+				if slot.raw().try_lock_shared_for(Duration::from_secs(2)) {
+					Get {
+						slot,
+						values: &self.values,
+					}
+				} else {
+					panic!("Tracked timed out: perhaps you have a deadlock?");
+				}
+			} else {
+				panic!("Tracked timed out: perhaps you have a deadlock?");
 			}
 		}
 	}
