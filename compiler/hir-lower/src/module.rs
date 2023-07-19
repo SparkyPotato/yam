@@ -4,11 +4,13 @@ use diagnostics::FilePath;
 use hir::{
 	ast::{AstId, ErasedAstId, ItemData},
 	ident::{AbsPath, InnerPath, PackageId},
+	AstMap,
 };
 use rustc_hash::FxHashMap;
 use syntax::{ast, AstElement};
 use text::Text;
-use verde::{Db, Id, Tracked};
+use tracing::{span, Level};
+use verde::{query, Ctx, Db, Id, Tracked};
 
 use crate::index::Index;
 
@@ -76,7 +78,7 @@ impl ModuleMap {
 		old.map(|x| x.map_ref(|x| x.item.clone()))
 	}
 
-	fn define(&mut self, name: Text) -> Option<ItemBuilder> {
+	pub fn define(&mut self, name: Text) -> Option<ItemBuilder> {
 		let decl = self
 			.items
 			.entry(name)
@@ -93,7 +95,7 @@ pub struct ItemBuilder<'a> {
 }
 
 impl ItemBuilder<'_> {
-	fn add<T: AstElement>(&mut self, node: T) -> AstId<T> {
+	pub fn add<T: AstElement>(&mut self, node: T) -> AstId<T> {
 		let index = self.item.sub.len() as u32;
 		self.item.sub.push(node.inner());
 		AstId(
@@ -131,9 +133,9 @@ impl Module {
 	/// Figure out the module's path from it's relative file path from a root file.
 	///
 	/// `prefix` is a prefix to add to path - possibly just the package ID if we're looking at the root module.
-	pub fn from_file(db: &dyn Db, root: FilePath, ast: ast::File, file: FilePath, prefix: Id<AbsPath>) -> Self {
+	pub fn from_file(db: &dyn Db, root: FilePath, ast: ast::File, file: FilePath, package: PackageId) -> Self {
 		if root == file {
-			return Self::new(ast, file, prefix);
+			return Self::new(ast, file, db.add(AbsPath { package, path: None }));
 		}
 
 		let root = root.path().parent().expect("root must be a file");
@@ -144,7 +146,7 @@ impl Module {
 		// `relative` is now `x/x.yam`.
 
 		let mut last_name = String::new();
-		let mut prec = *db.geti(prefix);
+		let mut prec = AbsPath { package, path: None };
 		for component in relative.components() {
 			let path: &Path = component.as_ref(); // `x` or `x.yam`.
 			let path = path.to_str().expect("Path is not valid UTF-8");
@@ -197,46 +199,90 @@ impl RelPath {
 	}
 }
 
-#[derive(Debug)]
-pub struct ModuleTree {
-	pub modules: FxHashMap<Id<AbsPath>, Id<Index>>,
-	pub packages: FxHashMap<PackageId, PackageTree>,
-}
-
-#[derive(Default, Debug)]
+#[derive(Tracked, Eq, PartialEq, Debug)]
 pub struct PackageTree {
-	modules: FxHashMap<Text, PackageTree>,
+	#[id]
+	id: (),
+	pub(crate) packages: FxHashMap<PackageId, Id<ModuleTree>>,
 }
 
-impl ModuleTree {
-	pub fn new(db: &dyn Db, indices: impl IntoIterator<Item = Id<Index>>) -> Self {
-		let mut modules = FxHashMap::default();
-		let mut packages = FxHashMap::default();
+#[derive(Tracked, Eq, PartialEq, Debug)]
+pub struct ModuleTree {
+	#[id]
+	pub(crate) path: Id<AbsPath>,
+	pub(crate) index: Option<Id<Index>>,
+	pub(crate) children: FxHashMap<Text, Id<ModuleTree>>,
+}
 
-		for index in indices {
-			let i = db.get(index);
-			let path = db.geti(i.path);
-			let mut tree = packages.entry(path.package).or_default();
+struct TempTree {
+	path: Id<AbsPath>,
+	index: Option<Id<Index>>,
+	children: FxHashMap<Text, TempTree>,
+}
 
-			fn visit<'a>(db: &dyn Db, tree: &'a mut PackageTree, path: Id<AbsPath>) -> &'a mut PackageTree {
-				// borrowck doesn't let me use combinators :(.
-				let path = db.geti(path);
-				let package = path.package;
-				let ipath = path.path;
-				drop(path);
-				if let Some(inner) = ipath {
-					let p = db.geti(inner);
-					let tree = visit(db, tree, db.add(AbsPath { package, path: p.prec }));
-					tree.modules.entry(p.name).or_default()
-				} else {
-					tree
-				}
+#[query]
+pub fn build_package_tree(db: &Ctx, indices: &[Id<Index>]) -> PackageTree {
+	let s = span!(Level::DEBUG, "generate package tree");
+	let _e = s.enter();
+
+	let mut packages = FxHashMap::default();
+
+	for &index in indices {
+		let i = db.get(index);
+		let path = db.geti(i.path);
+		let package = path.package;
+		drop(path);
+
+		let mut tree = packages.entry(package).or_insert_with(|| TempTree {
+			path: db.add(AbsPath { package, path: None }),
+			index: None,
+			children: FxHashMap::default(),
+		});
+
+		fn make_tree<'a>(db: &dyn Db, tree: &'a mut TempTree, path_id: Id<AbsPath>) -> &'a mut TempTree {
+			// borrowck doesn't let me use combinators :(.
+			let path = db.geti(path_id);
+			let package = path.package;
+			let ipath = path.path;
+			drop(path);
+
+			if let Some(inner) = ipath {
+				let p = db.geti(inner);
+				let tree = make_tree(db, tree, db.add(AbsPath { package, path: p.prec }));
+				tree.children.entry(p.name).or_insert_with(|| TempTree {
+					path: path_id,
+					index: None,
+					children: FxHashMap::default(),
+				})
+			} else {
+				tree
 			}
-
-			visit(db, &mut tree, i.path);
-			modules.insert(i.path, index);
 		}
 
-		Self { modules, packages }
+		make_tree(db, &mut tree, i.path).index = Some(index);
 	}
+
+	fn realify(ctx: &Ctx, temp: TempTree) -> Id<ModuleTree> {
+		let real = ModuleTree {
+			path: temp.path,
+			index: temp.index,
+			children: temp.children.into_iter().map(|(k, v)| (k, realify(ctx, v))).collect(),
+		};
+		ctx.insert(real)
+	}
+
+	PackageTree {
+		id: (),
+		packages: packages.into_iter().map(|(k, v)| (k, realify(db, v))).collect(),
+	}
+}
+
+pub fn build_ast_map(modules: impl IntoIterator<Item = ModuleMap>) -> AstMap {
+	let items = modules.into_iter().flat_map(|x| {
+		x.items.into_iter().flat_map(|(_, x)| match x {
+			Declaration::Item(i) => Some(i),
+			Declaration::Import { .. } => None,
+		})
+	});
+	AstMap::new(items)
 }

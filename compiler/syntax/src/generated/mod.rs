@@ -1,6 +1,7 @@
 use diagnostics::FileSpan;
 use text::Text;
 
+use self::token::{LParen, RParen};
 use crate::{
 	ast::{Name, PathSegment},
 	SyntaxElement,
@@ -59,6 +60,23 @@ impl AstElement for TokenTree {
 	}
 
 	fn inner(self) -> SyntaxElement { self.0.into() }
+}
+
+impl TokenTree {
+	pub fn l_paren(&self) -> Option<LParen> { children(&self.0).nth(0) }
+
+	pub fn tokens(&self) -> impl Iterator<Item = SyntaxToken> + '_ {
+		self.0
+			.children_with_tokens()
+			.filter_map(|x| match x {
+				SyntaxElementRef::Token(token) if token.kind() != SyntaxKind::Whitespace => Some(token.clone()),
+				_ => None,
+			})
+			.skip(1)
+			.take_while(|x| x.kind() != SyntaxKind::RParen)
+	}
+
+	pub fn r_paren(&self) -> Option<RParen> { children(&self.0).nth(0) }
 }
 
 pub trait OptionNameExt {

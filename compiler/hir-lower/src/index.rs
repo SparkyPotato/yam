@@ -39,13 +39,13 @@ pub struct Index {
 
 /// Generate an index for the given module. This should be rerun on every reparse.
 ///
-/// Note: the `ModuleMap` is a stable side-channel used to allow mapping from items to spans without invalidating
+/// The `ModuleMap` is a stable side-channel used to allow mapping from items to spans without invalidating
 /// everything if a span changes.
 #[query]
 pub fn generate_index(ctx: &Ctx, module: Id<Module>, #[ignore] map: &mut ModuleMap) -> Index {
 	let module = ctx.get(module);
 
-	let s = span!(Level::DEBUG, "generate index", path = %module.file.path().display());
+	let s = span!(Level::DEBUG, "generate index", path = %module.file);
 	let _e = s.enter();
 
 	let mut public = InnerIndex::new(module.path, true);
@@ -138,7 +138,7 @@ fn name_of_decl(decl: &Declaration<ast::Item>) -> Option<Name> {
 	}
 }
 
-fn name_of_item(item: &ast::Item) -> Option<Name> {
+pub(crate) fn name_of_item(item: &ast::Item) -> Option<Name> {
 	match item.item_kind() {
 		Some(ItemKind::Fn(f)) => f.name(),
 		Some(ItemKind::Struct(s)) => s.name(),

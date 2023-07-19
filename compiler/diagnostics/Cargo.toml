@@ -8,3 +8,4 @@ text = { path = "../text" }
 verde = { path = "../verde" }
 
 ariadne = "0.3"
+rustc-hash = "1.1"

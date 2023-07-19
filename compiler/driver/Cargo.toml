@@ -10,3 +10,7 @@ hir-lower = { path = "../hir-lower" }
 parse = { path = "../parse" }
 text = { path = "../text" }
 verde = { path = "../verde", features = ["tracing"] }
+
+rayon = "1.7"
+rustc-hash = "1.1"
+tracing = "0.1"

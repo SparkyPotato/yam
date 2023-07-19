@@ -15,12 +15,14 @@ pub mod ast;
 pub mod ident;
 
 #[storage]
-pub struct Storage(ident::AbsPath, ident::InnerPath, Item, Diagnostic<ErasedAstId>);
+pub struct Storage(ident::AbsPath, ident::InnerPath, Item, ItemDiagnostic);
+
+pub type ItemDiagnostic = Diagnostic<ErasedAstId>;
 
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub struct Name {
-	name: Text,
-	id: AstId<Ident>,
+	pub name: Text,
+	pub id: AstId<Ident>,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq)]
@@ -63,6 +65,7 @@ pub enum ItemKind {
 	Struct(Struct),
 	Enum(Enum),
 	Fn(Fn),
+	TypeAlias(TypeAlias),
 	Static(Static),
 }
 
@@ -102,11 +105,18 @@ pub struct Struct {
 
 #[derive(Clone, PartialEq, Eq)]
 pub struct Enum {
-	pub variants: Arena<Variant>,
+	pub name: Name,
+	pub variants: Vec<Variant>,
 }
 
 #[derive(Clone, PartialEq, Eq)]
 pub struct Variant(pub Name);
+
+#[derive(Clone, PartialEq, Eq)]
+pub struct TypeAlias {
+	pub name: Name,
+	pub ty: Ix<Type>,
+}
 
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub struct Static {
@@ -126,7 +136,7 @@ pub enum TypeKind {
 	Array(ArrayType),
 	Fn(FnType),
 	Infer,
-	Path(Id<Item>),
+	Path(Id<AbsPath>),
 	Ptr(PtrType),
 }
 
@@ -168,7 +178,7 @@ pub enum ExprKind {
 	Literal(Literal),
 	Loop(LoopExpr),
 	Match(MatchExpr),
-	Path(Id<Item>),
+	Path(Id<AbsPath>),
 	Local(Ix<Local>),
 	EnumVariant(VariantExpr),
 	Ref(RefExpr),

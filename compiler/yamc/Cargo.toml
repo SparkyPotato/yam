@@ -9,5 +9,6 @@ driver = { path = "../driver" }
 
 clap = { version = "4.3", features = ["derive"] }
 tracing = "0.1"
+tracing-forest = { version = "0.1", features = ["ansi", "env-filter"] }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 walkdir = "2.3"

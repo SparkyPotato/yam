@@ -5,7 +5,10 @@ use parking_lot::{
 	RwLock,
 };
 
-use crate::internal::{storage::DashMap, Interned};
+use crate::{
+	event,
+	internal::{storage::DashMap, Interned},
+};
 
 pub trait ErasedInternedStorage {}
 
@@ -48,6 +51,7 @@ impl<T: Interned> InternedStorage<T> {
 		match self.map.get(value) {
 			Some(index) => *index,
 			None => {
+				event!(trace, "inserting new value");
 				let mut values = self
 					.values
 					.try_write_for(Duration::from_secs(2))
