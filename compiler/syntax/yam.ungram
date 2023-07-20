@@ -3,7 +3,7 @@
 //****************
 
 Path =
-  qualifier:Path? segment:PathSegment
+  PathSegment*
 
 PathSegment =
   '.'

@@ -1,15 +1,20 @@
 use arena::{Arena, Ix};
 use diagnostics::{FilePath, RawSpan, Span};
-use hir::ident::{AbsPath, InnerPath, PackageId};
+use hir::ident::{AbsPath, PackageId};
 use rustc_hash::FxHashMap;
 use syntax::{ast, token, AstElement, AstToken, SyntaxElement};
 use text::Text;
 use tracing::{span, Level};
-use verde::{query, Ctx, Db, Id, Tracked};
+use verde::{internal::storage::tracked::Get, query, Ctx, Db, Id, Tracked};
 
 use crate::{
-	index::name_of_item,
-	module::{ItemBuilder, Module, ModuleMap, PackageTree},
+	index::{
+		local::{name_of_item, PackageTree},
+		ItemBuilder,
+		ModuleMap,
+		RelPath,
+	},
+	Module,
 };
 
 pub fn build_hir_sea(db: &dyn Db, modules: impl IntoIterator<Item = Id<LoweredModule>>) -> Vec<Id<hir::Item>> {
@@ -58,14 +63,9 @@ pub fn lower_to_hir(
 		.flat_map(|x| {
 			name_of_item(&x).and_then(|x| x.text()).and_then(|name| {
 				let builder = map.define(name).unwrap();
-
-				let path = ctx.geti(module.path);
-				let package = path.package;
-				let prec = path.path;
-				let path = ctx.add(InnerPath { prec, name });
-				let path = ctx.add(AbsPath {
-					package,
-					path: Some(path),
+				let path = ctx.add(AbsPath::Module {
+					prec: module.path,
+					name,
 				});
 
 				let item = lower_item(ctx, path, module.file, x, packages, tree, builder);
@@ -84,16 +84,7 @@ fn lower_item(
 	ctx: &Ctx, path: Id<AbsPath>, file: FilePath, item: ast::Item, packages: Id<VisibilePackages>,
 	tree: Id<PackageTree>, builder: ItemBuilder,
 ) -> Option<hir::Item> {
-	let mut lowerer = Lowerer {
-		ctx,
-		packages,
-		tree,
-		builder,
-		exprs: Arena::new(),
-		types: Arena::new(),
-		locals: Arena::new(),
-		file,
-	};
+	let mut lowerer = Lowerer::new(ctx, builder, packages, tree, file);
 
 	let attrs = item
 		.attributes()
@@ -122,8 +113,7 @@ fn lower_item(
 
 struct Lowerer<'a> {
 	ctx: &'a Ctx<'a>,
-	packages: Id<VisibilePackages>,
-	tree: Id<PackageTree>,
+	resolver: NameResolver<'a>,
 	builder: ItemBuilder<'a>,
 	exprs: Arena<hir::Expr>,
 	types: Arena<hir::Type>,
@@ -131,7 +121,22 @@ struct Lowerer<'a> {
 	file: FilePath,
 }
 
-impl Lowerer<'_> {
+impl<'a> Lowerer<'a> {
+	fn new(
+		ctx: &'a Ctx<'a>, builder: ItemBuilder<'a>, packages: Id<VisibilePackages>, tree: Id<PackageTree>,
+		file: FilePath,
+	) -> Self {
+		Self {
+			ctx,
+			builder,
+			resolver: NameResolver::new(ctx, packages, tree),
+			exprs: Arena::new(),
+			types: Arena::new(),
+			locals: Arena::new(),
+			file,
+		}
+	}
+
 	fn attrib(&mut self, a: ast::Attribute) -> Option<hir::Attr> {
 		let name = a.name()?;
 		let text = name.text()?;
@@ -247,9 +252,64 @@ impl Lowerer<'_> {
 		Some(hir::Param { name, ty, id })
 	}
 
-	fn ty(&mut self, t: ast::Type) -> Option<Ix<hir::Type>> { None }
+	fn ty(&mut self, t: ast::Type) -> Option<Ix<hir::Type>> {
+		let id = self.builder.add(t.clone());
+		let kind = match t {
+			ast::Type::ArrayType(a) => {
+				let ty = self.ty(a.type_()?)?;
+				let len = self.expr(a.len()?)?;
+
+				hir::TypeKind::Array(hir::ArrayType { ty, len })
+			},
+			ast::Type::FnType(f) => {
+				let abi = self.abi(f.abi());
+				let params = f
+					.params()
+					.iter()
+					.flat_map(|x| x.types())
+					.flat_map(|x| self.ty(x))
+					.collect();
+				let ret = f.ret_ty().and_then(|x| x.type_()).and_then(|x| self.ty(x));
+
+				hir::TypeKind::Fn(hir::FnType { abi, params, ret })
+			},
+			ast::Type::InferType(_) => hir::TypeKind::Infer,
+			ast::Type::PathType(p) => {
+				let path = RelPath::from_ast(self.ctx, None, p.path()?);
+				let path = self.resolver.resolve(path)?;
+
+				hir::TypeKind::Path(path)
+			},
+			ast::Type::PtrType(p) => {
+				let mutable = p.mut_kw().is_some();
+				let ty = self.ty(p.type_()?)?;
+
+				hir::TypeKind::Ptr(hir::PtrType { mutable, ty })
+			},
+		};
+
+		Some(self.types.push(hir::Type { kind, id }))
+	}
 
 	fn expr(&mut self, e: ast::Expr) -> Option<Ix<hir::Expr>> { None }
+
+	fn abi(&mut self, a: Option<ast::Abi>) -> Option<hir::Abi> {
+		// If `hir::Abi` does not exist: `fn`
+		// If `hir::Abi` exists: `extern fn`
+		// If `hir::AbiDecl` also exists: `extern "abi" fn`
+		a.and_then(|a| {
+			let abi = a.string_lit().map(|lit| {
+				let abi_with_quotes = lit.text().as_str();
+				let abi = &abi_with_quotes[1..abi_with_quotes.len() - 1];
+				let id = self.builder.add(lit);
+
+				hir::AbiDecl { abi, id }
+			});
+			let id = self.builder.add(a);
+
+			Some(hir::Abi { abi, id })
+		})
+	}
 
 	fn name(&mut self, name: ast::Name) -> Option<hir::Name> {
 		let ident = name.ident()?;
@@ -257,6 +317,26 @@ impl Lowerer<'_> {
 		let id = self.builder.add(ident);
 		Some(hir::Name { name, id })
 	}
+}
+
+struct NameResolver<'a> {
+	ctx: &'a Ctx<'a>,
+	packages: Get<'a, VisibilePackages>,
+	tree: Get<'a, PackageTree>,
+	cache: FxHashMap<RelPath, Id<AbsPath>>,
+}
+
+impl<'a> NameResolver<'a> {
+	fn new(ctx: &'a Ctx, packages: Id<VisibilePackages>, tree: Id<PackageTree>) -> Self {
+		Self {
+			ctx,
+			packages: ctx.get(packages),
+			tree: ctx.get(tree),
+			cache: FxHashMap::default(),
+		}
+	}
+
+	fn resolve(&mut self, path: RelPath) -> Option<Id<AbsPath>> { None }
 }
 
 /// The packages visible to a package.

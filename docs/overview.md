@@ -14,10 +14,26 @@ Source code is parsed into a concrete syntax tree (CST), with the entire file be
 
 To constrain change propogation through the incremental system, on every reparse, a public and private *index* is generated for each file. An index contains the symbols declared in the file for name resolution. 
 
-The public index is used for name resolution ib modules outside the current one, while the private index is used for name resolution in the current module and its submodules. This allows us to save on re-running name resolution for *every* file whenever a new symbol is added.
+The public index is used for name resolution in modules outside the current one, while the private index is used for name resolution in the current module and its submodules. This allows us to save on re-running name resolution for *every* file whenever a new symbol is added.
+
+Imports and reimports are left as-is in the indices because we only have local knowledge at the moment.
+
+### Canonicalization
+
+After indexing, a module tree is generated, storing each index pair (public and private).
+
+This module tree is then used to canonicalize all indices and generate a new tree, where each index now knows the absolute paths of everything visible.
+
+Module trees are recursively tracked trees, which gives us an interesting benefit for free - since IDs are stable, and only IDs used are tracked, we only build a dependency on parts of the tree we search through.
 
 ### HIR
 
-Next, the indices are used to generate HIR nodes for each item in the changed module. If visible symbols in the indices have changed, HIR is also generated for other modules affected by this change. 
+Next, the canonicalized tree is used to generate HIR nodes for each item in the changed module. If visible symbols in the indices have changed, HIR is also generated for other modules affected by this change. 
 
 HIR is a name-resolved and desugared tree-like IR. It is here that our IR transitions from being file-based to item based. Each item becomes it's own HIR node, and the workspace becomes a flat list of HIR nodes. This allows us to be incremental over each HIR node, instead of over each file. At the moment, we *do not* have more fine-grained incrementality than an HIR node.
+
+## Avoiding span invalidation
+
+If we were to store spans directly in HIR nodes, we would force a recomputation every time a span changes.
+
+Instead, we build a stable side-channel that stores CST nodes, and store these IDs in HIR. We also base diagnostics on these IDs so even the diagnostics generated are always valid.

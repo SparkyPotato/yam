@@ -6,15 +6,11 @@ pub struct PackageId(pub u32);
 
 /// An absolute path.
 #[derive(Interned, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct AbsPath {
-	pub package: PackageId,
-	/// May be `None` if this is the root module.
-	pub path: Option<Id<InnerPath>>,
+pub enum AbsPath {
+	Package(PackageId),
+	Module { prec: Id<AbsPath>, name: Text },
 }
 
-/// A relative path.
-#[derive(Interned, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct InnerPath {
-	pub prec: Option<Id<Self>>,
-	pub name: Text,
+impl From<PackageId> for AbsPath {
+	fn from(x: PackageId) -> Self { Self::Package(x) }
 }

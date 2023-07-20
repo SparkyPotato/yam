@@ -1,10 +1,7 @@
 use arena::{Arena, Ix};
 use diagnostics::Diagnostic;
 use ident::AbsPath;
-use syntax::{
-	ast as a,
-	token::{Ident, StringLit},
-};
+use syntax::{ast as a, token::StringLit};
 use text::Text;
 use verde::{storage, Id, Tracked};
 
@@ -15,14 +12,14 @@ pub mod ast;
 pub mod ident;
 
 #[storage]
-pub struct Storage(ident::AbsPath, ident::InnerPath, Item, ItemDiagnostic);
+pub struct Storage(ident::AbsPath, Item, ItemDiagnostic);
 
 pub type ItemDiagnostic = Diagnostic<ErasedAstId>;
 
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub struct Name {
 	pub name: Text,
-	pub id: AstId<Ident>,
+	pub id: AstId<a::Name>,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq)]
@@ -87,7 +84,7 @@ pub struct Param {
 
 #[derive(Clone, PartialEq, Eq)]
 pub struct AbiDecl {
-	pub abi: Text,
+	pub abi: &'static str,
 	pub id: AstId<StringLit>,
 }
 
@@ -150,6 +147,7 @@ pub struct ArrayType {
 pub struct FnType {
 	pub abi: Option<Abi>,
 	pub params: Vec<Ix<Type>>,
+	pub ret: Option<Ix<Type>>,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq)]

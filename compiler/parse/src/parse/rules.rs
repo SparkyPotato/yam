@@ -465,27 +465,23 @@ fn name(p: &mut Parser) -> Recovery {
 }
 
 fn path(p: &mut Parser) -> Recovery {
-	let c = p.api.checkpoint();
+	p.api.start_node(SyntaxKind::Path);
 
 	if matches!(p.api.peek().kind, T![.]) {
-		p.api.start_node_at(c, SyntaxKind::Path);
 		p.api.bump();
-		p.api.finish_node();
 	}
 
 	loop {
 		if matches!(p.api.peek().kind, T![ident]) {
-			p.api.start_node_at(c, SyntaxKind::Path);
 			p!(name(p));
-			p.api.finish_node();
 
 			if matches!(p.api.peek().kind, T![.]) && matches!(p.api.peek_n(1).kind, T![ident]) {
-				p.api.start_node_at(c, SyntaxKind::Path);
 				p.api.bump();
-				p.api.finish_node();
 				continue;
 			}
 		}
+
+		p.api.finish_node();
 		break Recovery::ok();
 	}
 }

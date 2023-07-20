@@ -3,9 +3,13 @@ use std::sync::Mutex;
 use diagnostics::{emit, FileCache, FilePath, FullDiagnostic};
 use hir::{ident::PackageId, ItemDiagnostic};
 use hir_lower::{
-	index::generate_index,
+	index::{
+		build_ast_map,
+		local::{build_package_tree, generate_index},
+		ModuleMap,
+	},
 	lower::{build_hir_sea, lower_to_hir, VisibilePackages},
-	module::{build_ast_map, build_package_tree, Module, ModuleMap},
+	Module,
 };
 use parse::ParseContext;
 use rayon::prelude::*;
@@ -42,9 +46,10 @@ pub fn compile(input: CompileInput) -> CompileOutput {
 	let dbc = input.db;
 	let db = &dbc as &(dyn Db + Send + Sync);
 
-	// Get ready for lowering to HIR: parse, generate indices, and build the module tree.
+	// Parse
 	let (modules, cache) = parse(db, input.files);
 
+	// Generate stage 1 indices.
 	let mut indices = Vec::with_capacity(modules.len());
 	let mut maps = Vec::with_capacity(modules.len());
 	modules
@@ -61,6 +66,7 @@ pub fn compile(input: CompileInput) -> CompileOutput {
 		})
 		.unzip_into_vecs(&mut indices, &mut maps);
 
+	// Build canonicalization tree.
 	let tree = db.execute(|ctx| build_package_tree(ctx, &indices));
 
 	// Lower to HIR: Exposing visible packages, lowering each module, collecting all items, and then generating the
