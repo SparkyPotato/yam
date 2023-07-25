@@ -107,9 +107,21 @@ impl<T: Query> QueryStorage<T> {
 			},
 			None => {
 				event!(trace, "first query execution");
+
+				// Drop so we don't deadlock in recursive queries.
+				drop(data);
+				drop(values);
 				let ret = f();
 				let output = ctx.db.insert(query, ret);
 				let dependencies = unsafe { ctx.dependencies.borrow_mut().assume_init_read() };
+
+				let values = self
+					.values
+					.try_read_for(Duration::from_secs(2))
+					.expect("Query timed out: perhaps you have a deadlock?");
+				let mut data = values[index as usize]
+					.try_lock_for(Duration::from_secs(2))
+					.expect("Query timed out: perhaps you have a deadlock?");
 				*data = QueryData {
 					dependencies,
 					output: Some(output),

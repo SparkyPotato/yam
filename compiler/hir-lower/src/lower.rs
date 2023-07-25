@@ -1,6 +1,6 @@
 use arena::{Arena, Ix};
 use diagnostics::{FilePath, RawSpan, Span};
-use hir::ident::{AbsPath, PackageId};
+use hir::ident::AbsPath;
 use rustc_hash::FxHashMap;
 use syntax::{ast, token, AstElement, AstToken, SyntaxElement};
 use text::Text;
@@ -9,12 +9,14 @@ use verde::{internal::storage::tracked::Get, query, Ctx, Db, Id, Tracked};
 
 use crate::{
 	index::{
-		local::{name_of_item, PackageTree},
+		canonical::CanonicalTree,
+		local::{name_of_item, RelPath},
 		ItemBuilder,
 		ModuleMap,
-		RelPath,
+		NameTy,
 	},
 	Module,
+	VisiblePackages,
 };
 
 pub fn build_hir_sea(db: &dyn Db, modules: impl IntoIterator<Item = Id<LoweredModule>>) -> Vec<Id<hir::Item>> {
@@ -49,7 +51,8 @@ impl PartialEq for LoweredModule {
 /// The `ModuleMap` should be the same one that was used to generate the index.
 #[query]
 pub fn lower_to_hir(
-	ctx: &Ctx, module: Id<Module>, packages: Id<VisibilePackages>, tree: Id<PackageTree>, #[ignore] map: &mut ModuleMap,
+	ctx: &Ctx, module: Id<Module>, packages: Id<VisiblePackages>, tree: Id<CanonicalTree>,
+	#[ignore] map: &mut ModuleMap,
 ) -> LoweredModule {
 	let module = ctx.get(module);
 
@@ -61,8 +64,8 @@ pub fn lower_to_hir(
 		.items()
 		.into_iter()
 		.flat_map(|x| {
-			name_of_item(&x).and_then(|x| x.text()).and_then(|name| {
-				let builder = map.define(name).unwrap();
+			name_of_item(&x).and_then(|(x, _)| x.text()).and_then(|name| {
+				let builder = map.define(name);
 				let path = ctx.add(AbsPath::Module {
 					prec: module.path,
 					name,
@@ -81,8 +84,8 @@ pub fn lower_to_hir(
 }
 
 fn lower_item(
-	ctx: &Ctx, path: Id<AbsPath>, file: FilePath, item: ast::Item, packages: Id<VisibilePackages>,
-	tree: Id<PackageTree>, builder: ItemBuilder,
+	ctx: &Ctx, path: Id<AbsPath>, file: FilePath, item: ast::Item, packages: Id<VisiblePackages>,
+	tree: Id<CanonicalTree>, builder: ItemBuilder,
 ) -> Option<hir::Item> {
 	let mut lowerer = Lowerer::new(ctx, builder, packages, tree, file);
 
@@ -123,7 +126,7 @@ struct Lowerer<'a> {
 
 impl<'a> Lowerer<'a> {
 	fn new(
-		ctx: &'a Ctx<'a>, builder: ItemBuilder<'a>, packages: Id<VisibilePackages>, tree: Id<PackageTree>,
+		ctx: &'a Ctx<'a>, builder: ItemBuilder<'a>, packages: Id<VisiblePackages>, tree: Id<CanonicalTree>,
 		file: FilePath,
 	) -> Self {
 		Self {
@@ -275,9 +278,7 @@ impl<'a> Lowerer<'a> {
 			},
 			ast::Type::InferType(_) => hir::TypeKind::Infer,
 			ast::Type::PathType(p) => {
-				let path = RelPath::from_ast(self.ctx, None, p.path()?);
-				let path = self.resolver.resolve(path)?;
-
+				let (path, ty) = self.resolver.resolve(p.path()?)?;
 				hir::TypeKind::Path(path)
 			},
 			ast::Type::PtrType(p) => {
@@ -311,23 +312,23 @@ impl<'a> Lowerer<'a> {
 		})
 	}
 
-	fn name(&mut self, name: ast::Name) -> Option<hir::Name> {
-		let ident = name.ident()?;
-		let name = ident.text();
-		let id = self.builder.add(ident);
+	fn name(&mut self, n: ast::Name) -> Option<hir::Name> {
+		let name = n.text()?;
+		let id = self.builder.add(n);
+
 		Some(hir::Name { name, id })
 	}
 }
 
 struct NameResolver<'a> {
 	ctx: &'a Ctx<'a>,
-	packages: Get<'a, VisibilePackages>,
-	tree: Get<'a, PackageTree>,
+	packages: Get<'a, VisiblePackages>,
+	tree: Get<'a, CanonicalTree>,
 	cache: FxHashMap<RelPath, Id<AbsPath>>,
 }
 
 impl<'a> NameResolver<'a> {
-	fn new(ctx: &'a Ctx, packages: Id<VisibilePackages>, tree: Id<PackageTree>) -> Self {
+	fn new(ctx: &'a Ctx, packages: Id<VisiblePackages>, tree: Id<CanonicalTree>) -> Self {
 		Self {
 			ctx,
 			packages: ctx.get(packages),
@@ -336,13 +337,5 @@ impl<'a> NameResolver<'a> {
 		}
 	}
 
-	fn resolve(&mut self, path: RelPath) -> Option<Id<AbsPath>> { None }
-}
-
-/// The packages visible to a package.
-#[derive(Tracked, Eq, PartialEq)]
-pub struct VisibilePackages {
-	#[id]
-	pub package: PackageId,
-	pub packages: FxHashMap<Text, PackageId>,
+	fn resolve(&mut self, path: ast::Path) -> Option<(Id<AbsPath>, NameTy)> { None }
 }

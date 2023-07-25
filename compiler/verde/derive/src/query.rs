@@ -191,7 +191,7 @@ fn generate(input: &ItemFn) -> Result<Query> {
 	let ctx = args.next().ok_or_else(|| {
 		Error::new(
 			input.sig.fn_token.span(),
-			"query functions must take a `&dyn Db` as their first argument",
+			"query functions must take a `&Ctx` as their first argument",
 		)
 	})??;
 	let inputs = args.collect::<Result<_>>()?;

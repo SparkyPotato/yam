@@ -1,28 +1,40 @@
 use std::path::Path;
 
-use diagnostics::{FilePath, FullDiagnostic};
+use diagnostics::{Diagnostic, FilePath, FullDiagnostic};
 use hir::ident::{AbsPath, PackageId};
+use rustc_hash::FxHashMap;
 use syntax::ast;
 use text::Text;
 use verde::{storage, Db, Id, Tracked};
+
+use crate::index::ErasedTempId;
 
 pub mod index;
 pub mod lower;
 
 // TODO: prelude.
 
+pub type TempDiagnostic = Diagnostic<ErasedTempId>;
+
 #[storage]
 pub struct Storage(
 	FullDiagnostic,
+	TempDiagnostic,
 	Module,
+	Packages,
+	VisiblePackages,
+	index::canonical::CanonicalIndex,
+	index::canonical::CanonicalTree,
+	index::canonical::ModuleTree,
+	index::canonical::canonicalize_module_tree,
+	index::canonical::canonicalize_tree,
 	index::local::Index,
-	index::local::InnerIndex,
+	index::local::PublicIndex,
 	index::local::ModuleTree,
 	index::local::PackageTree,
 	index::local::generate_index,
 	index::local::build_package_tree,
 	lower::LoweredModule,
-	lower::VisibilePackages,
 	lower::lower_to_hir,
 );
 
@@ -82,4 +94,19 @@ impl Module {
 
 		Self::new(ast, file, prec)
 	}
+}
+
+/// The packages visible to a package.
+#[derive(Tracked, Eq, PartialEq)]
+pub struct VisiblePackages {
+	#[id]
+	pub package: PackageId,
+	pub packages: FxHashMap<Text, PackageId>,
+}
+
+#[derive(Tracked, Eq, PartialEq)]
+pub struct Packages {
+	#[id]
+	pub id: (),
+	pub packages: FxHashMap<PackageId, Id<VisiblePackages>>,
 }

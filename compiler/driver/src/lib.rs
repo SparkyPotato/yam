@@ -5,11 +5,15 @@ use hir::{ident::PackageId, ItemDiagnostic};
 use hir_lower::{
 	index::{
 		build_ast_map,
+		canonical::canonicalize_tree,
 		local::{build_package_tree, generate_index},
 		ModuleMap,
 	},
-	lower::{build_hir_sea, lower_to_hir, VisibilePackages},
+	lower::{build_hir_sea, lower_to_hir},
 	Module,
+	Packages,
+	TempDiagnostic,
+	VisiblePackages,
 };
 use parse::ParseContext;
 use rayon::prelude::*;
@@ -66,17 +70,32 @@ pub fn compile(input: CompileInput) -> CompileOutput {
 		})
 		.unzip_into_vecs(&mut indices, &mut maps);
 
-	// Build canonicalization tree.
+	// Build tree for canonicalization.
 	let tree = db.execute(|ctx| build_package_tree(ctx, &indices));
+
+	// Build package tree.
+	let packages = db.set_input(VisiblePackages {
+		package: PackageId(0),
+		packages: {
+			let mut p = FxHashMap::default();
+			p.insert(Text::new("root"), PackageId(0));
+			p
+		},
+	});
+	let vis_packages = db.set_input(Packages {
+		id: (),
+		packages: {
+			let mut p = FxHashMap::default();
+			p.insert(PackageId(0), packages);
+			p
+		},
+	});
+
+	// Canonicalize tree.
+	let tree = db.execute(|ctx| canonicalize_tree(ctx, tree, vis_packages));
 
 	// Lower to HIR: Exposing visible packages, lowering each module, collecting all items, and then generating the
 	// global AST map.
-	let mut packages = FxHashMap::default();
-	packages.insert(Text::new("root"), PackageId(0));
-	let packages = db.set_input(VisibilePackages {
-		package: PackageId(0),
-		packages,
-	});
 
 	let modules: Vec<_> = modules
 		.into_par_iter()
@@ -85,11 +104,12 @@ pub fn compile(input: CompileInput) -> CompileOutput {
 		.collect();
 
 	let items = build_hir_sea(db, modules);
-	let map = build_ast_map(maps);
+	let (amap, tmap) = build_ast_map(maps);
 
 	// Emit all possible diagnostics now.
 	emit(db.get_all::<FullDiagnostic>().cloned(), &cache, &());
-	emit(db.get_all::<ItemDiagnostic>().cloned(), &cache, &map);
+	emit(db.get_all::<TempDiagnostic>().cloned(), &cache, &tmap);
+	emit(db.get_all::<ItemDiagnostic>().cloned(), &cache, &amap);
 
 	CompileOutput { db: dbc }
 }

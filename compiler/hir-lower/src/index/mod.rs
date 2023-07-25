@@ -1,3 +1,5 @@
+use std::{fmt::Debug, hash::Hash};
+
 use diagnostics::{FilePath, FullSpan, Span};
 use hir::{
 	ast::{AstId, ErasedAstId, ItemData},
@@ -5,60 +7,78 @@ use hir::{
 	AstMap,
 };
 use rustc_hash::FxHashMap;
-use syntax::{ast, token, AstElement, SyntaxElement};
+use syntax::{ast, AstElement, SyntaxElement};
 use text::Text;
-use verde::{Ctx, Db, Id};
+use verde::{Db, Id};
 
 use self::local::name_of_item;
 
+pub mod canonical;
 pub mod local;
 
-/// A relative path.
-#[derive(Clone, Default)]
-pub struct RelPath {
-	dot: Option<AstId<token::Dot>>,
-	names: Vec<hir::Name>,
+#[derive(Copy, Clone, PartialEq, Eq, Hash)]
+pub struct ErasedTempId {
+	module: Id<AbsPath>,
+	index: u32,
 }
+impl Span for ErasedTempId {
+	type Ctx = TempMap;
 
-impl RelPath {
-	pub fn from_ast(ctx: &Ctx, prefix: Option<RelPath>, path: ast::Path, map: &mut ModuleMap) -> Self {
-		let mut this = prefix.unwrap_or_default();
-		let mut prec_dot_allowed = this.dot.is_some();
-
-		for segment in path.path_segments() {
-			match segment {
-				ast::PathSegment::Dot(dot) => {
-					if !prec_dot_allowed {
-						ctx.push(
-							dot.span()
-								.error("global qualifier is only allowed at the start of paths"),
-						);
-					} else if this.dot.is_none() {
-						this.dot = Some(map.add(dot));
-					}
-				},
-				ast::PathSegment::Name(n) => {
-					if let Some(name) = n.text() {
-						this.names.push(hir::Name { name, id: map.add(n) });
-					}
-				},
-			}
+	fn to_raw(self, ctx: &Self::Ctx) -> FullSpan {
+		let data = ctx.modules.get(&self.module).unwrap();
+		let span = data.sub[self.index as usize].text_range();
+		FullSpan {
+			start: span.start().into(),
+			end: span.end().into(),
+			relative: data.file,
 		}
-
-		this
 	}
 }
 
-pub enum Declaration {
-	Item(ItemData),
-	Import { path: RelPath, rename: Option<hir::Name> },
+pub struct TempId<T>(ErasedTempId, std::marker::PhantomData<fn() -> T>);
+impl<T> Clone for TempId<T> {
+	fn clone(&self) -> Self { *self }
+}
+impl<T> Copy for TempId<T> {}
+impl<T> PartialEq for TempId<T> {
+	fn eq(&self, other: &Self) -> bool { self.0 == other.0 }
+}
+impl<T> Eq for TempId<T> {}
+impl<T> Hash for TempId<T> {
+	fn hash<H: std::hash::Hasher>(&self, state: &mut H) { self.0.hash(state) }
+}
+impl<T> From<TempId<T>> for ErasedTempId {
+	fn from(id: TempId<T>) -> Self { id.0 }
+}
+impl<T> Debug for TempId<T> {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		write!(
+			f,
+			"TempId<{}>({:?}, {})",
+			std::any::type_name::<T>(),
+			self.0.module,
+			self.0.index
+		)
+	}
+}
+impl<T> TempId<T> {
+	pub fn erased(self) -> ErasedTempId { self.0 }
+}
+
+pub struct TempMap {
+	modules: FxHashMap<Id<AbsPath>, Data>,
+}
+
+struct Data {
+	file: FilePath,
+	sub: Vec<SyntaxElement>,
 }
 
 /// A map from names in a module to their declarations.
 pub struct ModuleMap {
 	module: Id<AbsPath>,
 	pub(crate) file: FilePath,
-	items: FxHashMap<Text, Declaration>,
+	items: FxHashMap<Text, ItemData>,
 	sub: Vec<SyntaxElement>,
 }
 
@@ -72,22 +92,20 @@ impl ModuleMap {
 		}
 	}
 
-	pub fn get(&mut self, name: Text) -> Option<&Declaration> { self.items.get(&name) }
-
-	pub fn add<T: AstElement>(&mut self, value: T) -> AstId<T> {
+	pub fn add_temp<T: AstElement>(&mut self, value: T) -> TempId<T> {
 		let index = self.sub.len() as u32;
 		self.sub.push(value.inner());
-		AstId(
-			ErasedAstId {
-				item: self.module,
+		TempId(
+			ErasedTempId {
+				module: self.module,
 				index,
 			},
 			std::marker::PhantomData,
 		)
 	}
 
-	pub fn span(&self, id: AstId<impl AstElement>) -> FullSpan {
-		let element = self.sub[id.0.index as usize];
+	pub fn span(&self, id: TempId<impl AstElement>) -> FullSpan {
+		let element = self.sub[id.0.index as usize].clone();
 		let span = element.text_range();
 		FullSpan {
 			start: span.start().into(),
@@ -96,50 +114,32 @@ impl ModuleMap {
 		}
 	}
 
-	pub fn import(
-		&mut self, db: &dyn Db, name: Text, path: RelPath, rename: Option<hir::Name>,
-	) -> Option<(FullSpan, bool)> {
-		let old = self.items.insert(name, Declaration::Import { path, rename });
-		self.decl_to_span(old)
+	pub fn item_span(&self, name: Text) -> Option<FullSpan> {
+		let item = self.items.get(&name)?;
+		let (name, _) = name_of_item(&item.item)?;
+		Some(name.span().with(self.file))
 	}
 
-	pub fn declare(&mut self, db: &dyn Db, name: Text, item: ast::Item) -> Option<(FullSpan, bool)> {
+	pub fn declare(&mut self, db: &dyn Db, name: Text, item: ast::Item) {
 		let path = db.add(AbsPath::Module {
 			prec: self.module,
 			name,
 		});
 
-		let old = self.items.insert(
+		self.items.insert(
 			name,
-			Declaration::Item(ItemData {
+			ItemData {
 				item,
 				file: self.file,
 				path,
 				sub: Vec::new(),
-			}),
+			},
 		);
-
-		self.decl_to_span(old)
 	}
 
 	pub fn define(&mut self, name: Text) -> ItemBuilder {
-		let decl = self
-			.items
-			.get_mut(&name)
-			.expect("Tried to define item that wasn't previously declared");
-		match decl {
-			Declaration::Item(item) => ItemBuilder { item },
-			Declaration::Import { .. } => panic!("Tried to define an import"),
-		}
-	}
-
-	fn decl_to_span(&self, decl: Option<Declaration>) -> Option<(FullSpan, bool)> {
-		decl.and_then(|old| match old {
-			Declaration::Item(i) => name_of_item(&i.item).map(|x| (x.span().with(self.file), true)),
-			Declaration::Import { rename, path } => rename
-				.or_else(|| path.names.into_iter().last())
-				.map(|x| (self.span(x.id), false)),
-		})
+		let item = self.items.get_mut(&name).expect("Item should have been declared");
+		ItemBuilder { item }
 	}
 }
 
@@ -161,12 +161,31 @@ impl ItemBuilder<'_> {
 	}
 }
 
-pub fn build_ast_map(modules: impl IntoIterator<Item = ModuleMap>) -> AstMap {
-	let items = modules.into_iter().flat_map(|x| {
-		x.items.into_iter().flat_map(|(_, x)| match x {
-			Declaration::Item(i) => Some(i),
-			Declaration::Import { .. } => None,
-		})
-	});
-	AstMap::new(items)
+#[derive(Copy, Clone, Eq, PartialEq)]
+pub enum NameTy {
+	Fn,
+	Struct,
+	Enum,
+	TypeAlias,
+	Static,
+}
+
+pub fn build_ast_map(modules: impl IntoIterator<Item = ModuleMap>) -> (AstMap, TempMap) {
+	let mut items = Vec::new();
+	let mut mods = FxHashMap::default();
+
+	for m in modules {
+		items.extend(m.items.into_values());
+		mods.insert(
+			m.module,
+			Data {
+				file: m.file,
+				sub: m.sub,
+			},
+		);
+	}
+
+	let temp = TempMap { modules: mods };
+	let ast = AstMap::new(items);
+	(ast, temp)
 }

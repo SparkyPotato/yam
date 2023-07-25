@@ -1,6 +1,6 @@
 use std::{fmt::Debug, hash::Hash, marker::PhantomData};
 
-use diagnostics::{FilePath, FullSpan, RawSpan, Span};
+use diagnostics::{FilePath, FullSpan, Span};
 use rustc_hash::FxHashMap;
 use syntax::{ast::Item, AstElement, SyntaxElement};
 use verde::Id;
@@ -18,7 +18,7 @@ impl Span for ErasedAstId {
 	fn to_raw(self, ctx: &Self::Ctx) -> FullSpan {
 		let item = ctx.items.get(&self.item).unwrap();
 		let span = item.sub[self.index as usize].text_range();
-		RawSpan {
+		FullSpan {
 			start: span.start().into(),
 			end: span.end().into(),
 			relative: item.file,
