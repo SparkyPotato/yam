@@ -34,6 +34,7 @@ pub struct Storage(
 	index::local::PackageTree,
 	index::local::generate_index,
 	index::local::build_package_tree,
+	lower::CachedName,
 	lower::LoweredModule,
 	lower::lower_to_hir,
 );
@@ -49,7 +50,7 @@ pub struct Module {
 impl Eq for Module {}
 impl PartialEq for Module {
 	fn eq(&self, other: &Self) -> bool {
-		// This does a pointer comparison, which is surprsingly what we want.
+		// This does a pointer comparison, which is surprisingly what we want.
 		// On every reparse, this pointer will change and we want to invalidate the index as well the lowered HIR for
 		// this module. However, if there wasn't a reparse, we want to keep the old index and HIR if possible - and the
 		// pointer wouldn't have changed.
@@ -88,7 +89,7 @@ impl Module {
 				last_name = path.to_string();
 				let name = Text::new(path);
 
-				prec = db.add(AbsPath::Module { prec, name });
+				prec = db.add(AbsPath::Name { prec, name });
 			}
 		}
 

@@ -24,7 +24,7 @@ pub fn canonicalize_tree(ctx: &Ctx, tree: Id<PackageTree>, packages: Id<Packages
 	let t = ctx.get(tree);
 	let packages = ctx.get(packages);
 
-	let packages = t
+	let packages: FxHashMap<_, _> = t
 		.packages
 		.iter()
 		.map(|(&pkg, &t)| {
@@ -40,7 +40,11 @@ pub fn canonicalize_tree(ctx: &Ctx, tree: Id<PackageTree>, packages: Id<Packages
 		})
 		.collect();
 
-	CanonicalTree { id: (), packages }
+	CanonicalTree {
+		id: (),
+		modules: packages.values().flat_map(|&x| ctx.get(x).sub.clone()).collect(),
+		packages,
+	}
 }
 
 #[query]
@@ -52,9 +56,11 @@ pub fn canonicalize_module_tree(
 	let mut public = CanonicalIndex::new(tree.path, true);
 	let mut private = CanonicalIndex::new(tree.path, false);
 
+	let mut sub = FxHashMap::default();
 	for (&name, &tree) in tree.children.iter() {
 		let tree = canonicalize_module_tree(ctx, tree, visible, ptree);
 		private.names.insert(name, Declaration::Module(tree));
+		sub.insert(ctx.get(tree).path, tree);
 	}
 
 	let (public, private) = if let Some(index) = tree.index {
@@ -65,7 +71,7 @@ pub fn canonicalize_module_tree(
 			match decl {
 				local::Declaration::Name { ty, id } => {
 					let decl = Declaration::Name {
-						path: ctx.add(AbsPath::Module { prec: index.path, name }),
+						path: ctx.add(AbsPath::Name { prec: index.path, name }),
 						ty: *ty,
 						id: *id,
 					};
@@ -125,6 +131,7 @@ pub fn canonicalize_module_tree(
 		path: tree.path,
 		public: ctx.insert(public),
 		private: ctx.insert(private),
+		sub,
 	}
 }
 
@@ -142,7 +149,7 @@ pub enum Declaration {
 pub struct CanonicalIndex {
 	#[id]
 	path: (Id<AbsPath>, bool),
-	names: FxHashMap<Text, Declaration>,
+	pub names: FxHashMap<Text, Declaration>,
 }
 
 impl CanonicalIndex {
@@ -158,18 +165,20 @@ impl CanonicalIndex {
 pub struct CanonicalTree {
 	#[id]
 	id: (),
-	packages: FxHashMap<PackageId, Id<ModuleTree>>,
+	pub packages: FxHashMap<PackageId, Id<ModuleTree>>,
+	pub modules: FxHashMap<Id<AbsPath>, Id<ModuleTree>>,
 }
 
 #[derive(Tracked, Eq, PartialEq)]
 pub struct ModuleTree {
 	#[id]
-	path: Id<AbsPath>,
+	pub path: Id<AbsPath>,
 	pub public: Id<CanonicalIndex>,
 	pub private: Id<CanonicalIndex>,
+	sub: FxHashMap<Id<AbsPath>, Id<ModuleTree>>,
 }
 
-// TODO: Contextually group unresolved import errors to avoid error spam.
+// TODO: Contextually group unresolved import errors into a single error to avoid error spam.
 
 struct Resolver<'a> {
 	ctx: &'a Ctx<'a>,
@@ -255,25 +264,6 @@ impl Resolver<'_> {
 	fn resolve_from_root(&mut self, path: &[TempName]) -> Option<Declaration> {
 		let mut names = path.iter();
 		let first = names.next()?; // There's always atleast one name.
-
-		let visible = self.ctx.get(self.visible);
-		let Some(pkg) = visible.packages.get(&first.name) else {
-			let span = first.id.erased();
-			if !self.error_set.contains(&span) {
-				self.ctx.push(
-					span.error("unknown package")
-						.label(span.label("404: this package does not exist")),
-				);
-				self.error_set.insert(span);
-			}
-			return None;
-		};
-		let ptree = self.ctx.get(self.ptree);
-		let mut tree = *ptree
-			.packages
-			.get(pkg)
-			.expect("Invalid package ID in visibile packages");
-
 		let span = first.id.erased();
 		if !self.error_set.contains(&span) {
 			self.ctx
@@ -281,47 +271,65 @@ impl Resolver<'_> {
 			self.error_set.insert(span);
 		}
 
-		return None;
+		None
 
-		let mut prev = first.name;
-		while let Some(name) = names.next() {
-			if tree == self.us {
-				let span = name.id.erased();
-				if !self.error_set.contains(&span) {
-					// TODO: Allow this.
-					self.ctx.push(
-						span.error("cannot use root import through the current module")
-							.label(span.label(format!("try importing directly with `{}...`", name.name.as_str()))),
-					);
-					self.error_set.insert(span);
-				}
-				return None;
-			}
-
-			let got = self.ctx.get(tree);
-			if let Some(id) = got.index {
-				let index = self.ctx.get(id);
-			}
-
-			tree =
-				match got.children.get(&name.name) {
-					Some(&tree) => tree,
-					None => {
-						let span = name.id.erased();
-						if !self.error_set.contains(&span) {
-							self.ctx.push(span.error("unknown submodule").label(
-								span.label(format!("404: this submodule does not exist in `{}`", prev.as_str())),
-							));
-							self.error_set.insert(span);
-						}
-						return None;
-					},
-				};
-
-			prev = name.name;
-		}
-
-		return None;
+		// let visible = self.ctx.get(self.visible);
+		// let Some(pkg) = visible.packages.get(&first.name) else {
+		// 	let span = first.id.erased();
+		// 	if !self.error_set.contains(&span) {
+		// 		self.ctx.push(
+		// 			span.error("unknown package")
+		// 				.label(span.label("404: this package does not exist")),
+		// 		);
+		// 		self.error_set.insert(span);
+		// 	}
+		// 	return None;
+		// };
+		// let ptree = self.ctx.get(self.ptree);
+		// let mut tree = *ptree
+		// 	.packages
+		// 	.get(pkg)
+		// 	.expect("Invalid package ID in visibile packages");
+		//
+		// let mut prev = first.name;
+		// while let Some(name) = names.next() {
+		// 	if tree == self.us {
+		// 		let span = name.id.erased();
+		// 		if !self.error_set.contains(&span) {
+		// 			// TODO: Allow this.
+		// 			self.ctx.push(
+		// 				span.error("cannot use root import through the current module")
+		// 					.label(span.label(format!("try importing directly with `{}...`", name.name.as_str()))),
+		// 			);
+		// 			self.error_set.insert(span);
+		// 		}
+		// 		return None;
+		// 	}
+		//
+		// 	let got = self.ctx.get(tree);
+		// 	if let Some(id) = got.index {
+		// 		let index = self.ctx.get(id);
+		// 	}
+		//
+		// 	tree =
+		// 		match got.children.get(&name.name) {
+		// 			Some(&tree) => tree,
+		// 			None => {
+		// 				let span = name.id.erased();
+		// 				if !self.error_set.contains(&span) {
+		// 					self.ctx.push(span.error("unknown submodule").label(
+		// 						span.label(format!("404: this submodule does not exist in `{}`", prev.as_str())),
+		// 					));
+		// 					self.error_set.insert(span);
+		// 				}
+		// 				return None;
+		// 			},
+		// 		};
+		//
+		// 	prev = name.name;
+		// }
+		//
+		// return None;
 	}
 
 	fn finish(self) -> (CanonicalIndex, CanonicalIndex) { (self.public, self.private) }

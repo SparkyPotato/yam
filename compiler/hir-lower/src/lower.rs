@@ -1,16 +1,15 @@
 use arena::{Arena, Ix};
 use diagnostics::{FilePath, RawSpan, Span};
 use hir::ident::AbsPath;
-use rustc_hash::FxHashMap;
 use syntax::{ast, token, AstElement, AstToken, SyntaxElement};
 use text::Text;
 use tracing::{span, Level};
-use verde::{internal::storage::tracked::Get, query, Ctx, Db, Id, Tracked};
+use verde::{internal::storage::tracked::Get, query, Ctx, Db, Id, Interned, Tracked};
 
 use crate::{
 	index::{
-		canonical::CanonicalTree,
-		local::{name_of_item, RelPath},
+		canonical::{CanonicalTree, Declaration, ModuleTree},
+		local::name_of_item,
 		ItemBuilder,
 		ModuleMap,
 		NameTy,
@@ -66,12 +65,7 @@ pub fn lower_to_hir(
 		.flat_map(|x| {
 			name_of_item(&x).and_then(|(x, _)| x.text()).and_then(|name| {
 				let builder = map.define(name);
-				let path = ctx.add(AbsPath::Module {
-					prec: module.path,
-					name,
-				});
-
-				let item = lower_item(ctx, path, module.file, x, packages, tree, builder);
+				let item = lower_item(ctx, module.path, name, module.file, x, packages, tree, builder);
 				item.map(|x| ctx.insert(x))
 			})
 		})
@@ -84,10 +78,11 @@ pub fn lower_to_hir(
 }
 
 fn lower_item(
-	ctx: &Ctx, path: Id<AbsPath>, file: FilePath, item: ast::Item, packages: Id<VisiblePackages>,
+	ctx: &Ctx, module: Id<AbsPath>, name: Text, file: FilePath, item: ast::Item, packages: Id<VisiblePackages>,
 	tree: Id<CanonicalTree>, builder: ItemBuilder,
 ) -> Option<hir::Item> {
-	let mut lowerer = Lowerer::new(ctx, builder, packages, tree, file);
+	let mut lowerer = Lowerer::new(ctx, module, builder, packages, tree, file);
+	let path = ctx.add(AbsPath::Name { prec: module, name });
 
 	let attrs = item
 		.attributes()
@@ -126,13 +121,13 @@ struct Lowerer<'a> {
 
 impl<'a> Lowerer<'a> {
 	fn new(
-		ctx: &'a Ctx<'a>, builder: ItemBuilder<'a>, packages: Id<VisiblePackages>, tree: Id<CanonicalTree>,
-		file: FilePath,
+		ctx: &'a Ctx<'a>, module: Id<AbsPath>, builder: ItemBuilder<'a>, packages: Id<VisiblePackages>,
+		tree: Id<CanonicalTree>, file: FilePath,
 	) -> Self {
 		Self {
 			ctx,
 			builder,
-			resolver: NameResolver::new(ctx, packages, tree),
+			resolver: NameResolver::new(ctx, module, packages, tree, file),
 			exprs: Arena::new(),
 			types: Arena::new(),
 			locals: Arena::new(),
@@ -278,8 +273,21 @@ impl<'a> Lowerer<'a> {
 			},
 			ast::Type::InferType(_) => hir::TypeKind::Infer,
 			ast::Type::PathType(p) => {
-				let (path, ty) = self.resolver.resolve(p.path()?)?;
-				hir::TypeKind::Path(path)
+				let path = p.path()?;
+				let (p, ty, rest) = self.resolver.resolve(path.clone())?;
+				match ty {
+					NameTy::Struct => hir::TypeKind::Struct(p),
+					NameTy::Enum => hir::TypeKind::Enum(p),
+					NameTy::TypeAlias => hir::TypeKind::Alias(p),
+					_ => {
+						let span = path.span().with(self.file);
+						self.ctx.push(
+							span.error("expected type")
+								.label(span.label(format!("found `{:?}`", ty))),
+						);
+						return None;
+					},
+				}
 			},
 			ast::Type::PtrType(p) => {
 				let mutable = p.mut_kw().is_some();
@@ -320,22 +328,160 @@ impl<'a> Lowerer<'a> {
 	}
 }
 
+#[derive(Clone, Eq, PartialEq, Hash)]
+pub struct CachedPath {
+	root: Option<token::Dot>,
+	rest: Option<Id<CachedName>>,
+}
+
+#[derive(Interned, Clone, Eq, PartialEq, Hash)]
+pub struct CachedName {
+	name: Text,
+	ast: ast::Name,
+	next: Option<Id<CachedName>>,
+}
+
+impl CachedPath {
+	fn from_ast(ctx: &Ctx, path: ast::Path) -> Option<Self> {
+		let mut segs = path.path_segments().peekable();
+
+		let first = segs.peek().unwrap();
+		let root = match first {
+			ast::PathSegment::Dot(d) => {
+				let d = d.clone();
+				segs.next();
+				Some(d)
+			},
+			ast::PathSegment::Name(_) => None,
+		};
+
+		fn inner(ctx: &Ctx, segs: &mut impl Iterator<Item = ast::PathSegment>) -> Option<Id<CachedName>> {
+			let (name, ast) = loop {
+				match segs.next()? {
+					ast::PathSegment::Name(name) => {
+						if let Some(n) = name.text() {
+							break (n, name);
+						}
+					},
+					ast::PathSegment::Dot(_) => {},
+				}
+			};
+			let next = inner(ctx, segs);
+
+			Some(ctx.add(CachedName { name, ast, next }))
+		}
+
+		let rest = inner(ctx, &mut segs);
+		Some(CachedPath { root, rest })
+	}
+}
+
 struct NameResolver<'a> {
 	ctx: &'a Ctx<'a>,
+	this: Id<AbsPath>,
 	packages: Get<'a, VisiblePackages>,
 	tree: Get<'a, CanonicalTree>,
-	cache: FxHashMap<RelPath, Id<AbsPath>>,
+	file: FilePath,
 }
 
 impl<'a> NameResolver<'a> {
-	fn new(ctx: &'a Ctx, packages: Id<VisiblePackages>, tree: Id<CanonicalTree>) -> Self {
+	fn new(
+		ctx: &'a Ctx, this: Id<AbsPath>, packages: Id<VisiblePackages>, tree: Id<CanonicalTree>, file: FilePath,
+	) -> Self {
 		Self {
 			ctx,
+			this,
 			packages: ctx.get(packages),
 			tree: ctx.get(tree),
-			cache: FxHashMap::default(),
+			file,
 		}
 	}
 
-	fn resolve(&mut self, path: ast::Path) -> Option<(Id<AbsPath>, NameTy)> { None }
+	fn resolve(&mut self, path: ast::Path) -> Option<(Id<AbsPath>, NameTy, Option<Id<CachedName>>)> {
+		let path = CachedPath::from_ast(self.ctx, path)?;
+
+		if let Some(d) = path.root {
+			if let Some(rest) = path.rest {
+				let rest = self.ctx.geti(rest);
+				let Some(pkg) = self.packages.packages.get(&rest.name) else {
+					let span = rest.ast.span().with(self.file);
+					self.ctx.push(
+						span.error("unknown package")
+							.label(span.label("404: this package does not exist")),
+					);
+					return None;
+				};
+				let tree = self.tree.packages[pkg];
+				let Some(next) = rest.next else {
+					let span = rest.ast.span().with(self.file);
+					self.ctx
+						.push(span.error("expected item").label(span.label("found package")));
+					return None;
+				};
+				self.resolve_from_module(next, tree, rest.name)
+			} else {
+				let span = d.span().with(self.file);
+				self.ctx
+					.push(span.error("bare `.`s are not supported").label(span.mark()));
+				None
+			}
+		} else {
+			let tree = self.tree.modules[&self.this];
+			let prev = match *self.ctx.geti(self.this) {
+				AbsPath::Name { name, .. } => name,
+				AbsPath::Package(_) => Text::new("root"),
+			};
+			self.resolve_from_module(path.rest.expect("empty path"), tree, prev)
+		}
+	}
+
+	fn resolve_from_module(
+		&mut self, path: Id<CachedName>, tree: Id<ModuleTree>, mut prev: Text,
+	) -> Option<(Id<AbsPath>, NameTy, Option<Id<CachedName>>)> {
+		let mut search = self.ctx.geti(path);
+		let mut tree = self.ctx.get(tree);
+
+		loop {
+			let is_private = is_child_of(self.ctx, tree.path, self.this);
+			let index = if is_private { tree.private } else { tree.public };
+			let index = self.ctx.get(index);
+			let Some(decl) = index.names.get(&search.name) else {
+				let span = search.ast.span().with(self.file);
+				self.ctx.push(
+					span.error("unknown name")
+						.label(span.label(format!("404: name does not exist in `{}`", prev.as_str()))),
+				);
+				return None;
+			};
+
+			match decl {
+				Declaration::Module(t) => {
+					tree = self.ctx.get(*t);
+					let Some(next) = search.next else {
+						let span = search.ast.span().with(self.file);
+						self.ctx
+							.push(span.error("expected item").label(span.label("found module")));
+						return None;
+					};
+					search = self.ctx.geti(next);
+				},
+				Declaration::Name { path, ty, .. } => return Some((*path, *ty, search.next)),
+			}
+
+			prev = search.name;
+		}
+	}
+}
+
+fn is_child_of(ctx: &Ctx, parent: Id<AbsPath>, mut child: Id<AbsPath>) -> bool {
+	loop {
+		if parent == child {
+			return true;
+		}
+
+		child = match *ctx.geti(child) {
+			AbsPath::Package(_) => return false,
+			AbsPath::Name { prec, .. } => prec,
+		};
+	}
 }

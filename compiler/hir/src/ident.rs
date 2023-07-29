@@ -8,7 +8,7 @@ pub struct PackageId(pub u32);
 #[derive(Interned, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum AbsPath {
 	Package(PackageId),
-	Module { prec: Id<AbsPath>, name: Text },
+	Name { prec: Id<AbsPath>, name: Text },
 }
 
 impl From<PackageId> for AbsPath {

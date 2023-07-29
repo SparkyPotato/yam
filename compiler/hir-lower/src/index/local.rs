@@ -53,7 +53,7 @@ pub fn build_package_tree(db: &Ctx, indices: &[Id<Index>]) -> PackageTree {
 		let package = loop {
 			match p {
 				AbsPath::Package(p) => break p,
-				AbsPath::Module { prec, .. } => p = *db.geti(prec),
+				AbsPath::Name { prec, .. } => p = *db.geti(prec),
 			}
 		};
 
@@ -66,7 +66,7 @@ pub fn build_package_tree(db: &Ctx, indices: &[Id<Index>]) -> PackageTree {
 		fn make_tree<'a>(db: &dyn Db, tree: &'a mut TempTree, path: Id<AbsPath>) -> &'a mut TempTree {
 			match *db.geti(path) {
 				AbsPath::Package(_) => tree,
-				AbsPath::Module { prec, name } => {
+				AbsPath::Name { prec, name } => {
 					let prec = make_tree(db, tree, prec);
 					prec.children.entry(name).or_insert_with(|| TempTree {
 						path,

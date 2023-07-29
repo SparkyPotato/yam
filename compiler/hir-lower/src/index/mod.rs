@@ -121,7 +121,7 @@ impl ModuleMap {
 	}
 
 	pub fn declare(&mut self, db: &dyn Db, name: Text, item: ast::Item) {
-		let path = db.add(AbsPath::Module {
+		let path = db.add(AbsPath::Name {
 			prec: self.module,
 			name,
 		});
@@ -168,6 +168,18 @@ pub enum NameTy {
 	Enum,
 	TypeAlias,
 	Static,
+}
+
+impl Debug for NameTy {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		match self {
+			NameTy::Fn => write!(f, "fn"),
+			NameTy::Struct => write!(f, "struct"),
+			NameTy::Enum => write!(f, "enum"),
+			NameTy::TypeAlias => write!(f, "type alias"),
+			NameTy::Static => write!(f, "static"),
+		}
+	}
 }
 
 pub fn build_ast_map(modules: impl IntoIterator<Item = ModuleMap>) -> (AstMap, TempMap) {

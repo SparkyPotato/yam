@@ -133,7 +133,9 @@ pub enum TypeKind {
 	Array(ArrayType),
 	Fn(FnType),
 	Infer,
-	Path(Id<AbsPath>),
+	Struct(Id<AbsPath>),
+	Enum(Id<AbsPath>),
+	Alias(Id<AbsPath>),
 	Ptr(PtrType),
 }
 
