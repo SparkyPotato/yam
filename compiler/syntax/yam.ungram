@@ -149,7 +149,7 @@ Expr =
 | LoopExpr
 | MatchExpr
 | ParenExpr
-| PathExpr
+| NameExpr
 | PrefixExpr
 | RefExpr
 | ReturnExpr
@@ -220,8 +220,8 @@ MatchArm =
 ParenExpr =
   '(' Expr ')'
 
-PathExpr =
-  Path
+NameExpr =
+  '.'? Name
 
 RefExpr =
   '&' 'mut'? Expr

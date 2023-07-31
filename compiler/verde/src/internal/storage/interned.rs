@@ -1,9 +1,6 @@
-use std::{borrow::Borrow, hash::Hash, ops::Deref, time::Duration};
+use std::{borrow::Borrow, hash::Hash, time::Duration};
 
-use parking_lot::{
-	lock_api::{RawRwLockFair, RawRwLockTimed},
-	RwLock,
-};
+use parking_lot::{MappedRwLockReadGuard, RwLock, RwLockReadGuard};
 
 use crate::{
 	event,
@@ -15,13 +12,10 @@ pub trait ErasedInternedStorage {}
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct InternedStorage<T: Interned> {
 	map: DashMap<T, u32>,
-	values: RwLock<Vec<RwLock<T>>>,
+	values: RwLock<Vec<T>>,
 }
 
-pub struct Get<'a, T> {
-	slot: &'a RwLock<T>,
-	values: &'a RwLock<Vec<RwLock<T>>>,
-}
+pub type Get<'a, T> = MappedRwLockReadGuard<'a, T>;
 
 impl<T: Interned> ErasedInternedStorage for InternedStorage<T> {}
 
@@ -31,12 +25,13 @@ impl<T: Interned> InternedStorage<T> {
 		match self.map.get(&value) {
 			Some(index) => *index,
 			None => {
+				event!(trace, "inserting new value");
 				let mut values = self
 					.values
 					.try_write_for(Duration::from_secs(2))
 					.expect("Interning timed out: perhaps you have a deadlock?");
 				let index = values.len() as u32;
-				values.push(RwLock::new(value.clone()));
+				values.push(value.clone());
 				self.map.insert(value, index);
 				index
 			},
@@ -57,7 +52,7 @@ impl<T: Interned> InternedStorage<T> {
 					.try_write_for(Duration::from_secs(2))
 					.expect("Interning timed out: perhaps you have a deadlock?");
 				let index = values.len() as u32;
-				values.push(RwLock::new(value.to_owned()));
+				values.push(value.to_owned());
 				self.map.insert(value.to_owned(), index);
 				index
 			},
@@ -65,22 +60,13 @@ impl<T: Interned> InternedStorage<T> {
 	}
 
 	pub fn get(&self, index: u32) -> Get<'_, T> {
-		unsafe {
-			if self.values.raw().try_lock_shared_for(Duration::from_secs(2)) {
-				let slot = &(*self.values.data_ptr())[index as usize];
-
-				if slot.raw().try_lock_shared_for(Duration::from_secs(2)) {
-					Get {
-						slot,
-						values: &self.values,
-					}
-				} else {
-					panic!("Interning timed out: perhaps you have a deadlock?");
-				}
-			} else {
-				panic!("Interning timed out: perhaps you have a deadlock?");
-			}
-		}
+		event!(trace, "reading value");
+		RwLockReadGuard::map(
+			self.values
+				.try_read_for(Duration::from_secs(2))
+				.expect("Interning timed out: perhaps you have a deadlock?"),
+			|x| &x[index as usize],
+		)
 	}
 }
 
@@ -119,21 +105,6 @@ impl<'a> dyn ErasedInternedStorage + 'a {
 		unsafe {
 			let storage = self as *const dyn ErasedInternedStorage as *const InternedStorage<T>;
 			(*storage).insert_ref(value)
-		}
-	}
-}
-
-impl<T> Deref for Get<'_, T> {
-	type Target = T;
-
-	fn deref(&self) -> &Self::Target { unsafe { &*self.slot.data_ptr() } }
-}
-
-impl<T> Drop for Get<'_, T> {
-	fn drop(&mut self) {
-		unsafe {
-			self.slot.raw().unlock_shared_fair();
-			self.values.raw().unlock_shared_fair();
 		}
 	}
 }

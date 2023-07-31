@@ -97,9 +97,10 @@ pub fn compile(input: CompileInput) -> CompileOutput {
 	// Lower to HIR: Exposing visible packages, lowering each module, collecting all items, and then generating the
 	// global AST map.
 
+	// TODO: Parallelize this (fix deadlock).
 	let modules: Vec<_> = modules
-		.into_par_iter()
-		.zip(maps.par_iter_mut())
+		// .into_par_iter().zip(maps.par_iter_mut())
+		.into_iter().zip(maps.iter_mut())
 		.map(move |(x, map)| db.execute(|ctx| lower_to_hir(ctx, x, packages, tree, map)))
 		.collect();
 

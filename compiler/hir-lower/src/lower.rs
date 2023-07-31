@@ -1,6 +1,7 @@
 use arena::{Arena, Ix};
 use diagnostics::{FilePath, RawSpan, Span};
 use hir::ident::AbsPath;
+use rustc_hash::FxHashMap;
 use syntax::{ast, token, AstElement, AstToken, SyntaxElement};
 use text::Text;
 use tracing::{span, Level};
@@ -206,7 +207,29 @@ impl<'a> Lowerer<'a> {
 		}
 	}
 
-	fn fn_(&mut self, f: ast::Fn) -> Option<hir::Fn> { None }
+	fn fn_(&mut self, f: ast::Fn) -> Option<hir::Fn> {
+		let abi = self.abi(f.abi());
+		let name = self.name(f.name()?)?;
+		let params = f
+			.param_list()
+			.iter()
+			.flat_map(|x| x.params())
+			.filter_map(|x| self.param(x))
+			.collect();
+		let ret = f.ret_ty().and_then(|x| self.ty(x.type_()?));
+		let body = match f.fn_body() {
+			Some(ast::FnBody::Block(b)) => self.block(b),
+			Some(ast::FnBody::Semi(_)) | None => None,
+		};
+
+		Some(hir::Fn {
+			abi,
+			name,
+			params,
+			ret,
+			body,
+		})
+	}
 
 	fn struct_(&mut self, s: ast::Struct) -> Option<hir::Struct> {
 		let name = self.name(s.name()?)?;
@@ -274,17 +297,35 @@ impl<'a> Lowerer<'a> {
 			ast::Type::InferType(_) => hir::TypeKind::Infer,
 			ast::Type::PathType(p) => {
 				let path = p.path()?;
-				let (p, ty, rest) = self.resolver.resolve(path.clone())?;
-				match ty {
-					NameTy::Struct => hir::TypeKind::Struct(p),
-					NameTy::Enum => hir::TypeKind::Enum(p),
-					NameTy::TypeAlias => hir::TypeKind::Alias(p),
-					_ => {
+				match self.resolver.resolve_path(path.clone())? {
+					Resolution::Item {
+						path: p,
+						ty,
+						unresolved,
+					} => {
+						if let Some(rest) = unresolved {
+							let rest = self.ctx.geti(rest);
+							let span = rest.ast.span().with(self.file);
+							self.ctx
+								.push(span.error("path continues after type").label(span.mark()));
+						}
+
+						match ty {
+							NameTy::Struct => hir::TypeKind::Struct(p),
+							NameTy::Enum => hir::TypeKind::Enum(p),
+							NameTy::TypeAlias => hir::TypeKind::Alias(p),
+							_ => {
+								let span = path.span().with(self.file);
+								self.ctx
+									.push(span.error("expected type").label(span.label(format!("found {:?}", ty))));
+								return None;
+							},
+						}
+					},
+					Resolution::Local { .. } => {
 						let span = path.span().with(self.file);
-						self.ctx.push(
-							span.error("expected type")
-								.label(span.label(format!("found `{:?}`", ty))),
-						);
+						self.ctx
+							.push(span.error("expected type").label(span.label("found local")));
 						return None;
 					},
 				}
@@ -300,7 +341,418 @@ impl<'a> Lowerer<'a> {
 		Some(self.types.push(hir::Type { kind, id }))
 	}
 
-	fn expr(&mut self, e: ast::Expr) -> Option<Ix<hir::Expr>> { None }
+	fn block(&mut self, b: ast::Block) -> Option<hir::Block> {
+		let mut discard = Vec::with_capacity(b.statements().count());
+		let mut value = None;
+		let mut errored = false;
+
+		self.resolver.push_scope();
+		for stmt in b.statements() {
+			match stmt {
+				ast::Stmt::Item(i) => {
+					// TODO: support.
+					let span = name_of_item(&i)
+						.map(|(x, _)| x.span())
+						.unwrap_or(i.span())
+						.with(self.file);
+					self.ctx
+						.push(span.error("internal items are not supported").label(span.mark()));
+				},
+				ast::Stmt::Expr(e) => {
+					if let Some(v) = value {
+						if !errored {
+							let span = e.span().with(self.file);
+							self.ctx.push(
+								span.error("expected `;` before expression")
+									.label(span.label("expressions must be separated by `;`")),
+							);
+							errored = true;
+						}
+						discard.push(v);
+					}
+					value = self.expr(e);
+				},
+				ast::Stmt::SemiExpr(e) => {
+					if let Some(v) = value {
+						if !errored {
+							let span = e.span().with(self.file);
+							self.ctx
+								.push(span.error("expected `;` before expression").label(span.mark()));
+							errored = true;
+						}
+						discard.push(v);
+						value = None;
+					}
+
+					let e = e.expr().and_then(|e| self.expr(e));
+					discard.extend(e);
+				},
+				ast::Stmt::Semi(_) => {},
+			}
+		}
+		self.resolver.pop_scope();
+
+		Some(hir::Block { discard, value })
+	}
+
+	fn expr(&mut self, e: ast::Expr) -> Option<Ix<hir::Expr>> {
+		let kind = match e.clone() {
+			ast::Expr::ArrayExpr(a) => hir::ExprKind::Array(self.array(a)?),
+			ast::Expr::InfixExpr(i) => hir::ExprKind::Infix(self.infix(i)?),
+			ast::Expr::Block(b) => hir::ExprKind::Block(self.block(b).unwrap_or_default()),
+			ast::Expr::BreakExpr(b) => hir::ExprKind::Break(b.expr().and_then(|x| self.expr(x))),
+			ast::Expr::CallExpr(c) => hir::ExprKind::Call(self.call(c)?),
+			ast::Expr::CastExpr(c) => hir::ExprKind::Cast(self.cast(c)?),
+			ast::Expr::ContinueKw(_) => hir::ExprKind::Continue,
+			ast::Expr::FieldExpr(f) => self.field(f)?,
+			ast::Expr::ForExpr(_) => {
+				// TODO: Support.
+				let span = e.span().with(self.file);
+				self.ctx.push(span.error("`for` expressions are not supported"));
+				return None;
+			},
+			ast::Expr::IfExpr(i) => hir::ExprKind::Match(self.if_(i)?),
+			ast::Expr::IndexExpr(i) => hir::ExprKind::Index(self.index(i)?),
+			ast::Expr::Literal(l) => hir::ExprKind::Literal(self.literal(l)?),
+			ast::Expr::LoopExpr(l) => hir::ExprKind::Loop(self.loop_(l)?),
+			ast::Expr::MatchExpr(m) => hir::ExprKind::Match(self.match_(m)?),
+			ast::Expr::NameExpr(n) => self.name_expr(n)?,
+			ast::Expr::ParenExpr(e) => return self.expr(e.expr()?),
+			ast::Expr::PrefixExpr(p) => hir::ExprKind::Prefix(self.prefix(p)?),
+			ast::Expr::RefExpr(r) => hir::ExprKind::Ref(self.ref_(r)?),
+			ast::Expr::ReturnExpr(r) => hir::ExprKind::Return(r.expr().and_then(|x| self.expr(x))),
+			ast::Expr::WhileExpr(w) => hir::ExprKind::Loop(self.while_(w)?),
+			ast::Expr::LetExpr(l) => hir::ExprKind::Let(self.let_(l)?),
+		};
+		let id = Some(self.builder.add(e));
+
+		Some(self.exprs.push(hir::Expr { kind, id }))
+	}
+
+	fn array(&mut self, a: ast::ArrayExpr) -> Option<hir::ArrayExpr> {
+		let init = a.array_init()?;
+		let init = match init {
+			ast::ArrayInit::ArrayList(l) => {
+				let elems = l.exprs().flat_map(|e| self.expr(e)).collect();
+				hir::ArrayExpr { elems, repeat: false }
+			},
+			ast::ArrayInit::ArrayRepeat(r) => {
+				let expr = self.expr(r.expr()?)?;
+				let len = self.expr(r.len()?)?;
+				hir::ArrayExpr {
+					elems: vec![expr, len],
+					repeat: true,
+				}
+			},
+		};
+		Some(init)
+	}
+
+	fn infix(&mut self, i: ast::InfixExpr) -> Option<hir::InfixExpr> {
+		let lhs = self.expr(i.lhs()?)?;
+		let op = i.op()?;
+		let op_id = self.builder.add(op.clone());
+		let op = self.infix_op(op);
+		let rhs = self.expr(i.rhs()?)?;
+
+		Some(hir::InfixExpr { lhs, op, op_id, rhs })
+	}
+
+	fn infix_op(&mut self, o: ast::InfixOp) -> hir::InfixOp {
+		match o {
+			ast::InfixOp::PipePipe(_) => hir::InfixOp::Or,
+			ast::InfixOp::AmpAmp(_) => hir::InfixOp::And,
+			ast::InfixOp::EqEq(_) => hir::InfixOp::Eq,
+			ast::InfixOp::Neq(_) => hir::InfixOp::NotEq,
+			ast::InfixOp::Leq(_) => hir::InfixOp::Leq,
+			ast::InfixOp::Geq(_) => hir::InfixOp::Geq,
+			ast::InfixOp::Lt(_) => hir::InfixOp::Lt,
+			ast::InfixOp::Gt(_) => hir::InfixOp::Gt,
+			ast::InfixOp::Plus(_) => hir::InfixOp::Add,
+			ast::InfixOp::Star(_) => hir::InfixOp::Mul,
+			ast::InfixOp::Minus(_) => hir::InfixOp::Sub,
+			ast::InfixOp::Slash(_) => hir::InfixOp::Div,
+			ast::InfixOp::Percent(_) => hir::InfixOp::Mod,
+			ast::InfixOp::Shl(_) => hir::InfixOp::Shl,
+			ast::InfixOp::Shr(_) => hir::InfixOp::Shr,
+			ast::InfixOp::Caret(_) => hir::InfixOp::Xor,
+			ast::InfixOp::Pipe(_) => hir::InfixOp::Or,
+			ast::InfixOp::Amp(_) => hir::InfixOp::And,
+			ast::InfixOp::Eq(_) => hir::InfixOp::Assign,
+			ast::InfixOp::PlusEq(_) => hir::InfixOp::AddAssign,
+			ast::InfixOp::SlashEq(_) => hir::InfixOp::DivAssign,
+			ast::InfixOp::StarEq(_) => hir::InfixOp::MulAssign,
+			ast::InfixOp::PercentEq(_) => hir::InfixOp::ModAssign,
+			ast::InfixOp::ShrEq(_) => hir::InfixOp::ShrAssign,
+			ast::InfixOp::ShlEq(_) => hir::InfixOp::ShlAssign,
+			ast::InfixOp::MinusEq(_) => hir::InfixOp::SubAssign,
+			ast::InfixOp::PipeEq(_) => hir::InfixOp::BitOrAssign,
+			ast::InfixOp::AmpEq(_) => hir::InfixOp::BitAndAssign,
+			ast::InfixOp::CaretEq(_) => hir::InfixOp::XorAssign,
+		}
+	}
+
+	fn call(&mut self, c: ast::CallExpr) -> Option<hir::CallExpr> {
+		let callee = self.expr(c.expr()?)?;
+		let args = c
+			.arg_list()
+			.iter()
+			.flat_map(|x| x.exprs())
+			.flat_map(|e| self.expr(e))
+			.collect();
+
+		Some(hir::CallExpr { callee, args })
+	}
+
+	fn cast(&mut self, c: ast::CastExpr) -> Option<hir::CastExpr> {
+		let expr = self.expr(c.expr()?)?;
+		let ty = self.ty(c.type_()?)?;
+
+		Some(hir::CastExpr { expr, ty })
+	}
+
+	/// A little complex because paths are ambiguous.
+	///
+	/// `a.b.c` is parsed as a field access, so we have to reconstruct it as a path first.
+	fn field(&mut self, f: ast::FieldExpr) -> Option<hir::ExprKind> {
+		match CachedPath::from_field_expr(self.ctx, f.clone()) {
+			Some(path) => {
+				let kind = match self.resolver.resolve_inner(path)? {
+					Resolution::Item { path, ty, unresolved } => match ty {
+						NameTy::Fn => {
+							if let Some(rest) = unresolved {
+								let rest = self.ctx.geti(rest);
+								let span = rest.ast.span().with(self.file);
+								self.ctx
+									.push(span.error("path continues after function").label(span.mark()));
+							}
+							hir::ExprKind::Fn(path)
+						},
+						NameTy::Struct => {
+							if let Some(rest) = unresolved {
+								let rest = self.ctx.geti(rest);
+								let span = rest.ast.span().with(self.file);
+								self.ctx.push(span.error("expected value, found struct field").label(
+									span.label(
+										"cannot access a field of a type - use an instance of the struct instead",
+									),
+								));
+							} else {
+								let span = f.span().with(self.file);
+								self.ctx
+									.push(span.error("expected value, found struct").label(span.mark()));
+							}
+							return None;
+						},
+						NameTy::Enum => {
+							if let Some(rest) = unresolved {
+								let rest = self.ctx.geti(rest);
+								let variant = self.name(rest.ast.clone())?;
+								if let Some(rest) = rest.next {
+									let rest = self.ctx.geti(rest);
+									let span = rest.ast.span().with(self.file);
+									self.ctx
+										.push(span.error("path continues after enum variant").label(span.label(
+											"cannot access a field of a type - use an instance of the struct instead",
+										)));
+								}
+
+								hir::ExprKind::EnumVariant(hir::VariantExpr { path, variant })
+							} else {
+								let span = f.span().with(self.file);
+								self.ctx
+									.push(span.error("expected value, found enum").label(span.mark()));
+								return None;
+							}
+						},
+						NameTy::TypeAlias => {
+							if let Some(rest) = unresolved {
+								let rest = self.ctx.geti(rest);
+								let variant = self.name(rest.ast.clone())?;
+								if let Some(rest) = rest.next {
+									let rest = self.ctx.geti(rest);
+									let span = rest.ast.span().with(self.file);
+									self.ctx
+										.push(span.error("path continues after enum variant").label(span.label(
+											"cannot access a field of a type - use an instance of the struct instead",
+										)));
+								}
+
+								hir::ExprKind::EnumVariant(hir::VariantExpr { path, variant })
+							} else {
+								let span = f.span().with(self.file);
+								self.ctx
+									.push(span.error("expected value, found type alias").label(span.mark()));
+								return None;
+							}
+						},
+						NameTy::Static => {
+							if let Some(rest) = unresolved {
+								let rest = self.ctx.geti(rest);
+								let span = rest.ast.span().with(self.file);
+								self.ctx.push(span.error("path continues after static").label(
+									span.label(
+										"cannot access a field of a type - use an instance of the struct instead",
+									),
+								));
+								return None;
+							} else {
+								self.field_access(hir::ExprKind::Static(path), unresolved)
+							}
+						},
+					},
+					Resolution::Local { local, unresolved } => {
+						self.field_access(hir::ExprKind::Local(local), unresolved)
+					},
+				};
+
+				Some(kind)
+			},
+			None => {
+				let expr = self.expr(f.expr()?)?;
+				let field = self.name(f.name()?)?;
+
+				Some(hir::ExprKind::Field(hir::FieldExpr { expr, field }))
+			},
+		}
+	}
+
+	fn field_access(&mut self, mut from: hir::ExprKind, mut path: Option<Id<CachedName>>) -> hir::ExprKind {
+		while let Some(p) = path {
+			let p = self.ctx.geti(p);
+			let expr = self.exprs.push(hir::Expr { kind: from, id: None });
+			from = hir::ExprKind::Field(hir::FieldExpr {
+				expr,
+				field: self.name(p.ast.clone()).unwrap(),
+			});
+
+			path = p.next;
+		}
+
+		from
+	}
+
+	fn if_(&mut self, i: ast::IfExpr) -> Option<hir::MatchExpr> {
+		let cond = self.expr(i.cond()?)?;
+		let t = i.then()?;
+		let then = self.block(t.clone())?;
+		let t = self.builder.add(t);
+		let then = self.exprs.push(hir::Expr {
+			kind: hir::ExprKind::Block(then),
+			id: Some(self.builder.cast(t)),
+		});
+		let else_ = i.else_().and_then(|e| self.expr(e));
+
+		Some(self.make_if(cond, then, else_))
+	}
+
+	fn index(&mut self, i: ast::IndexExpr) -> Option<hir::IndexExpr> {
+		let expr = self.expr(i.base()?)?;
+		let index = self.expr(i.index()?)?;
+
+		Some(hir::IndexExpr { expr, index })
+	}
+
+	fn literal(&mut self, l: ast::Literal) -> Option<hir::Literal> {
+		let (value, kind) = match l {
+			ast::Literal::IntLit(i) => (i.text(), hir::LiteralKind::Int),
+			ast::Literal::FloatLit(f) => (f.text(), hir::LiteralKind::Float),
+			ast::Literal::CharLit(c) => (c.text(), hir::LiteralKind::Char),
+			ast::Literal::StringLit(s) => (s.text(), hir::LiteralKind::String),
+			ast::Literal::BoolLit(b) => (b.text(), hir::LiteralKind::Bool),
+		};
+
+		Some(hir::Literal { value, kind })
+	}
+
+	fn loop_(&mut self, l: ast::LoopExpr) -> Option<hir::LoopExpr> {
+		let body = self.block(l.body()?)?;
+		Some(hir::LoopExpr { body })
+	}
+
+	fn match_(&mut self, m: ast::MatchExpr) -> Option<hir::MatchExpr> {
+		let expr = self.expr(m.expr()?)?;
+		let arms = m.arms().flat_map(|a| self.arm(a)).collect();
+
+		Some(hir::MatchExpr { expr, arms })
+	}
+
+	fn name_expr(&mut self, n: ast::NameExpr) -> Option<hir::ExprKind> {
+		let kind = match self.resolver.resolve_name(n.clone())? {
+			Resolution::Item { path, ty, .. } => match ty {
+				NameTy::Fn => hir::ExprKind::Fn(path),
+				NameTy::Static => hir::ExprKind::Static(path),
+				_ => {
+					let span = n.span().with(self.file);
+					self.ctx.push(
+						span.error("expected value")
+							.label(span.label(format!("found {:?}", ty))),
+					);
+					return None;
+				},
+			},
+			Resolution::Local { local, .. } => hir::ExprKind::Local(local),
+		};
+
+		Some(kind)
+	}
+
+	fn arm(&mut self, a: ast::MatchArm) -> Option<hir::MatchArm> {
+		let value = self.expr(a.value()?)?;
+		let then = self.expr(a.then()?)?;
+
+		Some(hir::MatchArm { value, then })
+	}
+
+	fn prefix(&mut self, p: ast::PrefixExpr) -> Option<hir::PrefixExpr> {
+		let op = p.op()?;
+		let op_id = self.builder.add(op.clone());
+		let op = self.prefix_op(p.op()?);
+		let expr = self.expr(p.expr()?)?;
+
+		Some(hir::PrefixExpr { op, op_id, expr })
+	}
+
+	fn prefix_op(&mut self, p: ast::PrefixOp) -> hir::PrefixOp {
+		match p {
+			ast::PrefixOp::Minus(_) => hir::PrefixOp::Neg,
+			ast::PrefixOp::Not(_) => hir::PrefixOp::Not,
+			ast::PrefixOp::Star(_) => hir::PrefixOp::Deref,
+		}
+	}
+
+	fn ref_(&mut self, r: ast::RefExpr) -> Option<hir::RefExpr> {
+		let expr = self.expr(r.expr()?)?;
+		let mutable = r.mut_kw().is_some();
+
+		Some(hir::RefExpr { expr, mutable })
+	}
+
+	fn while_(&mut self, w: ast::WhileExpr) -> Option<hir::LoopExpr> {
+		let cond = self.expr(w.expr()?)?;
+		let mut body = self.block(w.body()?)?;
+
+		let break_ = self.exprs.push(hir::Expr {
+			kind: hir::ExprKind::Break(None),
+			id: None,
+		});
+		let kind = hir::ExprKind::Match(self.make_if(cond, break_, None));
+		let prec = self.exprs.push(hir::Expr { kind, id: None });
+		body.discard.insert(0, prec);
+
+		Some(hir::LoopExpr { body })
+	}
+
+	fn let_(&mut self, l: ast::LetExpr) -> Option<hir::LetExpr> {
+		let name = self.name(l.name()?)?;
+		let ty = l.type_().and_then(|t| self.ty(t));
+		let init = l.init().and_then(|i| self.expr(i));
+		let local = self.locals.push(hir::Local { decl: name });
+
+		self.resolver.declare_local(name.name, local);
+
+		Some(hir::LetExpr { name, ty, init, local })
+	}
 
 	fn abi(&mut self, a: Option<ast::Abi>) -> Option<hir::Abi> {
 		// If `hir::Abi` does not exist: `fn`
@@ -325,6 +777,41 @@ impl<'a> Lowerer<'a> {
 		let id = self.builder.add(n);
 
 		Some(hir::Name { name, id })
+	}
+
+	fn make_if(&mut self, cond: Ix<hir::Expr>, then: Ix<hir::Expr>, else_: Option<Ix<hir::Expr>>) -> hir::MatchExpr {
+		let else_ = else_.unwrap_or_else(|| {
+			self.exprs.push(hir::Expr {
+				kind: hir::ExprKind::Block(hir::Block::default()),
+				id: None,
+			})
+		});
+
+		let true_ = self.exprs.push(hir::Expr {
+			kind: hir::ExprKind::Literal(hir::Literal {
+				kind: hir::LiteralKind::Bool,
+				value: Text::new("true"),
+			}),
+			id: None,
+		});
+		let false_ = self.exprs.push(hir::Expr {
+			kind: hir::ExprKind::Literal(hir::Literal {
+				kind: hir::LiteralKind::Bool,
+				value: Text::new("false"),
+			}),
+			id: None,
+		});
+
+		hir::MatchExpr {
+			expr: cond,
+			arms: vec![
+				hir::MatchArm { value: true_, then },
+				hir::MatchArm {
+					value: false_,
+					then: else_,
+				},
+			],
+		}
 	}
 }
 
@@ -374,6 +861,41 @@ impl CachedPath {
 		let rest = inner(ctx, &mut segs);
 		Some(CachedPath { root, rest })
 	}
+
+	fn from_field_expr(ctx: &Ctx, mut expr: ast::FieldExpr) -> Option<Self> {
+		let mut next = None;
+		loop {
+			let name = expr.name()?;
+			let ast = name.clone();
+			let name = name.text()?;
+			next = Some(ctx.add(CachedName { name, ast, next }));
+
+			match expr.expr()? {
+				ast::Expr::FieldExpr(f) => expr = f,
+				ast::Expr::NameExpr(n) => {
+					let root = n.dot();
+					let name = n.name()?;
+					let ast = name.clone();
+					let name = name.text()?;
+					next = Some(ctx.add(CachedName { name, ast, next }));
+					break Some(Self { root, rest: next });
+				},
+				_ => return None,
+			}
+		}
+	}
+}
+
+enum Resolution {
+	Local {
+		local: Ix<hir::Local>,
+		unresolved: Option<Id<CachedName>>,
+	},
+	Item {
+		path: Id<AbsPath>,
+		ty: NameTy,
+		unresolved: Option<Id<CachedName>>,
+	},
 }
 
 struct NameResolver<'a> {
@@ -381,6 +903,7 @@ struct NameResolver<'a> {
 	this: Id<AbsPath>,
 	packages: Get<'a, VisiblePackages>,
 	tree: Get<'a, CanonicalTree>,
+	scopes: Vec<FxHashMap<Text, Ix<hir::Local>>>,
 	file: FilePath,
 }
 
@@ -393,13 +916,31 @@ impl<'a> NameResolver<'a> {
 			this,
 			packages: ctx.get(packages),
 			tree: ctx.get(tree),
+			scopes: Vec::new(),
 			file,
 		}
 	}
 
-	fn resolve(&mut self, path: ast::Path) -> Option<(Id<AbsPath>, NameTy, Option<Id<CachedName>>)> {
+	fn resolve_path(&mut self, path: ast::Path) -> Option<Resolution> {
 		let path = CachedPath::from_ast(self.ctx, path)?;
+		self.resolve_inner(path)
+	}
 
+	fn resolve_name(&mut self, name: ast::NameExpr) -> Option<Resolution> {
+		let root = name.dot();
+		let ast = name.name()?;
+		let path = CachedPath {
+			root,
+			rest: Some(self.ctx.add(CachedName {
+				name: ast.text()?,
+				ast,
+				next: None,
+			})),
+		};
+		self.resolve_inner(path)
+	}
+
+	fn resolve_inner(&mut self, path: CachedPath) -> Option<Resolution> {
 		if let Some(d) = path.root {
 			if let Some(rest) = path.rest {
 				let rest = self.ctx.geti(rest);
@@ -418,7 +959,9 @@ impl<'a> NameResolver<'a> {
 						.push(span.error("expected item").label(span.label("found package")));
 					return None;
 				};
-				self.resolve_from_module(next, tree, rest.name)
+
+				let (path, ty, unresolved) = self.resolve_from_module(next, tree, rest.name)?;
+				Some(Resolution::Item { path, ty, unresolved })
 			} else {
 				let span = d.span().with(self.file);
 				self.ctx
@@ -426,12 +969,22 @@ impl<'a> NameResolver<'a> {
 				None
 			}
 		} else {
+			let rest = path.rest.expect("empty path");
+			let r = self.ctx.geti(rest);
+			if let Some(local) = self.resolve_local(r.name) {
+				return Some(Resolution::Local {
+					local,
+					unresolved: r.next,
+				});
+			}
+
 			let tree = self.tree.modules[&self.this];
 			let prev = match *self.ctx.geti(self.this) {
 				AbsPath::Name { name, .. } => name,
 				AbsPath::Package(_) => Text::new("root"),
 			};
-			self.resolve_from_module(path.rest.expect("empty path"), tree, prev)
+			let (path, ty, unresolved) = self.resolve_from_module(rest, tree, prev)?;
+			Some(Resolution::Item { path, ty, unresolved })
 		}
 	}
 
@@ -471,6 +1024,24 @@ impl<'a> NameResolver<'a> {
 			prev = search.name;
 		}
 	}
+
+	fn declare_local(&mut self, name: Text, local: Ix<hir::Local>) {
+		let scope = self.scopes.last_mut().expect("let without any scope");
+		scope.insert(name, local);
+	}
+
+	fn resolve_local(&self, name: Text) -> Option<Ix<hir::Local>> {
+		for scope in self.scopes.iter().rev() {
+			if let Some(&local) = scope.get(&name) {
+				return Some(local);
+			}
+		}
+		None
+	}
+
+	fn push_scope(&mut self) { self.scopes.push(FxHashMap::default()); }
+
+	fn pop_scope(&mut self) { self.scopes.pop().expect("pop without any scope"); }
 }
 
 fn is_child_of(ctx: &Ctx, parent: Id<AbsPath>, mut child: Id<AbsPath>) -> bool {

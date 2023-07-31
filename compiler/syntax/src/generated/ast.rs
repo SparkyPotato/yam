@@ -826,7 +826,7 @@ pub enum Expr {
 	LoopExpr(LoopExpr),
 	MatchExpr(MatchExpr),
 	ParenExpr(ParenExpr),
-	PathExpr(PathExpr),
+	NameExpr(NameExpr),
 	PrefixExpr(PrefixExpr),
 	RefExpr(RefExpr),
 	ReturnExpr(ReturnExpr),
@@ -851,7 +851,7 @@ impl std::fmt::Debug for Expr {
 			Self::LoopExpr(x) => std::fmt::Debug::fmt(x, f),
 			Self::MatchExpr(x) => std::fmt::Debug::fmt(x, f),
 			Self::ParenExpr(x) => std::fmt::Debug::fmt(x, f),
-			Self::PathExpr(x) => std::fmt::Debug::fmt(x, f),
+			Self::NameExpr(x) => std::fmt::Debug::fmt(x, f),
 			Self::PrefixExpr(x) => std::fmt::Debug::fmt(x, f),
 			Self::RefExpr(x) => std::fmt::Debug::fmt(x, f),
 			Self::ReturnExpr(x) => std::fmt::Debug::fmt(x, f),
@@ -876,7 +876,7 @@ impl AstElement for Expr {
 			| SyntaxKind::LoopExpr
 			| SyntaxKind::MatchExpr
 			| SyntaxKind::ParenExpr
-			| SyntaxKind::PathExpr
+			| SyntaxKind::NameExpr
 			| SyntaxKind::PrefixExpr
 			| SyntaxKind::RefExpr
 			| SyntaxKind::ReturnExpr
@@ -900,7 +900,7 @@ impl AstElement for Expr {
 			SyntaxKind::LoopExpr => AstElement::cast(elem.clone()).map(Self::LoopExpr),
 			SyntaxKind::MatchExpr => AstElement::cast(elem.clone()).map(Self::MatchExpr),
 			SyntaxKind::ParenExpr => AstElement::cast(elem.clone()).map(Self::ParenExpr),
-			SyntaxKind::PathExpr => AstElement::cast(elem.clone()).map(Self::PathExpr),
+			SyntaxKind::NameExpr => AstElement::cast(elem.clone()).map(Self::NameExpr),
 			SyntaxKind::PrefixExpr => AstElement::cast(elem.clone()).map(Self::PrefixExpr),
 			SyntaxKind::RefExpr => AstElement::cast(elem.clone()).map(Self::RefExpr),
 			SyntaxKind::ReturnExpr => AstElement::cast(elem.clone()).map(Self::ReturnExpr),
@@ -929,7 +929,7 @@ impl AstElement for Expr {
 			Self::LoopExpr(x) => x.span(),
 			Self::MatchExpr(x) => x.span(),
 			Self::ParenExpr(x) => x.span(),
-			Self::PathExpr(x) => x.span(),
+			Self::NameExpr(x) => x.span(),
 			Self::PrefixExpr(x) => x.span(),
 			Self::RefExpr(x) => x.span(),
 			Self::ReturnExpr(x) => x.span(),
@@ -955,7 +955,7 @@ impl AstElement for Expr {
 			Self::LoopExpr(x) => x.inner(),
 			Self::MatchExpr(x) => x.inner(),
 			Self::ParenExpr(x) => x.inner(),
-			Self::PathExpr(x) => x.inner(),
+			Self::NameExpr(x) => x.inner(),
 			Self::PrefixExpr(x) => x.inner(),
 			Self::RefExpr(x) => x.inner(),
 			Self::ReturnExpr(x) => x.inner(),
@@ -1879,13 +1879,13 @@ impl ParenExpr {
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
-pub struct PathExpr(SyntaxNode);
-impl std::fmt::Debug for PathExpr {
+pub struct NameExpr(SyntaxNode);
+impl std::fmt::Debug for NameExpr {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0, f) }
 }
-impl AstNode for PathExpr {}
-impl AstElement for PathExpr {
-	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::PathExpr }
+impl AstNode for NameExpr {}
+impl AstElement for NameExpr {
+	fn can_cast(kind: SyntaxKind) -> bool { kind == SyntaxKind::NameExpr }
 
 	fn cast(elem: SyntaxElement) -> Option<Self> {
 		let node = elem.into_node()?;
@@ -1903,8 +1903,10 @@ impl AstElement for PathExpr {
 
 	fn inner(self) -> SyntaxElement { self.0.into() }
 }
-impl PathExpr {
-	pub fn path(&self) -> Option<Path> { children(&self.0).nth(0usize) }
+impl NameExpr {
+	pub fn dot(&self) -> Option<Dot> { children(&self.0).nth(0usize) }
+
+	pub fn name(&self) -> Option<Name> { children(&self.0).nth(0usize) }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]

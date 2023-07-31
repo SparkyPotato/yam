@@ -24,25 +24,29 @@ pub fn canonicalize_tree(ctx: &Ctx, tree: Id<PackageTree>, packages: Id<Packages
 	let t = ctx.get(tree);
 	let packages = ctx.get(packages);
 
+	let mut sub = FxHashMap::default();
 	let packages: FxHashMap<_, _> = t
 		.packages
 		.iter()
 		.map(|(&pkg, &t)| {
-			(
-				pkg,
-				canonicalize_module_tree(
-					ctx,
-					t,
-					*packages.packages.get(&pkg).expect("Package not found in package list"),
-					tree,
-				),
-			)
+			let t = canonicalize_module_tree(
+				ctx,
+				t,
+				*packages.packages.get(&pkg).expect("Package not found in package list"),
+				tree,
+			);
+			sub.insert(ctx.get(t).path, t);
+			(pkg, t)
 		})
 		.collect();
 
 	CanonicalTree {
 		id: (),
-		modules: packages.values().flat_map(|&x| ctx.get(x).sub.clone()).collect(),
+		modules: packages
+			.values()
+			.flat_map(|&x| ctx.get(x).sub.clone())
+			.chain(sub)
+			.collect(),
 		packages,
 	}
 }

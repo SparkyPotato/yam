@@ -516,7 +516,7 @@ mod expr {
 	use crate::parse::{
 		p,
 		recovery::Recovery,
-		rules::{name, path, Block, Expr, MatchArm, Type},
+		rules::{name, Block, Expr, MatchArm, Type},
 		select,
 		Parser,
 	};
@@ -590,13 +590,14 @@ mod expr {
 				p.api.bump();
 			},
 			T![ident] => {
-				p.api.start_node(SyntaxKind::PathExpr);
-				p!(path(p));
+				p.api.start_node(SyntaxKind::NameExpr);
+				p!(name(p));
 				p.api.finish_node();
 			},
 			T![.] => {
-				p.api.start_node(SyntaxKind::PathExpr);
-				p!(path(p));
+				p.api.start_node(SyntaxKind::NameExpr);
+				p.api.bump();
+				p!(name(p));
 				p.api.finish_node();
 			},
 			T![break] => {
@@ -666,6 +667,8 @@ mod expr {
 				p.api.finish_node();
 			},
 			T![let] => {
+				p.api.start_node(SyntaxKind::LetExpr);
+
 				p.api.bump();
 				p!(name(p));
 				if matches!(p.api.peek().kind, T![:]) {
@@ -676,6 +679,8 @@ mod expr {
 					p.api.bump();
 					p!(p.run(Expr));
 				}
+
+				p.api.finish_node();
 			},
 			T![match] => {
 				p.api.start_node(SyntaxKind::MatchExpr);

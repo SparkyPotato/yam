@@ -159,6 +159,25 @@ impl ItemBuilder<'_> {
 			std::marker::PhantomData,
 		)
 	}
+
+	pub fn cast<T: AstElement, U: AstElement>(&self, id: AstId<T>) -> AstId<U> {
+		let elem = self.item.sub[id.0.index as usize].clone();
+		if U::cast(elem).is_some() {
+			AstId(
+				ErasedAstId {
+					item: self.item.path,
+					index: id.0.index,
+				},
+				std::marker::PhantomData,
+			)
+		} else {
+			panic!(
+				"Cannot cast from `{}` to `{}`",
+				std::any::type_name::<T>(),
+				std::any::type_name::<U>()
+			);
+		}
+	}
 }
 
 #[derive(Copy, Clone, Eq, PartialEq)]

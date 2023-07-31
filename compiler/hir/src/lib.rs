@@ -12,7 +12,7 @@ pub mod ast;
 pub mod ident;
 
 #[storage]
-pub struct Storage(ident::AbsPath, Item, ItemDiagnostic);
+pub struct Storage(AbsPath, Item, ItemDiagnostic);
 
 pub type ItemDiagnostic = Diagnostic<ErasedAstId>;
 
@@ -161,16 +161,17 @@ pub struct PtrType {
 #[derive(Clone, PartialEq, Eq)]
 pub struct Expr {
 	pub kind: ExprKind,
-	pub id: AstId<a::Expr>,
+	pub id: Option<AstId<a::Expr>>,
 }
 
 #[derive(Clone, PartialEq, Eq)]
 pub enum ExprKind {
+	Continue,
 	Array(ArrayExpr),
 	Let(LetExpr),
 	Block(Block),
 	Infix(InfixExpr),
-	Break(BreakExpr),
+	Break(Option<Ix<Expr>>),
 	Call(CallExpr),
 	Cast(CastExpr),
 	Field(FieldExpr),
@@ -178,12 +179,13 @@ pub enum ExprKind {
 	Literal(Literal),
 	Loop(LoopExpr),
 	Match(MatchExpr),
-	Path(Id<AbsPath>),
+	Fn(Id<AbsPath>),
+	Static(Id<AbsPath>),
 	Local(Ix<Local>),
 	EnumVariant(VariantExpr),
 	Ref(RefExpr),
 	Prefix(PrefixExpr),
-	Return(ReturnExpr),
+	Return(Option<Ix<Expr>>),
 }
 
 #[derive(Clone, PartialEq, Eq)]
@@ -193,7 +195,9 @@ pub struct ArrayExpr {
 }
 
 #[derive(Copy, Clone, PartialEq, Eq)]
-pub struct Local;
+pub struct Local {
+	pub decl: Name,
+}
 
 #[derive(Clone, PartialEq, Eq)]
 pub struct LetExpr {
@@ -201,10 +205,9 @@ pub struct LetExpr {
 	pub ty: Option<Ix<Type>>,
 	pub init: Option<Ix<Expr>>,
 	pub local: Ix<Local>,
-	pub succ: Block,
 }
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq, Default)]
 pub struct Block {
 	pub discard: Vec<Ix<Expr>>,
 	pub value: Option<Ix<Expr>>,
@@ -225,9 +228,9 @@ pub enum InfixOp {
 	Eq,
 	NotEq,
 	Lt,
-	LtEq,
+	Leq,
 	Gt,
-	GtEq,
+	Geq,
 	Add,
 	Sub,
 	Mul,
@@ -249,11 +252,6 @@ pub enum InfixOp {
 	XorAssign,
 	BitOrAssign,
 	BitAndAssign,
-}
-
-#[derive(Copy, Clone, PartialEq, Eq)]
-pub struct BreakExpr {
-	pub with: Option<Ix<Expr>>,
 }
 
 #[derive(Clone, PartialEq, Eq)]
@@ -314,8 +312,8 @@ pub struct MatchArm {
 
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub struct VariantExpr {
-	pub en: Ix<Enum>,
-	pub variant: Ix<Variant>,
+	pub path: Id<AbsPath>,
+	pub variant: Name,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq)]
@@ -336,9 +334,4 @@ pub enum PrefixOp {
 	Not,
 	Neg,
 	Deref,
-}
-
-#[derive(Copy, Clone, PartialEq, Eq)]
-pub struct ReturnExpr {
-	pub with: Option<Ix<Expr>>,
 }
