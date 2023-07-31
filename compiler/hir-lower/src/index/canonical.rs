@@ -130,7 +130,7 @@ pub fn canonicalize_module_tree(
 	} else {
 		(public, private)
 	};
-
+	
 	ModuleTree {
 		path: tree.path,
 		public: ctx.insert(public),

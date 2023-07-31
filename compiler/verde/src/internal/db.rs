@@ -1,6 +1,12 @@
-use std::{borrow::Borrow, cell::RefCell, hash::Hash, mem::MaybeUninit};
+use std::{
+	any::TypeId,
+	borrow::Borrow,
+	cell::{Cell, RefCell},
+	hash::Hash,
+	mem::MaybeUninit,
+};
 
-use rustc_hash::FxHashSet;
+use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::{
 	internal::{
@@ -29,11 +35,35 @@ pub trait Db {
 	fn storage_struct(&self, storage: u16) -> &dyn Storage;
 }
 
+#[doc(hidden)]
+pub struct ErasedVec {
+	bytes: [u8; std::mem::size_of::<Vec<()>>()],
+}
+
+impl ErasedVec {
+	fn new<T>() -> Self {
+		let mut bytes = [0; std::mem::size_of::<Vec<()>>()];
+		unsafe {
+			std::ptr::write(bytes.as_mut_ptr() as *mut Vec<T>, Vec::new());
+		}
+		Self { bytes }
+	}
+
+	unsafe fn as_mut<T>(&mut self) -> &mut Vec<T> { unsafe { &mut *(self.bytes.as_mut_ptr() as *mut Vec<T>) } }
+
+	pub(crate) unsafe fn into_inner<T>(self) -> Vec<T> {
+		// This transmute saves if the size of `Vec<T>` is ever different from `Vec<()>`.
+		unsafe { std::mem::transmute(self.bytes) }
+	}
+}
+
 /// A context into the database. Used by query functions to access the database.
 pub struct Ctx<'a> {
 	pub(crate) db: &'a dyn Db,
 	pub(crate) dependencies: RefCell<MaybeUninit<FxHashSet<(ErasedId, u64)>>>,
+	pub(crate) pushed: RefCell<MaybeUninit<FxHashMap<TypeId, (ErasedVec, &'static str)>>>,
 	pub(crate) curr_query: ErasedQueryId,
+	dead: Cell<bool>,
 }
 
 impl<'a> Ctx<'a> {
@@ -41,7 +71,9 @@ impl<'a> Ctx<'a> {
 		Self {
 			db,
 			dependencies: RefCell::new(MaybeUninit::new(FxHashSet::default())),
+			pushed: RefCell::new(MaybeUninit::new(FxHashMap::default())),
 			curr_query,
+			dead: Cell::new(false),
 		}
 	}
 
@@ -283,15 +315,16 @@ impl<'a> Ctx<'a> {
 	/// assert_eq!(db.get_all::<P>().next(), Some(&P { value: 1 }));
 	/// ```
 	pub fn push<T: Pushable>(&self, value: T) {
-		span!(enter trace, "push", ty = std::any::type_name::<T>());
-		let route = self.db.routing_table().route::<T>();
-		let storage = self
-			.db
-			.storage_struct(route.storage)
-			.pushable_storage(route.index)
-			.unwrap();
+		let name = std::any::type_name::<T>();
+		span!(enter trace, "push", ty = name);
+		let mut borrowed = self
+			.pushed
+			.try_borrow_mut()
+			.expect("Cannot call `push` within a `map` scope");
+		let map = unsafe { borrowed.assume_init_mut() };
+		let vec = map.entry(TypeId::of::<T>()).or_insert((ErasedVec::new::<T>(), name));
 		unsafe {
-			storage.push(self.curr_query, value);
+			vec.0.as_mut().push(value);
 		}
 	}
 
@@ -308,31 +341,39 @@ impl<'a> Ctx<'a> {
 		unsafe {
 			let index = storage.start_query::<T>(input);
 			let curr_query = ErasedQueryId { route, index };
-			{
-				span!(enter trace, "clear pushables", query = std::any::type_name::<T>());
-				for route in self.db.routing_table().pushables() {
-					let storage = self
-						.db
-						.storage_struct(route.storage)
-						.pushable_storage(route.index)
-						.unwrap();
-					storage.clear(curr_query);
-				}
-			}
-
 			Ctx::new(self.db, curr_query)
 		}
 	}
 
 	#[doc(hidden)]
 	pub fn end_query<T: Query>(&self, f: impl FnOnce() -> T::Output) -> Id<T::Output> {
+		assert!(!self.dead.get(), "Query has already been ended");
+		self.dead.set(true);
+
 		let query = self.db.routing_table().route::<T>();
 		let storage = self
 			.db
 			.storage_struct(query.storage)
 			.query_storage(query.index)
 			.unwrap();
-		unsafe { storage.execute::<T>(self, f) }
+		let ret = unsafe { storage.execute::<T>(self, f) };
+
+		// Commit the pushed values to the database (if there are any, we don't know)
+		let borrowed = self
+			.pushed
+			.try_borrow_mut()
+			.expect("Cannot end query within a `map` scope");
+		for (id, (vec, name)) in unsafe { borrowed.assume_init_read() } {
+			let route = self.db.routing_table().route_for(id, name);
+			let storage = self
+				.db
+				.storage_struct(route.storage)
+				.pushable_storage(route.index)
+				.unwrap();
+			unsafe { storage.push(self.curr_query, vec) }
+		}
+
+		ret
 	}
 
 	pub(crate) fn get_generation(&self, id: ErasedId) -> u64 {

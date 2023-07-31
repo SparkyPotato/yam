@@ -1,17 +1,16 @@
-use std::{borrow::Borrow, hash::Hash, time::Duration};
+use std::{borrow::Borrow, hash::Hash};
 
-use parking_lot::{MappedRwLockReadGuard, RwLock, RwLockReadGuard};
+use parking_lot::{MappedRwLockReadGuard, Mutex, RwLock, RwLockReadGuard};
+use rustc_hash::FxHashMap;
 
-use crate::{
-	event,
-	internal::{storage::DashMap, Interned},
-};
+use crate::{event, internal::Interned};
 
 pub trait ErasedInternedStorage {}
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct InternedStorage<T: Interned> {
-	map: DashMap<T, u32>,
+	/// Mutex is required for TOCTOU safety.
+	map: Mutex<FxHashMap<T, u32>>,
 	values: RwLock<Vec<T>>,
 }
 
@@ -22,17 +21,15 @@ impl<T: Interned> ErasedInternedStorage for InternedStorage<T> {}
 impl<T: Interned> InternedStorage<T> {
 	/// Insert a new value into the storage.
 	pub fn insert(&self, value: T) -> u32 {
-		match self.map.get(&value) {
+		let mut map = self.map.lock();
+		match map.get(&value) {
 			Some(index) => *index,
 			None => {
 				event!(trace, "inserting new value");
-				let mut values = self
-					.values
-					.try_write_for(Duration::from_secs(2))
-					.expect("Interning timed out: perhaps you have a deadlock?");
+				let mut values = self.values.write();
 				let index = values.len() as u32;
 				values.push(value.clone());
-				self.map.insert(value, index);
+				map.insert(value, index);
 				index
 			},
 		}
@@ -43,37 +40,29 @@ impl<T: Interned> InternedStorage<T> {
 		U: ToOwned<Owned = T> + Hash + Eq + ?Sized,
 		T: Borrow<U>,
 	{
-		match self.map.get(value) {
+		let mut map = self.map.lock();
+		match map.get(value) {
 			Some(index) => *index,
 			None => {
 				event!(trace, "inserting new value");
-				let mut values = self
-					.values
-					.try_write_for(Duration::from_secs(2))
-					.expect("Interning timed out: perhaps you have a deadlock?");
+				let mut values = self.values.write();
 				let index = values.len() as u32;
 				values.push(value.to_owned());
-				self.map.insert(value.to_owned(), index);
+				map.insert(value.to_owned(), index);
 				index
 			},
 		}
 	}
 
 	pub fn get(&self, index: u32) -> Get<'_, T> {
-		event!(trace, "reading value");
-		RwLockReadGuard::map(
-			self.values
-				.try_read_for(Duration::from_secs(2))
-				.expect("Interning timed out: perhaps you have a deadlock?"),
-			|x| &x[index as usize],
-		)
+		RwLockReadGuard::map(self.values.read_recursive(), |x| &x[index as usize])
 	}
 }
 
 impl<T: Interned> Default for InternedStorage<T> {
 	fn default() -> Self {
 		Self {
-			map: DashMap::default(),
+			map: Mutex::default(),
 			values: RwLock::new(Vec::new()),
 		}
 	}

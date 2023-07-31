@@ -89,8 +89,6 @@ pub trait Storable: Sized + Send + 'static {
 	/// If the type is a query, this should be [`QueryStorage<Self>`].
 	type Storage: Default + extra::ExtraBound;
 
-	const IS_PUSHABLE: bool;
-
 	/// Cast to a `&dyn TrackedStorage<Self>` if `Self` is a tracked struct.
 	fn tracked_storage(store: &Self::Storage) -> Option<&dyn ErasedTrackedStorage>;
 
@@ -126,8 +124,6 @@ macro_rules! intern {
 
 		impl Storable for $t {
 			type Storage = InternedStorage<Self>;
-
-			const IS_PUSHABLE: bool = false;
 
 			fn tracked_storage(_store: &Self::Storage) -> Option<&dyn ErasedTrackedStorage> { None }
 

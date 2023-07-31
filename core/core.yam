@@ -5,8 +5,3 @@ pub import lang_items.{
     char,
     f32, f64
 };
-
-fn f() {
-    let x = 0;
-    y
-}

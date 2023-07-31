@@ -60,8 +60,6 @@ pub fn interned(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
 		impl #i ::verde::internal::Storable for #ty #t #w {
 			type Storage = ::verde::internal::storage::InternedStorage<Self>;
 
-			const IS_PUSHABLE: bool = false;
-
 			fn tracked_storage(store: &Self::Storage) -> Option<&dyn ::verde::internal::storage::ErasedTrackedStorage> {
 				None
 			}

@@ -81,9 +81,8 @@ pub fn build_package_tree(db: &Ctx, indices: &[Id<Index>]) -> PackageTree {
 	}
 
 	fn realify(ctx: &Ctx, temp: TempTree) -> Id<ModuleTree> {
-		let path = temp.path;
 		let real = ModuleTree {
-			path,
+			path: temp.path,
 			index: temp.index,
 			children: temp.children.into_iter().map(|(k, v)| (k, realify(ctx, v))).collect(),
 		};

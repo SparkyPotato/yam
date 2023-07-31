@@ -1,29 +1,23 @@
-use std::{ops::Deref, time::Duration};
+use std::ops::Deref;
 
 use dashmap::mapref::{multiple::RefMulti, one::Ref};
-use parking_lot::{
-	lock_api::{RawMutex, RawMutexTimed},
-	Mutex,
-};
+use parking_lot::{lock_api::RawMutex, Mutex};
 
 use crate::{
-	internal::storage::{query::ErasedQueryId, DashMap, Route},
+	internal::{
+		storage::{query::ErasedQueryId, DashMap, Route},
+		ErasedVec,
+	},
 	Pushable,
 };
 
 pub trait ErasedPushableStorage {
-	fn clear(&self, query: ErasedQueryId);
+	/// **Safety**: The type of `self` must be `PushableStorage<T>`, where `T` matches the type stored in the
+	/// `ErasedVec`..
+	unsafe fn push(&self, query: ErasedQueryId, values: ErasedVec);
 }
 
 impl<'a> dyn ErasedPushableStorage + 'a {
-	/// **Safety**: The type of `self` must be `PushableStorage<T>`.
-	pub unsafe fn push<T: Pushable>(&self, query: ErasedQueryId, value: T) {
-		unsafe {
-			let storage = self as *const dyn ErasedPushableStorage as *const PushableStorage<T>;
-			(*storage).push(query, value);
-		}
-	}
-
 	/// **Safety**: The type of `self` must be `PushableStorage<T>`.
 	pub unsafe fn get_all<T: Pushable>(&self) -> impl Iterator<Item = &'_ T> {
 		unsafe {
@@ -55,10 +49,10 @@ pub struct PushableStorage<T> {
 }
 
 impl<T: Pushable> ErasedPushableStorage for PushableStorage<T> {
-	fn clear(&self, query: ErasedQueryId) {
+	unsafe fn push(&self, query: ErasedQueryId, values: ErasedVec) {
 		let mut data = self.map.entry(query.route).or_insert_with(Vec::new);
 		Self::expand_to(&mut data, query.index);
-		data[query.index as usize].lock().clear();
+		*data[query.index as usize].lock() = values.into_inner();
 	}
 }
 
@@ -67,12 +61,6 @@ impl<T: Pushable> PushableStorage<T> {
 		Self {
 			map: DashMap::default(),
 		}
-	}
-
-	pub fn push(&self, query: ErasedQueryId, value: T) {
-		let mut data = self.map.entry(query.route).or_insert_with(Vec::new);
-		Self::expand_to(&mut data, query.index);
-		data[query.index as usize].lock().push(value);
 	}
 
 	pub fn get_all(&self) -> impl Iterator<Item = &'_ T> {
@@ -110,7 +98,7 @@ impl<T: Pushable> PushableStorage<T> {
 	fn expand_to(data: &mut Vec<Mutex<Vec<T>>>, index: u32) {
 		let len = data.len();
 		if len <= index as usize {
-			data.extend(std::iter::repeat_with(|| Mutex::new(Vec::new())).take(index as usize - len + 1))
+			data.extend(std::iter::repeat_with(|| Mutex::default()).take(index as usize - len + 1))
 		}
 	}
 }
@@ -165,11 +153,8 @@ struct VecIter<'a, T> {
 impl<'a, T> VecIter<'a, T> {
 	fn new(vec: &'a Mutex<Vec<T>>) -> Self {
 		let iter = unsafe {
-			if vec.raw().try_lock_for(Duration::from_secs(2)) {
-				(*vec.data_ptr()).iter()
-			} else {
-				panic!("Query timed out: perhaps you have a deadlock?");
-			}
+			vec.raw().lock();
+			(*vec.data_ptr()).iter()
 		};
 		Self { vec, iter }
 	}

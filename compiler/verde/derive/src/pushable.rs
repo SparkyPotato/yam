@@ -30,8 +30,6 @@ pub(crate) fn pushable(input: DeriveInput) -> Result<TokenStream> {
 		where #(#bounds)* {
 			type Storage = ::verde::internal::storage::PushableStorage<Self>;
 
-			const IS_PUSHABLE: bool = true;
-
 			fn tracked_storage(store: &Self::Storage) -> Option<&dyn ::verde::internal::storage::ErasedTrackedStorage> {
 				None
 			}

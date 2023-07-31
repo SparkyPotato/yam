@@ -40,22 +40,47 @@ mod normal {
 	pub struct RoutingTable {
 		routes: FxHashMap<TypeId, Route>,
 		type_names: FxHashMap<Route, &'static str>,
-		pushables: Vec<Route>,
 	}
 
 	impl RoutingTable {
-		pub fn route<T: Storable>(&self) -> Route {
-			match self.routes.get(&TypeId::of::<T>()) {
+		pub fn route<T: Storable>(&self) -> Route { self.route_for(TypeId::of::<T>(), std::any::type_name::<T>()) }
+
+		pub fn route_for(&self, id: TypeId, name: &'static str) -> Route {
+			match self.routes.get(&id) {
 				Some(route) => *route,
-				None => panic!("Database does not contain `{}`", std::any::type_name::<T>()),
+				None => panic!("Database does not contain `{}`", name),
 			}
 		}
 
 		pub fn name(&self, route: Route) -> &str { self.type_names.get(&route).unwrap() }
 
-		pub fn pushables(&self) -> impl Iterator<Item = Route> + '_ { self.pushables.iter().copied() }
-
 		pub fn generate_for_db<T: Db>() -> Self {
+			#[cfg(feature = "debug")]
+			{
+				use std::{thread, time::Duration};
+
+				use parking_lot::deadlock;
+
+				thread::spawn(move || loop {
+					thread::sleep(Duration::from_secs(2));
+					let deadlocks = deadlock::check_deadlock();
+					if deadlocks.is_empty() {
+						continue;
+					}
+
+					eprintln!("{} deadlocks detected", deadlocks.len());
+					for (i, threads) in deadlocks.iter().enumerate() {
+						eprintln!("Deadlock #{}", i);
+						for t in threads {
+							eprintln!("Thread {:#?}", t.thread_id());
+							eprintln!("{:#?}", t.backtrace());
+						}
+						eprintln!()
+					}
+					std::process::abort();
+				});
+			}
+
 			let mut builder = RoutingTableBuilder::default();
 			T::init_routing(&mut builder);
 			builder.finish()
@@ -66,7 +91,6 @@ mod normal {
 	pub struct RoutingTableBuilder {
 		routes: FxHashMap<TypeId, Route>,
 		type_names: FxHashMap<Route, &'static str>,
-		pushables: Vec<Route>,
 	}
 
 	impl RoutingTableBuilder {
@@ -74,7 +98,6 @@ mod normal {
 			RouteBuilder {
 				routes: &mut self.routes,
 				type_names: &mut self.type_names,
-				pushables: &mut self.pushables,
 				storage,
 			}
 		}
@@ -83,7 +106,6 @@ mod normal {
 			RoutingTable {
 				routes: self.routes,
 				type_names: self.type_names,
-				pushables: self.pushables,
 			}
 		}
 	}
@@ -91,7 +113,6 @@ mod normal {
 	pub struct RouteBuilder<'a> {
 		routes: &'a mut FxHashMap<TypeId, Route>,
 		type_names: &'a mut FxHashMap<Route, &'static str>,
-		pushables: &'a mut Vec<Route>,
 		storage: u16,
 	}
 
@@ -102,10 +123,6 @@ mod normal {
 				index,
 			};
 			let id = TypeId::of::<T>();
-
-			if T::IS_PUSHABLE {
-				self.pushables.push(route);
-			}
 
 			if self.routes.insert(id, route).is_some() {
 				panic!("Duplicate route for type `{}`", std::any::type_name::<T>());
@@ -164,7 +181,6 @@ mod test {
 		type_names: RefCell<FxHashMap<Route, &'static str>>,
 		dynamic_storage_index: u16,
 		next_route_index: AtomicU16,
-		pushables: Mutex<Vec<Route>>,
 		make: Mutex<Vec<GenFunc>>,
 	}
 
@@ -173,19 +189,16 @@ mod test {
 		where
 			StorageType: From<<T as Storable>::Storage>,
 		{
-			*self.routes.borrow_mut().entry(TypeId::of::<T>()).or_insert_with(|| {
+			self.route_for(TypeId::of::<T>(), "")
+		}
+
+		pub fn route_for(&self, id: TypeId, _: &'static str) -> Route {
+			*self.routes.borrow_mut().entry(id).or_insert_with(|| {
 				let route = Route {
 					storage: self.dynamic_storage_index,
 					index: self.next_route_index.load(Ordering::Relaxed),
 				};
-				self.make
-					.lock()
-					.push(Box::new(move || (T::Storage::default().into(), route.index)));
 				self.next_route_index.fetch_add(1, Ordering::Relaxed);
-				self.type_names.borrow_mut().insert(route, std::any::type_name::<T>());
-				if T::IS_PUSHABLE {
-					self.pushables.lock().push(route);
-				}
 				route
 			})
 		}
@@ -195,16 +208,6 @@ mod test {
 		pub fn make(&self) -> Vec<Box<dyn FnOnce() -> (StorageType, u16)>> {
 			let mut m = self.make.lock();
 			std::mem::take(&mut *m)
-		}
-
-		pub fn pushables(&self) -> impl Iterator<Item = Route> + '_ {
-			unsafe {
-				self.pushables.raw().lock();
-				RouteIter {
-					mutex: &self.pushables,
-					iter: (*self.pushables.data_ptr()).iter(),
-				}
-			}
 		}
 
 		pub fn generate_for_db<T: Db>() -> Self {
@@ -249,7 +252,6 @@ mod test {
 				type_names: RefCell::new(self.type_names),
 				dynamic_storage_index: self.dynamic_storage_index,
 				next_route_index: AtomicU16::new(0),
-				pushables: Mutex::new(self.pushables),
 				make: Mutex::new(Vec::new()),
 			}
 		}
@@ -269,10 +271,6 @@ mod test {
 				index,
 			};
 			let id = TypeId::of::<T>();
-
-			if T::IS_PUSHABLE {
-				self.pushables.push(route);
-			}
 
 			if self.routes.insert(id, route).is_some() {
 				panic!("Duplicate route for type `{}`", std::any::type_name::<T>());
