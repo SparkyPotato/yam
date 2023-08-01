@@ -62,6 +62,7 @@ pub(crate) fn query(input: ItemFn) -> Result<TokenStream> {
 	let derive = if cfg!(feature = "serde") {
 		quote! {
 			#[derive(::verde::serde::Serialize, ::verde::serde::Deserialize)]
+            #[serde(crate = "::verde::serde")]
 		}
 	} else {
 		quote! {}

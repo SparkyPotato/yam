@@ -15,10 +15,18 @@ pub(crate) fn storage(input: ItemStruct) -> Result<TokenStream> {
 		})
 		.collect::<std::result::Result<Vec<_>, _>>()
 		.map_err(|_: TryFromIntError| Error::new(name.span(), "how do you have more than 65536 fields?"))?;
+	let derive = if cfg!(feature = "serde") {
+		quote! {
+			#[derive(::verde::serde::Serialize, ::verde::serde::Deserialize)]
+			#[serde(crate = "::verde::serde")]
+		}
+	} else {
+		quote! {}
+	};
 
 	Ok(quote! {
 		#[derive(Default)]
-		#[cfg_attr(feature = "serde", derive(::verde::serde::Serialize, ::verde::serde::Deserialize))]
+		#derive
 		#vis struct #name(
 			#(<#fields as ::verde::internal::Storable>::Storage,)*
 		);
@@ -81,7 +89,10 @@ pub(crate) fn database(input: ItemStruct) -> Result<TokenStream> {
 		.map_err(|_| Error::new(name.span(), "how do you have more than 65536 fields?"))?;
 
 	let derive = if cfg!(feature = "serde") {
-		quote! { #[derive(::verde::serde::Serialize, ::verde::serde::Deserialize)] }
+		quote! {
+            #[derive(::verde::serde::Serialize, ::verde::serde::Deserialize)]
+            #[serde(crate = "::verde::serde")]
+        }
 	} else {
 		quote! {}
 	};
