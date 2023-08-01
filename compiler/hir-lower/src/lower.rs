@@ -19,15 +19,18 @@ use crate::{
 	VisiblePackages,
 };
 
-pub fn build_hir_sea(db: &dyn Db, modules: impl IntoIterator<Item = Id<LoweredModule>>) -> Vec<Id<hir::Item>> {
-	let mut v = Vec::new();
+pub fn build_hir_sea(
+	db: &dyn Db, modules: impl IntoIterator<Item = Id<LoweredModule>>,
+) -> FxHashMap<Id<AbsPath>, Id<hir::Item>> {
+	let mut m = FxHashMap::default();
 	for module in modules {
 		let module = db.get(module);
 		for &item in module.items.iter() {
-			v.push(item);
+			let i = db.get(item);
+			m.insert(i.path, item);
 		}
 	}
-	v
+	m
 }
 
 #[derive(Tracked)]
@@ -85,11 +88,7 @@ fn lower_item(
 	let mut lowerer = Lowerer::new(ctx, module, builder, packages, tree, file);
 	let path = ctx.add(AbsPath::Name { prec: module, name });
 
-	let attrs = item
-		.attributes()
-		.into_iter()
-		.filter_map(|x| lowerer.attrib(x))
-		.collect();
+	let attrs = item.attributes().into_iter().filter_map(|x| lowerer.attr(x)).collect();
 
 	let kind = match item.item_kind() {
 		Some(ast::ItemKind::Fn(f)) => hir::ItemKind::Fn(lowerer.fn_(f)?),
@@ -102,6 +101,7 @@ fn lower_item(
 
 	Some(hir::Item {
 		path,
+		name: lowerer.name(name_of_item(&item)?.0)?,
 		attrs,
 		exprs: lowerer.exprs,
 		types: lowerer.types,
@@ -136,75 +136,82 @@ impl<'a> Lowerer<'a> {
 		}
 	}
 
-	fn attrib(&mut self, a: ast::Attribute) -> Option<hir::Attr> {
+	fn attr(&mut self, a: ast::Attribute) -> Option<hir::Attr> {
 		let name = a.name()?;
 		let text = name.text()?;
-		if text == Text::new("lang") {
-			let tt = a.token_tree()?;
-			let mut tokens = tt.tokens();
+		let kind = match text.as_str() {
+			"lang" => {
+				let tt = a.token_tree()?;
+				let mut tokens = tt.tokens();
 
-			let Some(value) = tokens.next() else {
-				let span = tt.span().with(self.file);
-				self.ctx.push(span.error("expected lang item type").label(span.mark()));
-				return None;
-			};
-			let Some(ident) = token::Ident::cast(SyntaxElement::Token(value.clone())) else {
-				let span = value.text_range();
-				let span = RawSpan {
-					start: span.start().into(),
-					end: span.end().into(),
-					relative: self.file,
-				};
-				self.ctx
-					.push(span.error("lang item type must be an `ident`").label(span.mark()));
-				return None;
-			};
-
-			let mut span = None;
-			for token in tokens {
-				let range = token.text_range();
-				let span = span.get_or_insert(RawSpan {
-					start: range.start().into(),
-					end: range.end().into(),
-					relative: self.file,
-				});
-				span.end = range.end().into();
-			}
-
-			if let Some(span) = span {
-				self.ctx.push(
-					span.error("unexpected tokens in lang item attribute")
-						.label(span.mark()),
-				);
-			}
-
-			let lang = match ident.text().as_str() {
-				"u8" => hir::LangItem::U8,
-				"u16" => hir::LangItem::U16,
-				"u32" => hir::LangItem::U32,
-				"u64" => hir::LangItem::U64,
-				"u128" => hir::LangItem::U128,
-				"i8" => hir::LangItem::I8,
-				"i16" => hir::LangItem::I16,
-				"i32" => hir::LangItem::I32,
-				"i64" => hir::LangItem::I64,
-				"i128" => hir::LangItem::I128,
-				"bool" => hir::LangItem::Bool,
-				"char" => hir::LangItem::Char,
-				"f32" => hir::LangItem::F32,
-				"f64" => hir::LangItem::F64,
-				_ => {
-					let span = ident.span().with(self.file);
-					self.ctx.push(span.error("unknown lang item").label(span.mark()));
+				let Some(value) = tokens.next() else {
+					let span = tt.span().with(self.file);
+					self.ctx.push(span.error("expected lang item type").label(span.mark()));
 					return None;
-				},
-			};
-			Some(hir::Attr::LangItem(lang))
-		} else {
-			let span = name.span().with(self.file);
-			self.ctx.push(span.error("unknown attribute").label(span.mark()));
-			None
-		}
+				};
+				let Some(ident) = token::Ident::cast(SyntaxElement::Token(value.clone())) else {
+					let span = value.text_range();
+					let span = RawSpan {
+						start: span.start().into(),
+						end: span.end().into(),
+						relative: self.file,
+					};
+					self.ctx
+						.push(span.error("lang item type must be an `ident`").label(span.mark()));
+					return None;
+				};
+
+				let mut span = None;
+				for token in tokens {
+					let range = token.text_range();
+					let span = span.get_or_insert(RawSpan {
+						start: range.start().into(),
+						end: range.end().into(),
+						relative: self.file,
+					});
+					span.end = range.end().into();
+				}
+
+				if let Some(span) = span {
+					self.ctx.push(
+						span.error("unexpected tokens in lang item attribute")
+							.label(span.mark()),
+					);
+				}
+
+				let lang = match ident.text().as_str() {
+					"u8" => hir::LangItem::U8,
+					"u16" => hir::LangItem::U16,
+					"u32" => hir::LangItem::U32,
+					"u64" => hir::LangItem::U64,
+					"u128" => hir::LangItem::U128,
+					"i8" => hir::LangItem::I8,
+					"i16" => hir::LangItem::I16,
+					"i32" => hir::LangItem::I32,
+					"i64" => hir::LangItem::I64,
+					"i128" => hir::LangItem::I128,
+					"bool" => hir::LangItem::Bool,
+					"char" => hir::LangItem::Char,
+					"f32" => hir::LangItem::F32,
+					"f64" => hir::LangItem::F64,
+					_ => {
+						let span = ident.span().with(self.file);
+						self.ctx.push(span.error("unknown lang item").label(span.mark()));
+						return None;
+					},
+				};
+				hir::AttrKind::LangItem(lang)
+			},
+			_ => {
+				let span = name.span().with(self.file);
+				self.ctx.push(span.error("unknown attribute").label(span.mark()));
+				return None;
+			},
+		};
+
+		let id = self.builder.add(a);
+
+		Some(hir::Attr { kind, id })
 	}
 
 	fn fn_(&mut self, f: ast::Fn) -> Option<hir::Fn> {

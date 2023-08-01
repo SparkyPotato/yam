@@ -2,9 +2,8 @@ use std::{fmt::Debug, hash::Hash};
 
 use diagnostics::{FilePath, FullSpan, Span};
 use hir::{
-	ast::{AstId, ErasedAstId, ItemData},
+	ast::{AstId, AstMap, ErasedAstId, ItemData},
 	ident::AbsPath,
-	AstMap,
 };
 use rustc_hash::FxHashMap;
 use syntax::{ast, AstElement, SyntaxElement};

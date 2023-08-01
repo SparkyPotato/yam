@@ -1,18 +1,27 @@
+use std::fmt::Debug;
+
 use arena::{Arena, Ix};
 use diagnostics::Diagnostic;
 use ident::AbsPath;
+pub use lang_item::LangItem;
 use syntax::{ast as a, token::StringLit};
 use text::Text;
 use verde::{storage, Id, Tracked};
 
-pub use crate::ast::AstMap;
 use crate::ast::{AstId, ErasedAstId};
 
 pub mod ast;
 pub mod ident;
+pub mod lang_item;
 
 #[storage]
-pub struct Storage(AbsPath, Item, ItemDiagnostic);
+pub struct Storage(
+	AbsPath,
+	Item,
+	ItemDiagnostic,
+	lang_item::LangItemMap,
+	lang_item::build_lang_item_map,
+);
 
 pub type ItemDiagnostic = Diagnostic<ErasedAstId>;
 
@@ -23,33 +32,21 @@ pub struct Name {
 }
 
 #[derive(Copy, Clone, PartialEq, Eq)]
-pub enum LangItem {
-	// Primitives.
-	U8,
-	U16,
-	U32,
-	U64,
-	U128,
-	I8,
-	I16,
-	I32,
-	I64,
-	I128,
-	Bool,
-	Char,
-	F32,
-	F64,
+pub enum AttrKind {
+	LangItem(LangItem),
 }
 
 #[derive(Copy, Clone, PartialEq, Eq)]
-pub enum Attr {
-	LangItem(LangItem),
+pub struct Attr {
+	pub kind: AttrKind,
+	pub id: AstId<a::Attribute>,
 }
 
 #[derive(Tracked, Clone, PartialEq, Eq)]
 pub struct Item {
 	#[id]
 	pub path: Id<AbsPath>,
+	pub name: Name,
 	pub attrs: Vec<Attr>,
 	pub exprs: Arena<Expr>,
 	pub types: Arena<Type>,
@@ -64,6 +61,18 @@ pub enum ItemKind {
 	Fn(Fn),
 	TypeAlias(TypeAlias),
 	Static(Static),
+}
+
+impl Debug for ItemKind {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		match self {
+			ItemKind::Struct(_) => write!(f, "struct"),
+			ItemKind::Enum(_) => write!(f, "enum"),
+			ItemKind::Fn(_) => write!(f, "fn"),
+			ItemKind::TypeAlias(_) => write!(f, "type alias"),
+			ItemKind::Static(_) => write!(f, "static"),
+		}
+	}
 }
 
 #[derive(Clone, PartialEq, Eq)]
@@ -137,6 +146,20 @@ pub enum TypeKind {
 	Enum(Id<AbsPath>),
 	Alias(Id<AbsPath>),
 	Ptr(PtrType),
+}
+
+impl Debug for TypeKind {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		match self {
+			TypeKind::Array(_) => write!(f, "array"),
+			TypeKind::Fn(_) => write!(f, "fn"),
+			TypeKind::Infer => write!(f, "<unknown>"),
+			TypeKind::Struct(_) => write!(f, "struct"),
+			TypeKind::Enum(_) => write!(f, "enum"),
+			TypeKind::Alias(_) => write!(f, "alias"),
+			TypeKind::Ptr(_) => write!(f, "pointer"),
+		}
+	}
 }
 
 #[derive(Copy, Clone, PartialEq, Eq)]

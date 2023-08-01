@@ -1,7 +1,7 @@
 use std::sync::Mutex;
 
 use diagnostics::{emit, FileCache, FilePath, FullDiagnostic};
-use hir::{ident::PackageId, ItemDiagnostic};
+use hir::{ident::PackageId, lang_item::build_lang_item_map, ItemDiagnostic};
 use hir_lower::{
 	index::{
 		build_ast_map,
@@ -94,17 +94,20 @@ pub fn compile(input: CompileInput) -> CompileOutput {
 	// Canonicalize tree.
 	let tree = db.execute(|ctx| canonicalize_tree(ctx, tree, vis_packages));
 
-	// Lower to HIR: Exposing visible packages, lowering each module, collecting all items, and then generating the
-	// global AST map.
-
-	// TODO: Parallelize this (fix deadlock).
+	// Lower each module to HIR.
 	let modules: Vec<_> = modules
-		.into_par_iter().zip(maps.par_iter_mut())
-		// .into_iter().zip(maps.iter_mut())
+		.into_par_iter()
+		.zip(maps.par_iter_mut())
 		.map(move |(x, map)| db.execute(|ctx| lower_to_hir(ctx, x, packages, tree, map)))
 		.collect();
 
+	// Collect all items into one blob.
 	let items = build_hir_sea(db, modules);
+
+	// Make lang item map.
+	let lang_item_map = db.execute(|ctx| build_lang_item_map(ctx, &items));
+
+	// Build the AST map for diagnostics.
 	let (amap, tmap) = build_ast_map(maps);
 
 	// Emit all possible diagnostics now.
