@@ -1,0 +1,10 @@
+[package]
+name = "tycheck"
+version = "0.0.0"
+edition = "2021"
+
+[dependencies]
+arena = { path = "../arena" }
+diagnostics = { path = "../diagnostics" }
+hir = { path = "../hir" }
+verde = { path = "../verde" }

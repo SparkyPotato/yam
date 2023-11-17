@@ -23,7 +23,7 @@ use tracing::{span, Level};
 use verde::{db, Db, Id};
 
 #[db]
-pub struct Database(hir::Storage, hir_lower::Storage);
+pub struct Database(hir::Storage, hir_lower::Storage, thir::Storage);
 
 pub struct SourceFile {
 	pub path: FilePath,
@@ -50,10 +50,8 @@ pub fn compile(input: CompileInput) -> CompileOutput {
 	let dbc = input.db;
 	let db = &dbc as &(dyn Db + Send + Sync);
 
-	// Parse
 	let (modules, cache) = parse(db, input.files);
 
-	// Generate stage 1 indices.
 	let mut indices = Vec::with_capacity(modules.len());
 	let mut maps = Vec::with_capacity(modules.len());
 	modules
@@ -70,10 +68,7 @@ pub fn compile(input: CompileInput) -> CompileOutput {
 		})
 		.unzip_into_vecs(&mut indices, &mut maps);
 
-	// Build tree for canonicalization.
 	let tree = db.execute(|ctx| build_package_tree(ctx, &indices));
-
-	// Build package tree.
 	let packages = db.set_input(VisiblePackages {
 		package: PackageId(0),
 		packages: {
@@ -90,25 +85,17 @@ pub fn compile(input: CompileInput) -> CompileOutput {
 			p
 		},
 	});
-
-	// Canonicalize tree.
 	let tree = db.execute(|ctx| canonicalize_tree(ctx, tree, vis_packages));
 
-	// Lower each module to HIR.
 	let modules: Vec<_> = modules
 		.into_par_iter()
 		.zip(maps.par_iter_mut())
 		.map(move |(x, map)| db.execute(|ctx| lower_to_hir(ctx, x, packages, tree, map)))
 		.collect();
-
-	// Collect all items into one blob.
+	let (amap, tmap) = build_ast_map(maps);
 	let items = build_hir_sea(db, modules);
 
-	// Make lang item map.
 	let lang_item_map = db.execute(|ctx| build_lang_item_map(ctx, &items));
-
-	// Build the AST map for diagnostics.
-	let (amap, tmap) = build_ast_map(maps);
 
 	// Emit all possible diagnostics now.
 	emit(db.get_all::<FullDiagnostic>().cloned(), &cache, &());

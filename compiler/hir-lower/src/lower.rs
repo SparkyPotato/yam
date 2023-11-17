@@ -217,6 +217,15 @@ impl<'a> Lowerer<'a> {
 	fn fn_(&mut self, f: ast::Fn) -> Option<hir::Fn> {
 		let abi = self.abi(f.abi());
 		let name = self.name(f.name()?)?;
+		let mut params = Arena::new();
+		for p in f.param_list().iter().flat_map(|x| x.params()) {
+			let Some(p) = self.param(p) else {
+				continue;
+			};
+			let name = p.name.name;
+			let param = params.push(p);
+			self.resolver.declare_param(name, param);
+		}
 		let params = f
 			.param_list()
 			.iter()
@@ -333,6 +342,12 @@ impl<'a> Lowerer<'a> {
 						let span = path.span().with(self.file);
 						self.ctx
 							.push(span.error("expected type").label(span.label("found local")));
+						return None;
+					},
+					Resolution::Param { .. } => {
+						let span = path.span().with(self.file);
+						self.ctx
+							.push(span.error("expected type").label(span.label("found param")));
 						return None;
 					},
 				}
@@ -559,9 +574,7 @@ impl<'a> Lowerer<'a> {
 									let rest = self.ctx.geti(rest);
 									let span = rest.ast.span().with(self.file);
 									self.ctx
-										.push(span.error("path continues after enum variant").label(span.label(
-											"cannot access a field of a type - use an instance of the struct instead",
-										)));
+										.push(span.error("path continues after enum variant").label(span.mark()));
 								}
 
 								hir::ExprKind::EnumVariant(hir::VariantExpr { path, variant })
@@ -580,9 +593,7 @@ impl<'a> Lowerer<'a> {
 									let rest = self.ctx.geti(rest);
 									let span = rest.ast.span().with(self.file);
 									self.ctx
-										.push(span.error("path continues after enum variant").label(span.label(
-											"cannot access a field of a type - use an instance of the struct instead",
-										)));
+										.push(span.error("path continues after enum variant").label(span.mark()));
 								}
 
 								hir::ExprKind::EnumVariant(hir::VariantExpr { path, variant })
@@ -593,23 +604,13 @@ impl<'a> Lowerer<'a> {
 								return None;
 							}
 						},
-						NameTy::Static => {
-							if let Some(rest) = unresolved {
-								let rest = self.ctx.geti(rest);
-								let span = rest.ast.span().with(self.file);
-								self.ctx.push(span.error("path continues after static").label(
-									span.label(
-										"cannot access a field of a type - use an instance of the struct instead",
-									),
-								));
-								return None;
-							} else {
-								self.field_access(hir::ExprKind::Static(path), unresolved)
-							}
-						},
+						NameTy::Static => self.field_access(hir::ExprKind::Static(path), unresolved),
 					},
 					Resolution::Local { local, unresolved } => {
 						self.field_access(hir::ExprKind::Local(local), unresolved)
+					},
+					Resolution::Param { param, unresolved } => {
+						self.field_access(hir::ExprKind::Param(param), unresolved)
 					},
 				};
 
@@ -699,6 +700,7 @@ impl<'a> Lowerer<'a> {
 				},
 			},
 			Resolution::Local { local, .. } => hir::ExprKind::Local(local),
+			Resolution::Param { param, .. } => hir::ExprKind::Param(param),
 		};
 
 		Some(kind)
@@ -898,6 +900,10 @@ enum Resolution {
 		local: Ix<hir::Local>,
 		unresolved: Option<Id<CachedName>>,
 	},
+	Param {
+		param: Ix<hir::Param>,
+		unresolved: Option<Id<CachedName>>,
+	},
 	Item {
 		path: Id<AbsPath>,
 		ty: NameTy,
@@ -911,6 +917,7 @@ struct NameResolver<'a> {
 	packages: Get<'a, VisiblePackages>,
 	tree: Get<'a, CanonicalTree>,
 	scopes: Vec<FxHashMap<Text, Ix<hir::Local>>>,
+	params: FxHashMap<Text, Ix<hir::Param>>,
 	file: FilePath,
 }
 
@@ -924,6 +931,7 @@ impl<'a> NameResolver<'a> {
 			packages: ctx.get(packages),
 			tree: ctx.get(tree),
 			scopes: Vec::new(),
+			params: FxHashMap::default(),
 			file,
 		}
 	}
@@ -983,6 +991,11 @@ impl<'a> NameResolver<'a> {
 					local,
 					unresolved: r.next,
 				});
+			} else if let Some(param) = self.resolve_param(r.name) {
+				return Some(Resolution::Param {
+					param,
+					unresolved: r.next,
+				});
 			}
 
 			let tree = self.tree.modules[&self.this];
@@ -1032,6 +1045,8 @@ impl<'a> NameResolver<'a> {
 		}
 	}
 
+	fn declare_param(&mut self, name: Text, param: Ix<hir::Param>) { self.params.insert(name, param); }
+
 	fn declare_local(&mut self, name: Text, local: Ix<hir::Local>) {
 		let scope = self.scopes.last_mut().expect("let without any scope");
 		scope.insert(name, local);
@@ -1045,6 +1060,8 @@ impl<'a> NameResolver<'a> {
 		}
 		None
 	}
+
+	fn resolve_param(&self, name: Text) -> Option<Ix<hir::Param>> { self.params.get(&name).copied() }
 
 	fn push_scope(&mut self) { self.scopes.push(FxHashMap::default()); }
 

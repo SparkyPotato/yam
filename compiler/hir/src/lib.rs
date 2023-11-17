@@ -79,7 +79,7 @@ impl Debug for ItemKind {
 pub struct Fn {
 	pub abi: Option<Abi>,
 	pub name: Name,
-	pub params: Vec<Param>,
+	pub params: Arena<Param>,
 	pub ret: Option<Ix<Type>>,
 	pub body: Option<Block>,
 }
@@ -106,13 +106,13 @@ pub struct Abi {
 #[derive(Clone, PartialEq, Eq)]
 pub struct Struct {
 	pub name: Name,
-	pub fields: Vec<Param>,
+	pub fields: Arena<Param>,
 }
 
 #[derive(Clone, PartialEq, Eq)]
 pub struct Enum {
 	pub name: Name,
-	pub variants: Vec<Variant>,
+	pub variants: Arena<Variant>,
 }
 
 #[derive(Clone, PartialEq, Eq)]
@@ -205,6 +205,7 @@ pub enum ExprKind {
 	Fn(Id<AbsPath>),
 	Static(Id<AbsPath>),
 	Local(Ix<Local>),
+	Param(Ix<Param>),
 	EnumVariant(VariantExpr),
 	Ref(RefExpr),
 	Prefix(PrefixExpr),

@@ -32,6 +32,16 @@ impl<T> Arena<T> {
 		self.elems.push(elem);
 		Ix::new(ix)
 	}
+
+	pub fn ids(&self) -> impl Iterator<Item = Ix<T>> + '_ { self.elems.iter().enumerate().map(|(i, _)| Ix::new(i)) }
+}
+
+impl<T> FromIterator<T> for Arena<T> {
+	fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
+		Self {
+			elems: FromIterator::from_iter(iter),
+		}
+	}
 }
 
 impl<T> Index<Ix<T>> for Arena<T> {

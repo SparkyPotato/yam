@@ -9,6 +9,8 @@ hir = { path = "../hir" }
 hir-lower = { path = "../hir-lower" }
 parse = { path = "../parse" }
 text = { path = "../text" }
+thir = { path = "../thir" }
+tycheck = { path = "../tycheck" }
 verde = { path = "../verde", features = ["tracing", "debug"] }
 
 rayon = "1.7"

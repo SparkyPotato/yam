@@ -5,3 +5,5 @@ pub import lang_items.{
     char,
     f32, f64
 };
+
+fn identity(x: u8) -> u8 { a }
