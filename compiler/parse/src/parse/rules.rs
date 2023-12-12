@@ -132,7 +132,7 @@ impl Rule for Enum {
 		p.api.start_node(SyntaxKind::Enum);
 
 		p!(p.expect(T![enum]));
-		p!(p.expect(T![ident]));
+		p!(name(p));
 
 		p.api.start_node(SyntaxKind::VariantList);
 		p!(p.expect(T!['{']));

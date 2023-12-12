@@ -25,7 +25,7 @@ pub struct Storage(
 
 pub type ItemDiagnostic = Diagnostic<ErasedAstId>;
 
-#[derive(Copy, Clone, PartialEq, Eq)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub struct Name {
 	pub name: Text,
 	pub id: AstId<a::Name>,
@@ -196,6 +196,7 @@ pub enum ExprKind {
 	Infix(InfixExpr),
 	Break(Option<Ix<Expr>>),
 	Call(CallExpr),
+	Struct(StructExpr),
 	Cast(CastExpr),
 	Field(FieldExpr),
 	Index(IndexExpr),
@@ -245,7 +246,7 @@ pub struct InfixExpr {
 	pub rhs: Ix<Expr>,
 }
 
-#[derive(Copy, Clone, PartialEq, Eq)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum InfixOp {
 	Or,
 	And,
@@ -281,6 +282,12 @@ pub enum InfixOp {
 #[derive(Clone, PartialEq, Eq)]
 pub struct CallExpr {
 	pub callee: Ix<Expr>,
+	pub args: Vec<Ix<Expr>>,
+}
+
+#[derive(Clone, PartialEq, Eq)]
+pub struct StructExpr {
+	pub struct_: Id<AbsPath>,
 	pub args: Vec<Ix<Expr>>,
 }
 
@@ -353,7 +360,7 @@ pub struct PrefixExpr {
 	pub expr: Ix<Expr>,
 }
 
-#[derive(Copy, Clone, PartialEq, Eq)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum PrefixOp {
 	Not,
 	Neg,

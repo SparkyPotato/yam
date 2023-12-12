@@ -120,6 +120,11 @@ struct Lowerer<'a> {
 	file: FilePath,
 }
 
+enum NameExprResolution {
+	Struct(Id<AbsPath>),
+	Expr(hir::ExprKind),
+}
+
 impl<'a> Lowerer<'a> {
 	fn new(
 		ctx: &'a Ctx<'a>, module: Id<AbsPath>, builder: ItemBuilder<'a>, packages: Id<VisiblePackages>,
@@ -423,7 +428,7 @@ impl<'a> Lowerer<'a> {
 			ast::Expr::InfixExpr(i) => hir::ExprKind::Infix(self.infix(i)?),
 			ast::Expr::Block(b) => hir::ExprKind::Block(self.block(b).unwrap_or_default()),
 			ast::Expr::BreakExpr(b) => hir::ExprKind::Break(b.expr().and_then(|x| self.expr(x))),
-			ast::Expr::CallExpr(c) => hir::ExprKind::Call(self.call(c)?),
+			ast::Expr::CallExpr(c) => self.call(c)?,
 			ast::Expr::CastExpr(c) => hir::ExprKind::Cast(self.cast(c)?),
 			ast::Expr::ContinueKw(_) => hir::ExprKind::Continue,
 			ast::Expr::FieldExpr(f) => self.field(f)?,
@@ -514,8 +519,7 @@ impl<'a> Lowerer<'a> {
 		}
 	}
 
-	fn call(&mut self, c: ast::CallExpr) -> Option<hir::CallExpr> {
-		let callee = self.expr(c.expr()?)?;
+	fn call(&mut self, c: ast::CallExpr) -> Option<hir::ExprKind> {
 		let args = c
 			.arg_list()
 			.iter()
@@ -523,7 +527,29 @@ impl<'a> Lowerer<'a> {
 			.flat_map(|e| self.expr(e))
 			.collect();
 
-		Some(hir::CallExpr { callee, args })
+		let callee = c.expr()?;
+		let kind = match callee {
+			ast::Expr::NameExpr(n) => match self.name_expr_inner(n)? {
+				NameExprResolution::Struct(struct_) => hir::ExprKind::Struct(hir::StructExpr { struct_, args }),
+				NameExprResolution::Expr(kind) => {
+					let id = Some(self.builder.add(c.expr()?));
+					let callee = self.exprs.push(hir::Expr { kind, id });
+					let args = c
+						.arg_list()
+						.iter()
+						.flat_map(|x| x.exprs())
+						.flat_map(|e| self.expr(e))
+						.collect();
+
+					hir::ExprKind::Call(hir::CallExpr { callee, args })
+				},
+			},
+			_ => {
+				let callee = self.expr(c.expr()?)?;
+				hir::ExprKind::Call(hir::CallExpr { callee, args })
+			},
+		};
+		Some(kind)
 	}
 
 	fn cast(&mut self, c: ast::CastExpr) -> Option<hir::CastExpr> {
@@ -686,10 +712,25 @@ impl<'a> Lowerer<'a> {
 	}
 
 	fn name_expr(&mut self, n: ast::NameExpr) -> Option<hir::ExprKind> {
-		let kind = match self.resolver.resolve_name(n.clone())? {
+		let span = n.span().with(self.file);
+		let kind = match self.name_expr_inner(n)? {
+			NameExprResolution::Expr(kind) => kind,
+			NameExprResolution::Struct(_) => {
+				self.ctx
+					.push(span.error("expected value").label(span.label("found struct")));
+				return None;
+			},
+		};
+
+		Some(kind)
+	}
+
+	fn name_expr_inner(&mut self, n: ast::NameExpr) -> Option<NameExprResolution> {
+		let res = match self.resolver.resolve_name(n.clone())? {
 			Resolution::Item { path, ty, .. } => match ty {
-				NameTy::Fn => hir::ExprKind::Fn(path),
-				NameTy::Static => hir::ExprKind::Static(path),
+				NameTy::Fn => NameExprResolution::Expr(hir::ExprKind::Fn(path)),
+				NameTy::Static => NameExprResolution::Expr(hir::ExprKind::Static(path)),
+				NameTy::Struct => NameExprResolution::Struct(path),
 				_ => {
 					let span = n.span().with(self.file);
 					self.ctx.push(
@@ -699,11 +740,11 @@ impl<'a> Lowerer<'a> {
 					return None;
 				},
 			},
-			Resolution::Local { local, .. } => hir::ExprKind::Local(local),
-			Resolution::Param { param, .. } => hir::ExprKind::Param(param),
+			Resolution::Local { local, .. } => NameExprResolution::Expr(hir::ExprKind::Local(local)),
+			Resolution::Param { param, .. } => NameExprResolution::Expr(hir::ExprKind::Param(param)),
 		};
 
-		Some(kind)
+		Some(res)
 	}
 
 	fn arm(&mut self, a: ast::MatchArm) -> Option<hir::MatchArm> {

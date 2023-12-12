@@ -34,6 +34,16 @@ impl<T> Arena<T> {
 	}
 
 	pub fn ids(&self) -> impl Iterator<Item = Ix<T>> + '_ { self.elems.iter().enumerate().map(|(i, _)| Ix::new(i)) }
+
+	pub fn iter(&self) -> impl Iterator<Item = &T> + '_ { self.elems.iter() }
+
+	pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut T> + '_ { self.elems.iter_mut() }
+
+	pub fn ids_iter(&self) -> impl Iterator<Item = (Ix<T>, &T)> + '_ {
+		self.elems.iter().enumerate().map(|(i, e)| (Ix::new(i), e))
+	}
+
+	pub fn len(&self) -> usize { self.elems.len() }
 }
 
 impl<T> FromIterator<T> for Arena<T> {

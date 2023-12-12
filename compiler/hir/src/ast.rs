@@ -7,7 +7,7 @@ use verde::Id;
 
 use crate::ident::AbsPath;
 
-#[derive(Copy, Clone, PartialEq, Eq, Hash)]
+#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
 pub struct ErasedAstId {
 	pub item: Id<AbsPath>,
 	pub index: u32,

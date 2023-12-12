@@ -8,6 +8,7 @@ diagnostics = { path = "../diagnostics" }
 hir = { path = "../hir" }
 hir-lower = { path = "../hir-lower" }
 parse = { path = "../parse" }
+pretty = { path = "../pretty" }
 text = { path = "../text" }
 thir = { path = "../thir" }
 tycheck = { path = "../tycheck" }

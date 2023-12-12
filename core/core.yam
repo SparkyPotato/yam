@@ -6,4 +6,7 @@ pub import lang_items.{
     f32, f64
 };
 
-fn identity(x: u8) -> u8 { a }
+fn cat() -> u32 {
+    let x: i32 = 1;
+    x
+}

@@ -5,7 +5,7 @@ use verde::{query, Ctx, Id, Tracked};
 
 use crate::{ast::AstId, ident::AbsPath, AttrKind, Item, ItemKind, TypeKind};
 
-#[derive(Copy, Clone, PartialEq, Eq, Hash)]
+#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
 pub enum LangItem {
 	// Primitives.
 	U8,

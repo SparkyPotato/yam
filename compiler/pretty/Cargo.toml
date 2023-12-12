@@ -1,14 +1,12 @@
 [package]
-name = "tycheck"
+name = "pretty"
 version = "0.0.0"
 edition = "2021"
 
 [dependencies]
 arena = { path = "../arena" }
-diagnostics = { path = "../diagnostics" }
 hir = { path = "../hir" }
 thir = { path = "../thir" }
 verde = { path = "../verde" }
 
-rustc-hash = "1.1"
-tracing = "0.1"
+pretty = "0.12.3"

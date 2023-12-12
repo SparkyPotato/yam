@@ -1,13 +1,19 @@
 use std::sync::Mutex;
 
 use diagnostics::{emit, FileCache, FilePath, FullDiagnostic};
-use hir::{ident::PackageId, lang_item::build_lang_item_map, ItemDiagnostic};
+use hir::{
+	ast::AstMap,
+	ident::{AbsPath, PackageId},
+	lang_item::{build_lang_item_map, LangItemMap},
+	ItemDiagnostic,
+};
 use hir_lower::{
 	index::{
 		build_ast_map,
-		canonical::canonicalize_tree,
-		local::{build_package_tree, generate_index},
+		canonical::{canonicalize_tree, CanonicalTree},
+		local::{build_package_tree, generate_index, Index},
 		ModuleMap,
+		TempMap,
 	},
 	lower::{build_hir_sea, lower_to_hir},
 	Module,
@@ -20,10 +26,11 @@ use rayon::prelude::*;
 use rustc_hash::FxHashMap;
 use text::Text;
 use tracing::{span, Level};
+use tycheck::type_check;
 use verde::{db, Db, Id};
 
 #[db]
-pub struct Database(hir::Storage, hir_lower::Storage, thir::Storage);
+pub struct Database(hir::Storage, hir_lower::Storage, thir::Storage, tycheck::Storage);
 
 pub struct SourceFile {
 	pub path: FilePath,
@@ -51,7 +58,27 @@ pub fn compile(input: CompileInput) -> CompileOutput {
 	let db = &dbc as &(dyn Db + Send + Sync);
 
 	let (modules, cache) = parse(db, input.files);
+	let (indices, maps) = index_gen(db, &modules);
+	let (packages, tree) = packages(db, &indices);
+	let (items, lang_item_map, amap, tmap) = hir(db, &modules, maps, packages, tree);
+	let thir = tyck(db, &items, lang_item_map);
+	for (&hir, &thir) in items.values().zip(thir.values()) {
+		println!("{}\n", pretty::pretty_print(db, hir, thir));
+	}
 
+	emit_all(db, &cache, &amap, &tmap);
+
+	CompileOutput { db: dbc }
+}
+
+fn parse(db: &(dyn Db + Send + Sync), files: Vec<SourceFile>) -> (Vec<Id<Module>>, FileCache) {
+	let parser = Parser::new(db, files.get(0).expect("No source files provided").path);
+	let modules: Vec<_> = files.into_par_iter().map(|x| parser.parse(x)).collect();
+	let cache = parser.finish();
+	(modules, cache)
+}
+
+fn index_gen(db: &(dyn Db + Send + Sync), modules: &[Id<Module>]) -> (Vec<Id<Index>>, Vec<ModuleMap>) {
 	let mut indices = Vec::with_capacity(modules.len());
 	let mut maps = Vec::with_capacity(modules.len());
 	modules
@@ -68,6 +95,10 @@ pub fn compile(input: CompileInput) -> CompileOutput {
 		})
 		.unzip_into_vecs(&mut indices, &mut maps);
 
+	(indices, maps)
+}
+
+fn packages(db: &(dyn Db + Send + Sync), indices: &[Id<Index>]) -> (Id<VisiblePackages>, Id<CanonicalTree>) {
 	let tree = db.execute(|ctx| build_package_tree(ctx, &indices));
 	let packages = db.set_input(VisiblePackages {
 		package: PackageId(0),
@@ -86,30 +117,37 @@ pub fn compile(input: CompileInput) -> CompileOutput {
 		},
 	});
 	let tree = db.execute(|ctx| canonicalize_tree(ctx, tree, vis_packages));
+	(packages, tree)
+}
 
+fn hir(
+	db: &(dyn Db + Send + Sync), modules: &[Id<Module>], mut maps: Vec<ModuleMap>, packages: Id<VisiblePackages>,
+	tree: Id<CanonicalTree>,
+) -> (FxHashMap<Id<AbsPath>, Id<hir::Item>>, Id<LangItemMap>, AstMap, TempMap) {
 	let modules: Vec<_> = modules
 		.into_par_iter()
 		.zip(maps.par_iter_mut())
-		.map(move |(x, map)| db.execute(|ctx| lower_to_hir(ctx, x, packages, tree, map)))
+		.map(move |(&x, map)| db.execute(|ctx| lower_to_hir(ctx, x, packages, tree, map)))
 		.collect();
 	let (amap, tmap) = build_ast_map(maps);
 	let items = build_hir_sea(db, modules);
-
 	let lang_item_map = db.execute(|ctx| build_lang_item_map(ctx, &items));
+	(items, lang_item_map, amap, tmap)
+}
 
-	// Emit all possible diagnostics now.
+fn tyck(
+	db: &(dyn Db + Send + Sync), items: &FxHashMap<Id<AbsPath>, Id<hir::Item>>, lang_item_map: Id<LangItemMap>,
+) -> FxHashMap<Id<AbsPath>, Id<thir::Item>> {
+	items
+		.par_iter()
+		.map(|(&path, &item)| (path, db.execute(|ctx| type_check(ctx, item, lang_item_map, items))))
+		.collect()
+}
+
+fn emit_all(db: &(dyn Db + Send + Sync), cache: &FileCache, amap: &AstMap, tmap: &TempMap) {
 	emit(db.get_all::<FullDiagnostic>().cloned(), &cache, &());
 	emit(db.get_all::<TempDiagnostic>().cloned(), &cache, &tmap);
 	emit(db.get_all::<ItemDiagnostic>().cloned(), &cache, &amap);
-
-	CompileOutput { db: dbc }
-}
-
-fn parse(db: &(dyn Db + Send + Sync), files: Vec<SourceFile>) -> (Vec<Id<Module>>, FileCache) {
-	let parser = Parser::new(db, files.get(0).expect("No source files provided").path);
-	let modules: Vec<_> = files.into_par_iter().map(|x| parser.parse(x)).collect();
-	let cache = parser.finish();
-	(modules, cache)
 }
 
 struct Parser<'a> {
