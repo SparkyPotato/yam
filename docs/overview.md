@@ -32,6 +32,26 @@ Next, the canonicalized tree is used to generate HIR nodes for each item in the 
 
 HIR is a name-resolved and desugared tree-like IR. It is here that our IR transitions from being file-based to item based. Each item becomes it's own HIR node, and the workspace becomes a flat list of HIR nodes. This allows us to be incremental over each HIR node, instead of over each file. At the moment, we *do not* have more fine-grained incrementality than an HIR node.
 
+### THIR
+Once HIR for each item has been generated, we type check in two stages:
+1. Declaration - go through each item's 'signature' and generate relevant (interned) types.
+2. Definition - go through each item's 'body' and infer types.
+
+#### Declaration
+Structs generate a type describing themselves, as well as the type of each field. 
+Enums generate the integer lang item representation of themselves. 
+Functions generate a type describing themselves, as well as the type of each parameter and the return type.
+Static generate their own type, and so do type aliases.
+
+#### Definition
+Using the type declarations of each item, function bodies and static initializers are type checked with constraint-based type inference.
+While going through the whole expression tree, constraints are generated between partially-resolved types, and then solved at the end to generate a fully-resolved type.
+
+Constraints are solved in a loop unless a whole pass goes through without any constraints being solved. 
+Then, constraints are 'finalized', where they can default to a type (for example, integer literals default to `i32`).
+After that, the constraint solve loop is repeated until no more constraints are solved.
+After this loop, any unsolved constraints are reported as errors.
+
 ## Avoiding span invalidation
 
 If we were to store spans directly in HIR nodes, we would force a recomputation every time a span changes.
