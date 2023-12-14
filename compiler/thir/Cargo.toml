@@ -7,3 +7,5 @@ edition = "2021"
 arena = { path = "../arena" }
 hir = { path = "../hir" }
 verde = { path = "../verde" }
+
+rustc-hash = "1.1.0"

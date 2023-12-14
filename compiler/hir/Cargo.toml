@@ -11,6 +11,7 @@ text = { path = "../text" }
 verde = { path = "../verde" }
 
 rustc-hash = "1.1"
+tracing = "0.1.40"
 
 [target.test.dependencies]
 verde = { path = "../verde", features = ["test"] }

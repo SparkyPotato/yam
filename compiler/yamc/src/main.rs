@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 use clap::Parser;
 use diagnostics::{quick_diagnostic, DiagKind, FilePath};
-use driver::{CompileInput, Database, SourceFile};
+use driver::{target::Triple, CompileInput, Database, SourceFile};
 use tracing_forest::ForestLayer;
 use tracing_subscriber::{prelude::*, EnvFilter, Registry};
 use walkdir::WalkDir;
@@ -48,6 +48,7 @@ fn main() {
 	driver::compile(CompileInput {
 		db: Database::default(),
 		files,
+		target: Triple::host(),
 	});
 }
 

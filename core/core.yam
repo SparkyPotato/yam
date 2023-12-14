@@ -5,8 +5,3 @@ pub import lang_items.{
     char,
     f32, f64
 };
-
-fn cat() -> u32 {
-    let x: i32 = 1;
-    x
-}

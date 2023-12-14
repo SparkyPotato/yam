@@ -1,10 +1,8 @@
 use arena::{Arena, Ix};
 use diagnostics::Span;
 use hir::{ast::ErasedAstId, ident::AbsPath, LangItem};
-use rustc_hash::FxHashSet;
+use rustc_hash::{FxHashMap, FxHashSet};
 use verde::{Ctx, Id};
-
-use crate::reader::HirReader;
 
 pub struct TypeSolver {
 	partial: Arena<Partial>,
@@ -129,11 +127,14 @@ impl TypeSolver {
 		}
 	}
 
-	pub fn solve(&mut self, ctx: &Ctx, reader: &HirReader) {
-		let mut constraints = self.solve_loop(ctx, reader);
-		constraints.retain(|c| !c.finalize(self, ctx, reader));
+	pub fn solve(
+		&mut self, ctx: &Ctx, items: &FxHashMap<Id<AbsPath>, Id<hir::Item>>,
+		decls: &FxHashMap<Id<AbsPath>, Id<thir::ItemDecl>>,
+	) {
+		let mut constraints = self.solve_loop(ctx, items, decls);
+		constraints.retain(|c| !c.finalize(self, ctx));
 		self.constraints = constraints;
-		constraints = self.solve_loop(ctx, reader);
+		constraints = self.solve_loop(ctx, items, decls);
 
 		let mut errored = FxHashSet::default();
 		for i in 0..self.partial.len() {
@@ -208,13 +209,16 @@ impl TypeSolver {
 		}
 	}
 
-	fn solve_loop(&mut self, ctx: &Ctx, reader: &HirReader) -> Vec<Constraint> {
+	fn solve_loop(
+		&mut self, ctx: &Ctx, items: &FxHashMap<Id<AbsPath>, Id<hir::Item>>,
+		decls: &FxHashMap<Id<AbsPath>, Id<thir::ItemDecl>>,
+	) -> Vec<Constraint> {
 		let c = loop {
 			self.concretize(ctx);
 
 			let mut constraints = std::mem::take(&mut self.constraints);
 			let initial_len = constraints.len();
-			constraints.retain(|c| !c.solve(self, ctx, reader));
+			constraints.retain(|c| !c.solve(self, ctx, items, decls));
 
 			if constraints.len() == initial_len {
 				break constraints;
@@ -228,7 +232,10 @@ impl TypeSolver {
 }
 
 impl Constraint {
-	fn solve(&self, solver: &mut TypeSolver, ctx: &Ctx, reader: &HirReader) -> bool {
+	fn solve(
+		&self, solver: &mut TypeSolver, ctx: &Ctx, items: &FxHashMap<Id<AbsPath>, Id<hir::Item>>,
+		decls: &FxHashMap<Id<AbsPath>, Id<thir::ItemDecl>>,
+	) -> bool {
 		match *self {
 			Constraint::Unify(a, b) if a == b => true,
 			Constraint::Unify(a, b) => match (&solver.partial[a].ty, &solver.partial[b].ty) {
@@ -440,17 +447,20 @@ impl Constraint {
 				};
 				let expr = &*ctx.geti(expr);
 				match expr {
-					thir::Type::Struct(s) => {
-						let &s = reader.items.get(s).unwrap();
+					thir::Type::Struct(p) => {
+						let &s = decls.get(p).unwrap();
 						let s = ctx.get(s);
-						let Some(f) = (match s.kind {
-							hir::ItemKind::Struct(ref s) => s.fields.iter().find(|f| f.name == field),
+						let &si = items.get(p).unwrap();
+						let si = ctx.get(si);
+						let Some((f, (_, &ty))) = (match (&s.kind, &si.kind) {
+							(thir::ItemDeclKind::Struct(s), hir::ItemKind::Struct(si)) => {
+								si.fields.iter().zip(s.fields.iter()).find(|(f, _)| f.name == field)
+							},
 							_ => return false,
 						}) else {
 							return false;
 						};
-						let ty = reader.req_type(ctx, f.ty, false);
-						let ty = solver.concrete(ty, None);
+						let ty = solver.concrete(ty, Some(f.id.erased()));
 						solver.unify(ty, result);
 						true
 					},
@@ -539,7 +549,7 @@ impl Constraint {
 		}
 	}
 
-	fn finalize(&self, solver: &mut TypeSolver, ctx: &Ctx, _: &HirReader) -> bool {
+	fn finalize(&self, solver: &mut TypeSolver, ctx: &Ctx) -> bool {
 		match *self {
 			Constraint::Float(expr) => match &solver.partial[expr].ty {
 				&PartialType::Concrete(expr) => {

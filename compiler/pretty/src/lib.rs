@@ -10,6 +10,7 @@ pub fn pretty_print(db: &dyn Db, hir: Id<hir::Item>, thir: Id<thir::Item>) -> St
 fn inner(db: &dyn Db, hir: Id<hir::Item>, thir: Id<thir::Item>) -> RcDoc<'static> {
 	let hir = db.get(hir);
 	let thir = db.get(thir);
+	let decl = db.get(thir.decl);
 
 	let mut printer = PrettyPrinter {
 		db,
@@ -18,12 +19,12 @@ fn inner(db: &dyn Db, hir: Id<hir::Item>, thir: Id<thir::Item>) -> RcDoc<'static
 		params: DenseMap::new(),
 	};
 
-	match (&hir.kind, &thir.kind) {
-		(hir::ItemKind::Struct(hir), thir::ItemKind::Struct(thir)) => printer.struct_(hir, thir),
-		(hir::ItemKind::Enum(hir), thir::ItemKind::Enum(thir)) => printer.enum_(hir, thir),
-		(hir::ItemKind::Fn(hir), thir::ItemKind::Fn(thir)) => printer.fn_(hir, thir),
-		(hir::ItemKind::TypeAlias(hir), thir::ItemKind::TypeAlias(thir)) => printer.type_alias(hir, thir),
-		(hir::ItemKind::Static(hir), thir::ItemKind::Static(thir)) => printer.static_(hir, thir),
+	match (&hir.kind, &decl.kind) {
+		(hir::ItemKind::Struct(hir), thir::ItemDeclKind::Struct(thir)) => printer.struct_(hir, thir),
+		(hir::ItemKind::Enum(hir), thir::ItemDeclKind::Enum(thir)) => printer.enum_(hir, thir),
+		(hir::ItemKind::Fn(hir), thir::ItemDeclKind::Fn(thir)) => printer.fn_(hir, thir),
+		(hir::ItemKind::TypeAlias(hir), thir::ItemDeclKind::TypeAlias(thir)) => printer.type_alias(hir, thir),
+		(hir::ItemKind::Static(hir), thir::ItemDeclKind::Static(thir)) => printer.static_(hir, thir),
 		_ => unreachable!(),
 	}
 }
@@ -36,7 +37,7 @@ struct PrettyPrinter<'a> {
 }
 
 impl PrettyPrinter<'_> {
-	fn struct_(&self, hir: &hir::Struct, thir: &thir::Struct) -> RcDoc<'static> {
+	fn struct_(&self, hir: &hir::Struct, thir: &thir::StructDecl) -> RcDoc<'static> {
 		RcDoc::text("struct")
 			.append(RcDoc::space())
 			.append(self.path(self.hir.path))
@@ -52,7 +53,7 @@ impl PrettyPrinter<'_> {
 			.append(RcDoc::text("}"))
 	}
 
-	fn enum_(&self, hir: &hir::Enum, thir: &thir::Enum) -> RcDoc<'static> {
+	fn enum_(&self, hir: &hir::Enum, thir: &thir::EnumDecl) -> RcDoc<'static> {
 		RcDoc::text("enum")
 			.append(RcDoc::space())
 			.append(self.path(self.hir.path))
@@ -77,7 +78,7 @@ impl PrettyPrinter<'_> {
 			.append(RcDoc::text("}"))
 	}
 
-	fn fn_(&mut self, hir: &hir::Fn, thir: &thir::Fn) -> RcDoc<'static> {
+	fn fn_(&mut self, hir: &hir::Fn, thir: &thir::FnDecl) -> RcDoc<'static> {
 		let abi = match hir.abi {
 			Some(ref a) => {
 				let ty = match a.abi {
@@ -115,7 +116,7 @@ impl PrettyPrinter<'_> {
 			.append(body)
 	}
 
-	fn type_alias(&self, _: &hir::TypeAlias, thir: &thir::TypeAlias) -> RcDoc<'static> {
+	fn type_alias(&self, _: &hir::TypeAlias, thir: &thir::TypeAliasDecl) -> RcDoc<'static> {
 		RcDoc::text("type")
 			.append(RcDoc::space())
 			.append(self.path(self.hir.path))
@@ -126,7 +127,7 @@ impl PrettyPrinter<'_> {
 			.append(RcDoc::text(";"))
 	}
 
-	fn static_(&self, hir: &hir::Static, thir: &thir::Static) -> RcDoc<'static> {
+	fn static_(&self, hir: &hir::Static, thir: &thir::StaticDecl) -> RcDoc<'static> {
 		RcDoc::text("static")
 			.append(RcDoc::space())
 			.append(self.path(self.hir.path))

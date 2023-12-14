@@ -1,0 +1,15 @@
+[package]
+name = "codegen"
+version = "0.0.0"
+edition = "2021"
+
+[dependencies]
+arena = { path = "../arena" }
+hir = { path = "../hir" }
+thir = { path = "../thir" }
+verde = { path = "../verde" }
+
+cranelift = "0.102.1"
+cranelift-module = "0.102.1"
+cranelift-object = "0.102.1"
+target-lexicon = "0.12.12"

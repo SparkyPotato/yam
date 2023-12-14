@@ -1,6 +1,8 @@
 use std::sync::Mutex;
 
-use diagnostics::{emit, FileCache, FilePath, FullDiagnostic};
+pub use codegen::target;
+use codegen::target::Triple;
+use diagnostics::{emit, DiagKind, FileCache, FilePath, FullDiagnostic};
 use hir::{
 	ast::AstMap,
 	ident::{AbsPath, PackageId},
@@ -43,6 +45,8 @@ pub struct CompileInput {
 	pub db: Database,
 	/// The files to compile. The root file is the first one. The order of the others doesn't matter.
 	pub files: Vec<SourceFile>,
+	/// The target to compile for.
+	pub target: Triple,
 }
 
 /// The output of the compilation
@@ -61,10 +65,9 @@ pub fn compile(input: CompileInput) -> CompileOutput {
 	let (indices, maps) = index_gen(db, &modules);
 	let (packages, tree) = packages(db, &indices);
 	let (items, lang_item_map, amap, tmap) = hir(db, &modules, maps, packages, tree);
-	let thir = tyck(db, &items, lang_item_map);
-	for (&hir, &thir) in items.values().zip(thir.values()) {
-		println!("{}\n", pretty::pretty_print(db, hir, thir));
-	}
+	let thir = tyck(db, items, lang_item_map);
+
+	if should_codegen(db) {}
 
 	emit_all(db, &cache, &amap, &tmap);
 
@@ -99,6 +102,9 @@ fn index_gen(db: &(dyn Db + Send + Sync), modules: &[Id<Module>]) -> (Vec<Id<Ind
 }
 
 fn packages(db: &(dyn Db + Send + Sync), indices: &[Id<Index>]) -> (Id<VisiblePackages>, Id<CanonicalTree>) {
+	let s = span!(Level::DEBUG, "build package tree");
+	let _e = s.enter();
+
 	let tree = db.execute(|ctx| build_package_tree(ctx, &indices));
 	let packages = db.set_input(VisiblePackages {
 		package: PackageId(0),
@@ -136,12 +142,33 @@ fn hir(
 }
 
 fn tyck(
-	db: &(dyn Db + Send + Sync), items: &FxHashMap<Id<AbsPath>, Id<hir::Item>>, lang_item_map: Id<LangItemMap>,
-) -> FxHashMap<Id<AbsPath>, Id<thir::Item>> {
-	items
+	db: &(dyn Db + Send + Sync), hir: FxHashMap<Id<AbsPath>, Id<hir::Item>>, lang_item_map: Id<LangItemMap>,
+) -> thir::Thir {
+	let decls: FxHashMap<_, _> = hir
 		.par_iter()
-		.map(|(&path, &item)| (path, db.execute(|ctx| type_check(ctx, item, lang_item_map, items))))
-		.collect()
+		.map(|(&path, &item)| {
+			(
+				path,
+				db.execute(|ctx| tycheck::decl::type_decl(ctx, item, lang_item_map, &hir)),
+			)
+		})
+		.collect();
+	let items = hir
+		.par_iter()
+		.map(|(&path, &item)| {
+			(
+				path,
+				db.execute(|ctx| type_check(ctx, item, decls[&path], lang_item_map, &hir, &decls)),
+			)
+		})
+		.collect();
+	thir::Thir { hir, decls, items }
+}
+
+fn should_codegen(db: &dyn Db) -> bool {
+	db.get_all::<FullDiagnostic>().any(|x| x.kind == DiagKind::Error)
+		|| db.get_all::<TempDiagnostic>().any(|x| x.kind == DiagKind::Error)
+		|| db.get_all::<ItemDiagnostic>().any(|x| x.kind == DiagKind::Error)
 }
 
 fn emit_all(db: &(dyn Db + Send + Sync), cache: &FileCache, amap: &AstMap, tmap: &TempMap) {

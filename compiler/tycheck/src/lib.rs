@@ -1,7 +1,13 @@
-use arena::{dense::DenseMap, Arena, Ix};
+use arena::{dense::DenseMap, Ix};
 use diagnostics::Span;
-use hir::{ast::ErasedAstId, ident::AbsPath, lang_item::LangItemMap, LangItem};
+use hir::{
+	ast::ErasedAstId,
+	ident::{AbsPath, DebugAbsPath},
+	lang_item::LangItemMap,
+	LangItem,
+};
 use rustc_hash::FxHashMap;
+use tracing::{span, Level};
 use verde::{query, storage, Ctx, Id};
 
 use crate::{
@@ -9,43 +15,54 @@ use crate::{
 	solver::{Partial, PartialType, TypeSolver},
 };
 
+pub mod decl;
 mod reader;
 mod solver;
 
 #[storage]
-pub struct Storage(type_check);
+pub struct Storage(decl::type_decl, type_check);
 
 #[query]
 pub fn type_check(
-	ctx: &Ctx, item: Id<hir::Item>, lang_items: Id<LangItemMap>,
+	ctx: &Ctx, item: Id<hir::Item>, decl: Id<thir::ItemDecl>, lang_items: Id<LangItemMap>,
 	#[ignore] items: &FxHashMap<Id<AbsPath>, Id<hir::Item>>,
+	#[ignore] decls: &FxHashMap<Id<AbsPath>, Id<thir::ItemDecl>>,
 ) -> thir::Item {
 	let item = ctx.get(item);
-	let lang_items = ctx.get(lang_items);
-	let mut ck = Checker::new(ctx, &*item, &*lang_items, items);
 
-	let kind = match item.kind {
-		hir::ItemKind::Struct(ref s) => thir::ItemKind::Struct(ck.struct_(s)),
-		hir::ItemKind::Enum(ref e) => thir::ItemKind::Enum(ck.enum_(e)),
-		hir::ItemKind::Fn(ref f) => thir::ItemKind::Fn(ck.fn_(f)),
-		hir::ItemKind::TypeAlias(ref t) => thir::ItemKind::TypeAlias(ck.type_alias(t)),
-		hir::ItemKind::Static(ref s) => thir::ItemKind::Static(ck.static_(s)),
-	};
+	let s = span!(Level::DEBUG, "typecheck", path=?item.path.debug(ctx));
+	let _e = s.enter();
+
+	let d = ctx.get(decl);
+
+	let lang_items = ctx.get(lang_items);
+	let mut ck = Checker::new(ctx, &*item, &*d, &*lang_items, items, decls);
+
+	match item.kind {
+		hir::ItemKind::Fn(ref f) => {
+			ck.fn_(f);
+		},
+		hir::ItemKind::Static(ref s) => {
+			ck.static_(s);
+		},
+		_ => {},
+	}
 	let (exprs, locals) = ck.finish();
 
 	thir::Item {
 		path: item.path,
+		decl,
 		locals,
 		exprs,
-		kind,
 	}
 }
 
 struct Checker<'a> {
 	ctx: &'a Ctx<'a>,
+	decl: &'a thir::ItemDecl,
 	solver: TypeSolver,
 	reader: HirReader<'a>,
-	params: DenseMap<hir::Param, Id<thir::Type>>,
+	decls: &'a FxHashMap<Id<AbsPath>, Id<thir::ItemDecl>>,
 	exprs_out: DenseMap<hir::Expr, Ix<Partial>>,
 	locals_out: DenseMap<hir::Local, Ix<Partial>>,
 	void: Id<thir::Type>,
@@ -55,14 +72,15 @@ struct Checker<'a> {
 
 impl<'a> Checker<'a> {
 	fn new(
-		ctx: &'a Ctx<'a>, item: &'a hir::Item, lang_items: &'a LangItemMap,
-		items: &'a FxHashMap<Id<AbsPath>, Id<hir::Item>>,
+		ctx: &'a Ctx<'a>, item: &'a hir::Item, decl: &'a thir::ItemDecl, lang_items: &'a LangItemMap,
+		items: &'a FxHashMap<Id<AbsPath>, Id<hir::Item>>, decls: &'a FxHashMap<Id<AbsPath>, Id<thir::ItemDecl>>,
 	) -> Self {
 		Self {
 			ctx,
+			decl,
 			solver: TypeSolver::new(),
-			reader: HirReader::new(&item.types, &item.exprs, &item.locals, lang_items, items),
-			params: DenseMap::new(),
+			reader: HirReader::new(&item, lang_items, items),
+			decls,
 			exprs_out: DenseMap::with_capacity(item.exprs.len()),
 			locals_out: DenseMap::with_capacity(item.locals.len()),
 			void: ctx.add(thir::Type::Void),
@@ -77,7 +95,7 @@ impl<'a> Checker<'a> {
 		DenseMap<hir::Expr, Id<thir::Type>>,
 		DenseMap<hir::Local, Id<thir::Type>>,
 	) {
-		self.solver.solve(self.ctx, &self.reader);
+		self.solver.solve(self.ctx, self.reader.items, self.decls);
 		let mut exprs = DenseMap::with_capacity(self.reader.exprs.len());
 		for (id, &expr) in self.exprs_out.iter() {
 			exprs.insert(id, self.solver.get(self.ctx, expr));
@@ -89,70 +107,27 @@ impl<'a> Checker<'a> {
 		(exprs, locals)
 	}
 
-	fn struct_(&mut self, s: &hir::Struct) -> thir::Struct {
-		thir::Struct {
-			fields: self.params(&s.fields),
-		}
-	}
-
-	fn enum_(&mut self, e: &hir::Enum) -> thir::Enum {
-		let var = e.variants.len();
-		let variants = if var == 0 { 1 } else { var.ilog2() + 1 };
-		let bits = ((variants + 7) / 8) * 8;
-		thir::Enum {
-			repr: match bits {
-				8 => LangItem::U8,
-				16 => LangItem::U16,
-				32 => LangItem::U32,
-				64 => LangItem::U64,
-				_ => unreachable!(),
-			},
-		}
-	}
-
-	fn fn_(&mut self, f: &hir::Fn) -> thir::Fn {
-		let (ret, ret_ty) = f
-			.ret
-			.map(|ty| {
-				let span = self.reader.types[ty].id.erased();
-				let ty = self.reader.req_type(self.ctx, ty, true);
-				(ty, self.solver.concrete(ty, Some(span)))
-			})
-			.unwrap_or_else(|| (self.void, self.solver.concrete(self.void, None)));
-		self.params = self.params(&f.params);
+	fn fn_(&mut self, f: &hir::Fn) {
+		let (ret, span) = match self.decl.kind {
+			thir::ItemDeclKind::Fn(ref d) => (d.ret, f.ret.map(|x| self.reader.types[x].id.erased())),
+			_ => unreachable!("fn to non-fn"),
+		};
 		f.body.as_ref().map(|body| {
 			let ty = self.block(body);
-			self.solver.unify(ret_ty, ty);
+			let ret = self.solver.concrete(ret, span);
+			self.solver.unify(ret, ty);
 		});
-
-		thir::Fn {
-			params: std::mem::replace(&mut self.params, DenseMap::default()),
-			ret,
-		}
 	}
 
-	fn type_alias(&mut self, t: &hir::TypeAlias) -> thir::TypeAlias {
-		thir::TypeAlias {
-			ty: self.reader.req_type(self.ctx, t.ty, true),
-		}
-	}
-
-	fn static_(&mut self, s: &hir::Static) -> thir::Static {
+	fn static_(&mut self, s: &hir::Static) {
+		let ty = match self.decl.kind {
+			thir::ItemDeclKind::Static(ref s) => s.ty,
+			_ => unreachable!("static to non-static"),
+		};
 		let span = self.reader.types[s.ty].id.erased();
-		let ty = self.reader.req_type(self.ctx, s.ty, true);
 		let req_ty = self.solver.concrete(ty, Some(span));
 		let init_ty = self.expr(s.init);
 		self.solver.unify(req_ty, init_ty);
-
-		thir::Static { ty }
-	}
-
-	fn params(&mut self, params: &Arena<hir::Param>) -> DenseMap<hir::Param, Id<thir::Type>> {
-		let mut map = DenseMap::with_capacity(params.len());
-		for (id, param) in params.ids_iter() {
-			map.insert(id, self.reader.req_type(self.ctx, param.ty, true));
-		}
-		map
 	}
 
 	fn type_(&mut self, ty: Ix<hir::Type>) -> Ix<Partial> {
@@ -177,10 +152,9 @@ impl<'a> Checker<'a> {
 				let ty = self.type_(p.ty);
 				self.solver.ptr(p.mutable, ty, span)
 			},
-			_ => {
-				let ty = self.reader.req_type(self.ctx, ty, false);
-				return self.solver.concrete(ty, span);
-			},
+			hir::TypeKind::Struct(s) => self.solver.concrete(self.ctx.add(thir::Type::Struct(s)), span),
+			hir::TypeKind::Enum(e) => self.solver.concrete(self.ctx.add(thir::Type::Enum(e)), span),
+			hir::TypeKind::Alias(p) => self.solver.concrete(self.ctx.add(self.reader.type_alias(p)), span),
 		}
 	}
 
@@ -222,7 +196,13 @@ impl<'a> Checker<'a> {
 				self.solver.unify(x, y);
 				y
 			},
-			hir::ExprKind::Param(p) => self.solver.concrete(self.params[p], span),
+			hir::ExprKind::Param(p) => {
+				let ty = match self.decl.kind {
+					thir::ItemDeclKind::Fn(ref f) => f.params[p],
+					_ => unreachable!("param to non-fn"),
+				};
+				self.solver.concrete(ty, span)
+			},
 			hir::ExprKind::EnumVariant(ref v) => self.enum_variant(v, span),
 			hir::ExprKind::Ref(ref r) => self.ref_(r, span),
 			hir::ExprKind::Prefix(ref p) => self.prefix_op(p, span),
@@ -281,10 +261,9 @@ impl<'a> Checker<'a> {
 	}
 
 	fn struct_init(&mut self, init: &hir::StructExpr, span: Option<ErasedAstId>) -> Ix<Partial> {
-		let &i = self.reader.items.get(&init.struct_).unwrap();
-		let item = self.ctx.get(i);
-		match item.kind {
-			hir::ItemKind::Struct(ref s) => {
+		let &i = self.decls.get(&init.struct_).unwrap();
+		match self.ctx.get(i).kind {
+			thir::ItemDeclKind::Struct(ref s) => {
 				if s.fields.len() != init.args.len() {
 					span.map(|x| {
 						self.ctx.push(
@@ -293,27 +272,25 @@ impl<'a> Checker<'a> {
 						);
 					});
 				}
-				for (field, arg) in s.fields.iter().zip(init.args.iter()) {
-					let arg = self.expr(*arg);
 
-					let reader = HirReader::new(
-						&item.types,
-						&item.exprs,
-						&item.locals,
-						self.reader.lang_items,
-						self.reader.items,
-					);
-					let ty = reader.req_type(self.ctx, field.ty, false);
+				let &i = self.reader.items.get(&init.struct_).unwrap();
+				let si = self.ctx.get(i);
+				let si = match si.kind {
+					hir::ItemKind::Struct(ref s) => s,
+					_ => unreachable!("struct_init to non-struct"),
+				};
+
+				for (((_, &ty), arg), field) in s.fields.iter().zip(init.args.iter()).zip(si.fields.iter()) {
+					let arg = self.expr(*arg);
 
 					let ty = self.solver.concrete(ty, Some(field.id.erased()));
 					self.solver.unify(ty, arg);
 				}
+
+				self.solver.concrete(s.ty, span)
 			},
 			_ => unreachable!("struct_init to non-struct"),
 		}
-
-		let ty = self.ctx.add(thir::Type::Struct(init.struct_));
-		self.solver.concrete(ty, span)
 	}
 
 	fn cast(&mut self, cast: &hir::CastExpr, _: Option<ErasedAstId>) -> Ix<Partial> {
@@ -379,49 +356,17 @@ impl<'a> Checker<'a> {
 	}
 
 	fn fn_ref(&mut self, f: &Id<AbsPath>, span: Option<ErasedAstId>) -> Ix<Partial> {
-		let &f = self.reader.items.get(f).unwrap();
-		let item = self.ctx.get(f);
-		match item.kind {
-			hir::ItemKind::Fn(ref f) => {
-				let reader = HirReader::new(
-					&item.types,
-					&item.exprs,
-					&item.locals,
-					self.reader.lang_items,
-					self.reader.items,
-				);
-				let params = f
-					.params
-					.iter()
-					.map(|x| reader.req_type(self.ctx, x.ty, false))
-					.collect();
-				let ret = f
-					.ret
-					.map(|x| reader.req_type(self.ctx, x, false))
-					.unwrap_or_else(|| self.void);
-
-				let ty = self.ctx.add(thir::Type::Fn(thir::FnType { params, ret }));
-				self.solver.concrete(ty, span)
-			},
+		let &f = self.decls.get(f).unwrap();
+		match self.ctx.get(f).kind {
+			thir::ItemDeclKind::Fn(ref f) => self.solver.concrete(f.ty, span),
 			_ => unreachable!("fn_ref to non-fn"),
 		}
 	}
 
 	fn static_ref(&mut self, s: &Id<AbsPath>, span: Option<ErasedAstId>) -> Ix<Partial> {
-		let &s = self.reader.items.get(s).unwrap();
-		let item = self.ctx.get(s);
-		match item.kind {
-			hir::ItemKind::Static(ref s) => {
-				let reader = HirReader::new(
-					&item.types,
-					&item.exprs,
-					&item.locals,
-					self.reader.lang_items,
-					self.reader.items,
-				);
-				let ty = reader.req_type(self.ctx, s.ty, false);
-				self.solver.concrete(ty, span)
-			},
+		let &s = self.decls.get(s).unwrap();
+		match self.ctx.get(s).kind {
+			thir::ItemDeclKind::Static(ref s) => self.solver.concrete(s.ty, span),
 			_ => unreachable!("static_ref to non-static"),
 		}
 	}
@@ -449,8 +394,11 @@ impl<'a> Checker<'a> {
 			_ => unreachable!("enum_variant to non-enum"),
 		}
 
-		let ty = self.ctx.add(thir::Type::Enum(v.path));
-		self.solver.concrete(ty, span)
+		let &i = self.decls.get(&v.path).unwrap();
+		match self.ctx.get(i).kind {
+			thir::ItemDeclKind::Enum(ref e) => self.solver.concrete(e.ty, span),
+			_ => unreachable!("enum_variant to non-enum"),
+		}
 	}
 
 	fn ref_(&mut self, r: &hir::RefExpr, span: Option<ErasedAstId>) -> Ix<Partial> {

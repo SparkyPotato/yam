@@ -1,6 +1,7 @@
 use diagnostics::Span;
 use rustc_hash::FxHashMap;
 use syntax::ast;
+use tracing::{span, Level};
 use verde::{query, Ctx, Id, Tracked};
 
 use crate::{ast::AstId, ident::AbsPath, AttrKind, Item, ItemKind, TypeKind};
@@ -49,6 +50,9 @@ impl LangItemMap {
 
 #[query]
 pub fn build_lang_item_map(ctx: &Ctx, #[ignore] items: &FxHashMap<Id<AbsPath>, Id<Item>>) -> LangItemMap {
+	let s = span!(Level::DEBUG, "build lang item map");
+	let _e = s.enter();
+
 	let mut map = LangItemMap::default();
 	for (&id, &item) in items.iter() {
 		let mut prev: Option<AstId<ast::Attribute>> = None;

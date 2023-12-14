@@ -5,6 +5,7 @@ use hir::ident::{AbsPath, PackageId};
 use rustc_hash::{FxHashMap, FxHashSet};
 use syntax::ast;
 use text::Text;
+use tracing::{span, Level};
 use verde::{query, Ctx, Id, Tracked};
 
 use crate::{
@@ -21,6 +22,9 @@ use crate::{
 
 #[query]
 pub fn canonicalize_tree(ctx: &Ctx, tree: Id<PackageTree>, packages: Id<Packages>) -> CanonicalTree {
+	let s = span!(Level::DEBUG, "canonicalize package tree");
+	let _e = s.enter();
+
 	let t = ctx.get(tree);
 	let packages = ctx.get(packages);
 
@@ -130,7 +134,7 @@ pub fn canonicalize_module_tree(
 	} else {
 		(public, private)
 	};
-	
+
 	ModuleTree {
 		path: tree.path,
 		public: ctx.insert(public),
