@@ -894,7 +894,6 @@ impl<'a> Codegen<'a> {
 	pub fn expr(&mut self, builder: &mut FunctionBuilder, expr: Ix<hir::Expr>) -> Option<(Value, Id<thir::Type>)> {
 		let (v, ty, place) = self.expr_place(builder, expr)?;
 		let (layout, compound) = layout_of_type(self.db, &self.options.target, self.thir, &self.decls.items, ty);
-		println!("{} {}", place, compound);
 		if place && !compound {
 			Some((
 				builder.ins().load(
