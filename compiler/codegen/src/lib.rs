@@ -431,15 +431,24 @@ impl<'a> Codegen<'a> {
 			},
 			hir::ExprKind::Block(ref b) => self.block(builder, b).map(|(x, ty)| (x, ty, false)),
 			hir::ExprKind::Infix(ref i) => {
-				let (lhs, _, place) = self.expr_place(builder, i.lhs).unwrap();
-				assert!(place, "cannot assign to non-place");
 				let rhs = self.expr(builder, i.rhs).unwrap().0;
 				let t = self.db.geti(ty);
-				let thir::Type::LangItem(l) = *t else { unreachable!() };
+				let l = match *t {
+					thir::Type::LangItem(l) => l,
+					thir::Type::Ptr(_) => LangItem::U64,
+					_ => unreachable!(),
+				};
 				let v = match i.op {
-					hir::InfixOp::Or | hir::InfixOp::BitOr => builder.ins().bor(lhs, rhs),
-					hir::InfixOp::And | hir::InfixOp::BitAnd => builder.ins().band(lhs, rhs),
+					hir::InfixOp::Or | hir::InfixOp::BitOr => {
+						let (lhs, _) = self.expr(builder, i.lhs).unwrap();
+						builder.ins().bor(lhs, rhs)
+					},
+					hir::InfixOp::And | hir::InfixOp::BitAnd => {
+						let (lhs, _) = self.expr(builder, i.lhs).unwrap();
+						builder.ins().band(lhs, rhs)
+					},
 					hir::InfixOp::Eq => {
+						let (lhs, _) = self.expr(builder, i.lhs).unwrap();
 						if matches!(l, LangItem::F32 | LangItem::F64) {
 							builder.ins().fcmp(FloatCC::Equal, lhs, rhs)
 						} else {
@@ -447,6 +456,7 @@ impl<'a> Codegen<'a> {
 						}
 					},
 					hir::InfixOp::NotEq => {
+						let (lhs, _) = self.expr(builder, i.lhs).unwrap();
 						if matches!(l, LangItem::F32 | LangItem::F64) {
 							builder.ins().fcmp(FloatCC::NotEqual, lhs, rhs)
 						} else {
@@ -454,6 +464,7 @@ impl<'a> Codegen<'a> {
 						}
 					},
 					hir::InfixOp::Lt => {
+						let (lhs, _) = self.expr(builder, i.lhs).unwrap();
 						if matches!(l, LangItem::F32 | LangItem::F64) {
 							builder.ins().fcmp(FloatCC::LessThan, lhs, rhs)
 						} else if matches!(
@@ -466,6 +477,7 @@ impl<'a> Codegen<'a> {
 						}
 					},
 					hir::InfixOp::Leq => {
+						let (lhs, _) = self.expr(builder, i.lhs).unwrap();
 						if matches!(l, LangItem::F32 | LangItem::F64) {
 							builder.ins().fcmp(FloatCC::LessThanOrEqual, lhs, rhs)
 						} else if matches!(
@@ -478,6 +490,7 @@ impl<'a> Codegen<'a> {
 						}
 					},
 					hir::InfixOp::Gt => {
+						let (lhs, _) = self.expr(builder, i.lhs).unwrap();
 						if matches!(l, LangItem::F32 | LangItem::F64) {
 							builder.ins().fcmp(FloatCC::GreaterThan, lhs, rhs)
 						} else if matches!(
@@ -490,6 +503,7 @@ impl<'a> Codegen<'a> {
 						}
 					},
 					hir::InfixOp::Geq => {
+						let (lhs, _) = self.expr(builder, i.lhs).unwrap();
 						if matches!(l, LangItem::F32 | LangItem::F64) {
 							builder.ins().fcmp(FloatCC::GreaterThanOrEqual, lhs, rhs)
 						} else if matches!(
@@ -502,6 +516,7 @@ impl<'a> Codegen<'a> {
 						}
 					},
 					hir::InfixOp::Add => {
+						let (lhs, _) = self.expr(builder, i.lhs).unwrap();
 						if matches!(l, LangItem::F32 | LangItem::F64) {
 							builder.ins().fadd(lhs, rhs)
 						} else {
@@ -509,6 +524,7 @@ impl<'a> Codegen<'a> {
 						}
 					},
 					hir::InfixOp::Sub => {
+						let (lhs, _) = self.expr(builder, i.lhs).unwrap();
 						if matches!(l, LangItem::F32 | LangItem::F64) {
 							builder.ins().fsub(lhs, rhs)
 						} else {
@@ -516,6 +532,7 @@ impl<'a> Codegen<'a> {
 						}
 					},
 					hir::InfixOp::Mul => {
+						let (lhs, _) = self.expr(builder, i.lhs).unwrap();
 						if matches!(l, LangItem::F32 | LangItem::F64) {
 							builder.ins().fmul(lhs, rhs)
 						} else {
@@ -523,21 +540,38 @@ impl<'a> Codegen<'a> {
 						}
 					},
 					hir::InfixOp::Div => {
+						let (lhs, _) = self.expr(builder, i.lhs).unwrap();
 						if matches!(l, LangItem::F32 | LangItem::F64) {
 							builder.ins().fdiv(lhs, rhs)
 						} else {
 							builder.ins().sdiv(lhs, rhs)
 						}
 					},
-					hir::InfixOp::Mod => builder.ins().srem(lhs, rhs),
-					hir::InfixOp::Shl => builder.ins().ishl(lhs, rhs),
-					hir::InfixOp::Shr => builder.ins().ushr(lhs, rhs),
-					hir::InfixOp::Xor => builder.ins().bxor(lhs, rhs),
+					hir::InfixOp::Mod => {
+						let (lhs, _) = self.expr(builder, i.lhs).unwrap();
+						builder.ins().srem(lhs, rhs)
+					},
+					hir::InfixOp::Shl => {
+						let (lhs, _) = self.expr(builder, i.lhs).unwrap();
+						builder.ins().ishl(lhs, rhs)
+					},
+					hir::InfixOp::Shr => {
+						let (lhs, _) = self.expr(builder, i.lhs).unwrap();
+						builder.ins().ushr(lhs, rhs)
+					},
+					hir::InfixOp::Xor => {
+						let (lhs, _) = self.expr(builder, i.lhs).unwrap();
+						builder.ins().bxor(lhs, rhs)
+					},
 					hir::InfixOp::Assign => {
+						let (lhs, _, place) = self.expr_place(builder, i.lhs).unwrap();
+						assert!(place, "cannot assign to non-place");
 						self.val_store(builder, rhs, ty, lhs, 0);
 						return None;
 					},
 					hir::InfixOp::AddAssign => {
+						let (lhs, _, place) = self.expr_place(builder, i.lhs).unwrap();
+						assert!(place, "cannot assign to non-place");
 						let v = if matches!(l, LangItem::F32 | LangItem::F64) {
 							builder.ins().fadd(lhs, rhs)
 						} else {
@@ -547,6 +581,8 @@ impl<'a> Codegen<'a> {
 						return None;
 					},
 					hir::InfixOp::SubAssign => {
+						let (lhs, _, place) = self.expr_place(builder, i.lhs).unwrap();
+						assert!(place, "cannot assign to non-place");
 						let v = if matches!(l, LangItem::F32 | LangItem::F64) {
 							builder.ins().fsub(lhs, rhs)
 						} else {
@@ -556,6 +592,8 @@ impl<'a> Codegen<'a> {
 						return None;
 					},
 					hir::InfixOp::MulAssign => {
+						let (lhs, _, place) = self.expr_place(builder, i.lhs).unwrap();
+						assert!(place, "cannot assign to non-place");
 						let v = if matches!(l, LangItem::F32 | LangItem::F64) {
 							builder.ins().fmul(lhs, rhs)
 						} else {
@@ -565,6 +603,8 @@ impl<'a> Codegen<'a> {
 						return None;
 					},
 					hir::InfixOp::DivAssign => {
+						let (lhs, _, place) = self.expr_place(builder, i.lhs).unwrap();
+						assert!(place, "cannot assign to non-place");
 						let v = if matches!(l, LangItem::F32 | LangItem::F64) {
 							builder.ins().fdiv(lhs, rhs)
 						} else {
@@ -574,31 +614,43 @@ impl<'a> Codegen<'a> {
 						return None;
 					},
 					hir::InfixOp::ModAssign => {
+						let (lhs, _, place) = self.expr_place(builder, i.lhs).unwrap();
+						assert!(place, "cannot assign to non-place");
 						let v = builder.ins().srem(lhs, rhs);
 						self.val_store(builder, v, ty, lhs, 0);
 						return None;
 					},
 					hir::InfixOp::ShlAssign => {
+						let (lhs, _, place) = self.expr_place(builder, i.lhs).unwrap();
+						assert!(place, "cannot assign to non-place");
 						let v = builder.ins().ishl(lhs, rhs);
 						self.val_store(builder, v, ty, lhs, 0);
 						return None;
 					},
 					hir::InfixOp::ShrAssign => {
+						let (lhs, _, place) = self.expr_place(builder, i.lhs).unwrap();
+						assert!(place, "cannot assign to non-place");
 						let v = builder.ins().ushr(lhs, rhs);
 						self.val_store(builder, v, ty, lhs, 0);
 						return None;
 					},
 					hir::InfixOp::XorAssign => {
+						let (lhs, _, place) = self.expr_place(builder, i.lhs).unwrap();
+						assert!(place, "cannot assign to non-place");
 						let v = builder.ins().bxor(lhs, rhs);
 						self.val_store(builder, v, ty, lhs, 0);
 						return None;
 					},
 					hir::InfixOp::BitOrAssign => {
+						let (lhs, _, place) = self.expr_place(builder, i.lhs).unwrap();
+						assert!(place, "cannot assign to non-place");
 						let v = builder.ins().bor(lhs, rhs);
 						self.val_store(builder, v, ty, lhs, 0);
 						return None;
 					},
 					hir::InfixOp::BitAndAssign => {
+						let (lhs, _, place) = self.expr_place(builder, i.lhs).unwrap();
+						assert!(place, "cannot assign to non-place");
 						let v = builder.ins().band(lhs, rhs);
 						self.val_store(builder, v, ty, lhs, 0);
 						return None;
@@ -665,8 +717,8 @@ impl<'a> Codegen<'a> {
 			},
 			hir::ExprKind::Cast(_) => unreachable!(),
 			hir::ExprKind::Field(ref f) => {
-				let (v, ty, place) = self.expr_place(builder, f.expr).unwrap();
-				let thir::Type::Struct(s) = *self.db.geti(ty) else {
+				let (v, sty, place) = self.expr_place(builder, f.expr).unwrap();
+				let thir::Type::Struct(s) = *self.db.geti(sty) else {
 					unreachable!()
 				};
 				let Item::Struct(ref l) = &self.decls.items[&s] else {
@@ -676,7 +728,12 @@ impl<'a> Codegen<'a> {
 				let hir::ItemKind::Struct(ref s) = h.kind else {
 					unreachable!()
 				};
-				let f = s.fields.ids_iter().find(|(_, p)| p.name == f.field).unwrap().0;
+				let f = s
+					.fields
+					.ids_iter()
+					.find(|(_, p)| p.name.name == f.field.name)
+					.unwrap()
+					.0;
 				let off = l.offsets[f];
 				let v = builder.ins().iadd_imm(v, off as i64);
 				Some((v, ty, place))
@@ -837,6 +894,7 @@ impl<'a> Codegen<'a> {
 	pub fn expr(&mut self, builder: &mut FunctionBuilder, expr: Ix<hir::Expr>) -> Option<(Value, Id<thir::Type>)> {
 		let (v, ty, place) = self.expr_place(builder, expr)?;
 		let (layout, compound) = layout_of_type(self.db, &self.options.target, self.thir, &self.decls.items, ty);
+		println!("{} {}", place, compound);
 		if place && !compound {
 			Some((
 				builder.ins().load(

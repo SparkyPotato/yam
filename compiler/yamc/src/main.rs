@@ -17,6 +17,8 @@ struct Options {
 	#[arg(long)]
 	verify_ir: bool,
 	#[arg(long)]
+	emit_hir: bool,
+	#[arg(long)]
 	emit_ir: bool,
 }
 
@@ -60,6 +62,7 @@ fn main() {
 			verify_ir: options.verify_ir,
 			emit_ir: options.emit_ir,
 		},
+		emit_hir: options.emit_hir,
 		output: FilePath::new(
 			&options
 				.output

@@ -47,6 +47,8 @@ pub struct CompileInput {
 	pub files: Vec<SourceFile>,
 	/// Options controlling code generation.
 	pub codegen_options: CodegenOptions,
+	/// Output HIR.
+	pub emit_hir: bool,
 	pub output: FilePath,
 }
 
@@ -67,6 +69,13 @@ pub fn compile(input: CompileInput) -> CompileOutput {
 	let (packages, tree) = packages(db, &indices);
 	let (items, lang_item_map, amap, tmap) = hir(db, &modules, maps, packages, tree);
 	let thir = tyck(db, items, lang_item_map);
+
+	if input.emit_hir {
+		for (p, &hir) in thir.hir.iter() {
+			let thir = thir.items[p];
+			println!("{}", pretty::pretty_print(db, hir, thir));
+		}
+	}
 
 	if should_codegen(db) {
 		let package = codegen(db, &input.codegen_options, &thir);
@@ -178,6 +187,9 @@ fn should_codegen(db: &dyn Db) -> bool {
 }
 
 fn codegen(db: &(dyn Db + Send + Sync), options: &CodegenOptions, thir: &thir::Thir) -> Vec<u8> {
+	let s = span!(Level::DEBUG, "codegen");
+	let _e = s.enter();
+
 	let decls = codegen_declare(db, options, thir);
 	thir.hir
 		.par_iter()

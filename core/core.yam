@@ -9,12 +9,13 @@ pub import lang_items.{
 extern "C" fn puts(s: *char) -> i32;
 
 struct ABC {
-    a: u8,
-    b: u16,
-    c: u32,
+    a: u64,
+    b: u64
 }
 
 extern "C" fn main() -> i32 {
-    puts("hai");
+    let a = "0123456789";
+    let abc = ABC(1, 2);
+    puts(a + abc.b);
     0
 }

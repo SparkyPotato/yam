@@ -276,11 +276,21 @@ impl Constraint {
 					hir::InfixOp::Lt | hir::InfixOp::Leq | hir::InfixOp::Gt | hir::InfixOp::Geq => {
 						|ty: &thir::Type| matches!(ty, thir::Type::LangItem(_))
 					},
-					hir::InfixOp::Add
-					| hir::InfixOp::AddAssign
-					| hir::InfixOp::Sub
-					| hir::InfixOp::SubAssign
-					| hir::InfixOp::Mul
+					hir::InfixOp::Add | hir::InfixOp::AddAssign | hir::InfixOp::Sub | hir::InfixOp::SubAssign => {
+						|ty: &thir::Type| {
+							matches!(
+								ty,
+								thir::Type::LangItem(
+									LangItem::U8
+										| LangItem::U16 | LangItem::U32 | LangItem::U64
+										| LangItem::U128 | LangItem::I8 | LangItem::I16
+										| LangItem::I32 | LangItem::I64 | LangItem::I128
+										| LangItem::F32 | LangItem::F64
+								) | thir::Type::Ptr(_)
+							)
+						}
+					},
+					hir::InfixOp::Mul
 					| hir::InfixOp::MulAssign
 					| hir::InfixOp::Div
 					| hir::InfixOp::DivAssign
