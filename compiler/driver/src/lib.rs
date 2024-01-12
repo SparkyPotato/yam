@@ -59,6 +59,9 @@ pub struct CompileOutput {
 }
 
 pub fn compile(input: CompileInput) -> CompileOutput {
+	let s = span!(Level::INFO, "compile");
+	let _e = s.enter();
+
 	assert!(!input.files.is_empty(), "no files to compile");
 
 	let dbc = input.db;

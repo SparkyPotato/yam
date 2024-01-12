@@ -247,6 +247,7 @@ pub fn codegen_item(
 	CONTEXT.with(|cranelift| {
 		FN_BUILDER.with(|builder| {
 			let mut cranelift = cranelift.borrow_mut();
+			cranelift.clear();
 			let mut builder = builder.borrow_mut();
 			let mut codegen = Codegen {
 				db,
@@ -351,6 +352,9 @@ impl<'a> Codegen<'a> {
 			} else {
 				builder.ins().return_(&[]);
 			}
+			builder.finalize();
+
+			cranelift.optimize(self.decls.module.read().isa()).unwrap();
 
 			if self.options.emit_ir {
 				println!("{}", cranelift.func);
@@ -363,7 +367,6 @@ impl<'a> Codegen<'a> {
 				unreachable!()
 			};
 			self.decls.module.write().define_function(id, cranelift).unwrap();
-			cranelift.clear();
 		}
 	}
 
@@ -397,7 +400,7 @@ impl<'a> Codegen<'a> {
 			hir::ExprKind::Array(ref arr) => {
 				let (arr_layout, _) = layout_of_type(self.db, &self.options.target, self.thir, &self.decls.items, ty);
 				let elem_ty = self.ithir.exprs[arr.elems[0]];
-				let (elem_layout, compound) =
+				let (elem_layout, _) =
 					layout_of_type(self.db, &self.options.target, self.thir, &self.decls.items, elem_ty);
 				let storage = builder
 					.create_sized_stack_slot(StackSlotData::new(StackSlotKind::ExplicitSlot, arr_layout.size as _));
@@ -692,9 +695,11 @@ impl<'a> Codegen<'a> {
 					args.push(ret);
 					builder.ins().call_indirect(sig, callee, &args);
 					Some((ret, f.ret, false))
-				} else {
+				} else if ret.size > 0 {
 					let ret = builder.ins().call_indirect(sig, callee, &args);
 					Some((builder.inst_results(ret)[0], f.ret, false))
+				} else {
+					None
 				}
 			},
 			hir::ExprKind::Struct(ref s) => {

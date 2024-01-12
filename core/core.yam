@@ -5,17 +5,3 @@ pub import lang_items.{
     char,
     f32, f64
 };
-
-extern "C" fn puts(s: *char) -> i32;
-
-struct ABC {
-    a: u64,
-    b: u64
-}
-
-extern "C" fn main() -> i32 {
-    let a = "0123456789";
-    let abc = ABC(1, 2);
-    puts(a + abc.b);
-    0
-}
