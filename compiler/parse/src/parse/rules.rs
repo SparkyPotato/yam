@@ -348,35 +348,32 @@ impl Rule for Block {
 	fn parse(self, p: &mut Parser) -> Recovery {
 		p.api.start_node(SyntaxKind::Block);
 		p!(p.expect(T!['{']));
-		p.begin_repeat();
 
-		loop {
-			let curr = p.api.peek();
-			match curr.kind {
-				T![eof] => {
-					p.end_repeat();
-					p!(p.expect(T!['}']));
-					p.api.finish_node();
-					return Recovery::ok();
-				},
-				T![;] => {
-					p.api.bump();
-				},
-				T!['}'] => break,
-				T![pub] | T![struct] | T![enum] | T![fn] => p!(p.run(Item)),
-				_ => {
-					let c = p.api.checkpoint();
-					p!(p.run(Expr));
-					if matches!(p.api.peek().kind, T![;]) {
-						p.api.start_node_at(c, SyntaxKind::SemiExpr);
+		p!(p.repeat(|p| {
+			loop {
+				let curr = p.api.peek();
+				match curr.kind {
+					T![eof] => break,
+					T!['}'] => break,
+					T![;] => {
 						p.api.bump();
-						p.api.finish_node();
-					}
-				},
+					},
+					T![pub] | T![struct] | T![enum] | T![fn] => p!(p.run(Item)),
+					_ => {
+						let c = p.api.checkpoint();
+						p!(p.run(Expr));
+						if matches!(p.api.peek().kind, T![;]) {
+							p.api.start_node_at(c, SyntaxKind::SemiExpr);
+							p.api.bump();
+							p.api.finish_node();
+						}
+					},
+				}
 			}
-		}
 
-		p.end_repeat();
+			Recovery::ok()
+		}));
+
 		p!(p.expect(T!['}']));
 		p.api.finish_node();
 		Recovery::ok()
@@ -420,11 +417,14 @@ fn abi(p: &mut Parser) {
 }
 
 fn attributes(p: &mut Parser) -> Recovery {
-	p.begin_repeat();
-	while matches!(p.api.peek().kind, T![@]) {
-		p!(p.run(Attribute));
-	}
-	p.end_repeat();
+	p!(p.repeat(|p| {
+		while matches!(p.api.peek().kind, T![@]) {
+			p!(p.run(Attribute));
+		}
+
+		Recovery::ok()
+	}));
+
 	Recovery::ok()
 }
 

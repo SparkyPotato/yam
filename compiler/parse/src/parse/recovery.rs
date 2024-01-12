@@ -4,7 +4,7 @@ use lex::{token::TokenKind, T};
 
 use crate::parse::Parser;
 
-#[derive(Copy, Clone, Eq, PartialEq)]
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub enum ParseRule {
 	Item,
 	Param,

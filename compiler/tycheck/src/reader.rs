@@ -35,6 +35,7 @@ impl<'a> HirReader<'a> {
 				len: self.array_len(ctx, a.len),
 			}),
 			hir::TypeKind::Fn(ref f) => thir::Type::Fn(thir::FnType {
+				abi: f.abi.as_ref().map(|x| x.abi.as_ref().map(|x| x.abi).unwrap_or("C")),
 				params: f.params.iter().map(|&ty| self.req_type(ctx, ty)).collect(),
 				ret: f
 					.ret
@@ -71,8 +72,8 @@ impl<'a> HirReader<'a> {
 		let expr = &self.exprs[len];
 		let span = expr.id.map(|x| x.erased());
 		match expr.kind {
-			hir::ExprKind::Literal(ref l) => match l.kind {
-				hir::LiteralKind::Int => return l.value.as_str().parse().expect("invalid integer literal"),
+			hir::ExprKind::Literal(l) => match l {
+				hir::Literal::Int(i) => return i as _,
 				_ => span.map(|x| {
 					ctx.push(
 						x.error("expected `{int}`")

@@ -74,8 +74,8 @@ pub enum Type {
 	Enum(Id<AbsPath>),
 	Ptr(PtrType),
 	LangItem(hir::LangItem),
-	Error,
 	Void,
+	Error,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
@@ -86,6 +86,7 @@ pub struct ArrayType {
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub struct FnType {
+	pub abi: Option<&'static str>,
 	pub params: Vec<Id<Type>>,
 	pub ret: Id<Type>,
 }

@@ -145,7 +145,12 @@ impl<'a> Checker<'a> {
 					.ret
 					.map(|ty| self.type_(ty))
 					.unwrap_or_else(|| self.solver.concrete(self.void, span));
-				self.solver.fn_(params, ret, span)
+				self.solver.fn_(
+					f.abi.as_ref().map(|x| x.abi.as_ref().map(|x| x.abi).unwrap_or("C")),
+					params,
+					ret,
+					span,
+				)
 			},
 			hir::TypeKind::Infer => self.solver.infer(span),
 			hir::TypeKind::Ptr(p) => {
@@ -316,20 +321,20 @@ impl<'a> Checker<'a> {
 	}
 
 	fn literal(&mut self, literal: &hir::Literal, span: Option<ErasedAstId>) -> Ix<Partial> {
-		match literal.kind {
-			hir::LiteralKind::Bool => self.solver.concrete(self.bool, span),
-			hir::LiteralKind::Char => self.solver.concrete(self.char, span),
-			hir::LiteralKind::Float => {
+		match literal {
+			hir::Literal::Bool(_) => self.solver.concrete(self.bool, span),
+			hir::Literal::Char(_) => self.solver.concrete(self.char, span),
+			hir::Literal::Float(_) => {
 				let ty = self.solver.infer(span);
 				self.solver.float(ty);
 				ty
 			},
-			hir::LiteralKind::Int => {
+			hir::Literal::Int(_) => {
 				let ty = self.solver.infer(span);
 				self.solver.int(ty);
 				ty
 			},
-			hir::LiteralKind::String => {
+			hir::Literal::String(_) => {
 				let char = self.solver.concrete(self.char, None);
 				self.solver.ptr(false, char, span)
 			},

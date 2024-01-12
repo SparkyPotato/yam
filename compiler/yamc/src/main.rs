@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 use clap::Parser;
 use diagnostics::{quick_diagnostic, DiagKind, FilePath};
-use driver::{target::Triple, CompileInput, Database, SourceFile};
+use driver::{target::Triple, CodegenOptions, CompileInput, Database, SourceFile};
 use tracing_forest::ForestLayer;
 use tracing_subscriber::{prelude::*, EnvFilter, Registry};
 use walkdir::WalkDir;
@@ -12,6 +12,12 @@ use walkdir::WalkDir;
 struct Options {
 	/// The root file of the package
 	path: PathBuf,
+	/// The output object file.
+	output: Option<PathBuf>,
+	#[arg(long)]
+	verify_ir: bool,
+	#[arg(long)]
+	emit_ir: bool,
 }
 
 fn main() {
@@ -48,7 +54,23 @@ fn main() {
 	driver::compile(CompileInput {
 		db: Database::default(),
 		files,
-		target: Triple::host(),
+		codegen_options: CodegenOptions {
+			name: options.path.file_stem().unwrap().to_string_lossy().into(),
+			target: Triple::host(),
+			verify_ir: options.verify_ir,
+			emit_ir: options.emit_ir,
+		},
+		output: FilePath::new(
+			&options
+				.output
+				.unwrap_or_else(|| {
+					let mut path = options.path.clone();
+					path.set_extension("o");
+					path
+				})
+				.to_str()
+				.unwrap(),
+		),
 	});
 }
 

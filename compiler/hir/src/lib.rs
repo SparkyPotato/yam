@@ -310,18 +310,12 @@ pub struct IndexExpr {
 }
 
 #[derive(Copy, Clone, PartialEq, Eq)]
-pub struct Literal {
-	pub kind: LiteralKind,
-	pub value: Text,
-}
-
-#[derive(Copy, Clone, PartialEq, Eq)]
-pub enum LiteralKind {
-	Bool,
-	Char,
-	Float,
-	Int,
-	String,
+pub enum Literal {
+	Bool(bool),
+	Char(u8),
+	Float(u64),
+	Int(i64),
+	String(&'static str),
 }
 
 #[derive(Clone, PartialEq, Eq)]

@@ -1,7 +1,7 @@
 use std::sync::Mutex;
 
-pub use codegen::target;
-use codegen::target::Triple;
+use codegen::codegen_declare;
+pub use codegen::{target, CodegenOptions};
 use diagnostics::{emit, DiagKind, FileCache, FilePath, FullDiagnostic};
 use hir::{
 	ast::AstMap,
@@ -45,8 +45,9 @@ pub struct CompileInput {
 	pub db: Database,
 	/// The files to compile. The root file is the first one. The order of the others doesn't matter.
 	pub files: Vec<SourceFile>,
-	/// The target to compile for.
-	pub target: Triple,
+	/// Options controlling code generation.
+	pub codegen_options: CodegenOptions,
+	pub output: FilePath,
 }
 
 /// The output of the compilation
@@ -67,7 +68,10 @@ pub fn compile(input: CompileInput) -> CompileOutput {
 	let (items, lang_item_map, amap, tmap) = hir(db, &modules, maps, packages, tree);
 	let thir = tyck(db, items, lang_item_map);
 
-	if should_codegen(db) {}
+	if should_codegen(db) {
+		let package = codegen(db, &input.codegen_options, &thir);
+		std::fs::write(input.output.path(), package).unwrap();
+	}
 
 	emit_all(db, &cache, &amap, &tmap);
 
@@ -75,7 +79,8 @@ pub fn compile(input: CompileInput) -> CompileOutput {
 }
 
 fn parse(db: &(dyn Db + Send + Sync), files: Vec<SourceFile>) -> (Vec<Id<Module>>, FileCache) {
-	let parser = Parser::new(db, files.get(0).expect("No source files provided").path);
+	let f = files.get(0).expect("No source files provided");
+	let parser = Parser::new(db, f.path);
 	let modules: Vec<_> = files.into_par_iter().map(|x| parser.parse(x)).collect();
 	let cache = parser.finish();
 	(modules, cache)
@@ -166,9 +171,18 @@ fn tyck(
 }
 
 fn should_codegen(db: &dyn Db) -> bool {
-	db.get_all::<FullDiagnostic>().any(|x| x.kind == DiagKind::Error)
+	let r = db.get_all::<FullDiagnostic>().any(|x| x.kind == DiagKind::Error)
 		|| db.get_all::<TempDiagnostic>().any(|x| x.kind == DiagKind::Error)
-		|| db.get_all::<ItemDiagnostic>().any(|x| x.kind == DiagKind::Error)
+		|| db.get_all::<ItemDiagnostic>().any(|x| x.kind == DiagKind::Error);
+	!r
+}
+
+fn codegen(db: &(dyn Db + Send + Sync), options: &CodegenOptions, thir: &thir::Thir) -> Vec<u8> {
+	let decls = codegen_declare(db, options, thir);
+	thir.hir
+		.par_iter()
+		.for_each(|(id, &hir)| codegen::codegen_item(db, options, &decls, thir, hir, thir.items[id]));
+	decls.finish()
 }
 
 fn emit_all(db: &(dyn Db + Send + Sync), cache: &FileCache, amap: &AstMap, tmap: &TempMap) {

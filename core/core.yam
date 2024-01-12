@@ -5,3 +5,16 @@ pub import lang_items.{
     char,
     f32, f64
 };
+
+extern "C" fn puts(s: *char) -> i32;
+
+struct ABC {
+    a: u8,
+    b: u16,
+    c: u32,
+}
+
+extern "C" fn main() -> i32 {
+    puts("hai");
+    0
+}

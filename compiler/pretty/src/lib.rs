@@ -298,7 +298,13 @@ impl PrettyPrinter<'_> {
 			hir::ExprKind::Index(ref i) => self
 				.expr(i.expr)
 				.append(RcDoc::text("[").append(self.expr(i.index)).append(RcDoc::text("]"))),
-			hir::ExprKind::Literal(ref l) => RcDoc::text(l.value.as_str()),
+			hir::ExprKind::Literal(l) => match l {
+				hir::Literal::Bool(b) => RcDoc::text(b.to_string()),
+				hir::Literal::Char(c) => RcDoc::text(format!("'{}'", c as char)),
+				hir::Literal::Float(f) => RcDoc::text(f.to_string()),
+				hir::Literal::Int(i) => RcDoc::text(i.to_string()),
+				hir::Literal::String(s) => RcDoc::text(format!("\"{}\"", s)),
+			},
 			hir::ExprKind::Loop(ref l) => RcDoc::text("loop").append(RcDoc::space()).append(self.block(&l.body)),
 			hir::ExprKind::Match(ref m) => RcDoc::text("match")
 				.append(RcDoc::space())

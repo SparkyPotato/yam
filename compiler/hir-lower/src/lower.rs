@@ -688,15 +688,17 @@ impl<'a> Lowerer<'a> {
 	}
 
 	fn literal(&mut self, l: ast::Literal) -> Option<hir::Literal> {
-		let (value, kind) = match l {
-			ast::Literal::IntLit(i) => (i.text(), hir::LiteralKind::Int),
-			ast::Literal::FloatLit(f) => (f.text(), hir::LiteralKind::Float),
-			ast::Literal::CharLit(c) => (c.text(), hir::LiteralKind::Char),
-			ast::Literal::StringLit(s) => (s.text(), hir::LiteralKind::String),
-			ast::Literal::BoolLit(b) => (b.text(), hir::LiteralKind::Bool),
+		let l = match l {
+			ast::Literal::IntLit(i) => hir::Literal::Int(i.text().as_str().parse().unwrap()),
+			ast::Literal::FloatLit(f) => hir::Literal::Float(f.text().as_str().parse::<f64>().unwrap().to_bits()),
+			ast::Literal::CharLit(c) => hir::Literal::Char(c.text().as_str().as_bytes()[0]),
+			ast::Literal::StringLit(s) => {
+				let s = s.text().as_str();
+				hir::Literal::String(&s[1..s.len() - 1])
+			},
+			ast::Literal::BoolLit(b) => hir::Literal::Bool(b.text().as_str() == "true"),
 		};
-
-		Some(hir::Literal { value, kind })
+		Some(l)
 	}
 
 	fn loop_(&mut self, l: ast::LoopExpr) -> Option<hir::LoopExpr> {
@@ -838,17 +840,11 @@ impl<'a> Lowerer<'a> {
 		});
 
 		let true_ = self.exprs.push(hir::Expr {
-			kind: hir::ExprKind::Literal(hir::Literal {
-				kind: hir::LiteralKind::Bool,
-				value: Text::new("true"),
-			}),
+			kind: hir::ExprKind::Literal(hir::Literal::Bool(true)),
 			id: None,
 		});
 		let false_ = self.exprs.push(hir::Expr {
-			kind: hir::ExprKind::Literal(hir::Literal {
-				kind: hir::LiteralKind::Bool,
-				value: Text::new("false"),
-			}),
+			kind: hir::ExprKind::Literal(hir::Literal::Bool(false)),
 			id: None,
 		});
 

@@ -18,9 +18,19 @@ pub struct Partial {
 #[derive(Debug)]
 pub enum PartialType {
 	Concrete(Id<thir::Type>),
-	Array { ty: Ix<Partial>, len: u64 },
-	Fn { params: Vec<Ix<Partial>>, ret: Ix<Partial> },
-	Ptr { mutable: bool, ty: Ix<Partial> },
+	Array {
+		ty: Ix<Partial>,
+		len: u64,
+	},
+	Fn {
+		abi: Option<&'static str>,
+		params: Vec<Ix<Partial>>,
+		ret: Ix<Partial>,
+	},
+	Ptr {
+		mutable: bool,
+		ty: Ix<Partial>,
+	},
 	Infer,
 }
 
@@ -105,8 +115,10 @@ impl TypeSolver {
 		self.add(PartialType::Array { ty, len }, span)
 	}
 
-	pub fn fn_(&mut self, params: Vec<Ix<Partial>>, ret: Ix<Partial>, span: Option<ErasedAstId>) -> Ix<Partial> {
-		self.add(PartialType::Fn { params, ret }, span)
+	pub fn fn_(
+		&mut self, abi: Option<&'static str>, params: Vec<Ix<Partial>>, ret: Ix<Partial>, span: Option<ErasedAstId>,
+	) -> Ix<Partial> {
+		self.add(PartialType::Fn { abi, params, ret }, span)
 	}
 
 	pub fn ptr(&mut self, mutable: bool, ty: Ix<Partial>, span: Option<ErasedAstId>) -> Ix<Partial> {
@@ -151,7 +163,7 @@ impl TypeSolver {
 		match p.ty {
 			PartialType::Concrete(_) => {},
 			PartialType::Array { ty, .. } => self.infer_error(ctx, ty, span, errored),
-			PartialType::Fn { ref params, ret } => {
+			PartialType::Fn { abi, ref params, ret } => {
 				for &p in params {
 					self.infer_error(ctx, p, span, errored);
 				}
@@ -181,7 +193,7 @@ impl TypeSolver {
 					let ty = ctx.add(thir::Type::Array(thir::ArrayType { ty, len }));
 					self.partial[i].ty = PartialType::Concrete(ty);
 				},
-				PartialType::Fn { ref params, ret } => {
+				PartialType::Fn { abi, ref params, ret } => {
 					let p: Vec<_> = params
 						.iter()
 						.filter_map(|&p| match self.partial[p].ty {
@@ -195,7 +207,7 @@ impl TypeSolver {
 					let PartialType::Concrete(ret) = self.partial[ret].ty else {
 						continue;
 					};
-					let ty = ctx.add(thir::Type::Fn(thir::FnType { params: p, ret }));
+					let ty = ctx.add(thir::Type::Fn(thir::FnType { abi, params: p, ret }));
 					self.partial[i].ty = PartialType::Concrete(ty);
 				},
 				PartialType::Ptr { mutable, ty } => {
@@ -338,9 +350,8 @@ impl Constraint {
 				ref args,
 				result,
 			} => {
-				let p = std::mem::take(&mut solver.partial);
-				let ret = match &p[callee].ty {
-					&PartialType::Concrete(callee) => {
+				let ret = match solver.partial[callee].ty {
+					PartialType::Concrete(callee) => {
 						let callee = &*ctx.geti(callee);
 						match callee {
 							thir::Type::Fn(f) => {
@@ -360,12 +371,12 @@ impl Constraint {
 							_ => false,
 						}
 					},
-					&PartialType::Fn { ref params, ret } => {
+					PartialType::Fn { ref params, ret, .. } => {
 						if params.len() != args.len() {
 							return false;
 						}
 
-						for (&p, &a) in params.iter().zip(args.iter()) {
+						for (p, &a) in params.clone().into_iter().zip(args.iter()) {
 							solver.unify(p, a);
 						}
 						solver.unify(ret, result);
@@ -374,7 +385,6 @@ impl Constraint {
 					},
 					_ => false,
 				};
-				solver.partial = p;
 				ret
 			},
 			Constraint::Cast { expr, ty } => {

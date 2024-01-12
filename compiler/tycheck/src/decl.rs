@@ -64,6 +64,7 @@ fn fn_(ctx: &Ctx, reader: &HirReader, f: &hir::Fn) -> thir::FnDecl {
 		.unwrap_or_else(|| ctx.add(thir::Type::Void));
 	let params = params(ctx, reader, &f.params);
 	let ty = ctx.add(thir::Type::Fn(thir::FnType {
+		abi: f.abi.as_ref().map(|x| x.abi.as_ref().map(|x| x.abi).unwrap_or("C")),
 		params: params.iter().map(|(_, &x)| x).collect(),
 		ret,
 	}));

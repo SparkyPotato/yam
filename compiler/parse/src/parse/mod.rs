@@ -16,12 +16,17 @@ use crate::{
 mod recovery;
 mod rules;
 
+#[derive(Copy, Clone, Debug)]
 struct RuleData {
 	rule: ParseRule,
 	/// If we're still trying to parse the leading token of the rule.
 	beginning: bool,
 	/// CST node depth at the beginning of the rule.
 	node_depth: usize,
+}
+
+impl PartialEq for RuleData {
+	fn eq(&self, other: &Self) -> bool { self.rule == other.rule && self.node_depth == other.node_depth }
 }
 
 pub struct Parser<'c, 's> {
@@ -45,44 +50,40 @@ impl<'c, 's> Parser<'c, 's> {
 	}
 
 	fn parse_inner(&mut self) {
-		self.begin_repeat();
+		let _ = self.repeat(|p| {
+			while !p.is_empty() {
+				let _ = p.run(Item);
+			}
 
-		while !self.is_empty() {
-			let _ = self.run(Item);
-		}
-
-		self.end_repeat();
+			Recovery::ok()
+		});
 	}
 }
 
 impl Parser<'_, '_> {
 	fn run<T: Rule>(&mut self, rule: T) -> Recovery {
-		self.rule_stack.push(RuleData {
+		let data = RuleData {
 			rule: rule.rule(),
 			beginning: true,
 			node_depth: self.api.node_depth(),
-		});
+		};
+		self.rule_stack.push(data);
 		let recovery = rule.parse(self);
-		self.rule_stack.pop();
+		assert_eq!(data, self.rule_stack.pop().unwrap());
 		recovery
 	}
 
-	fn begin_repeat(&mut self) {
-		self.rule_stack.push(RuleData {
+	fn repeat(&mut self, f: impl FnOnce(&mut Self) -> Recovery) -> Recovery {
+		let data = RuleData {
 			rule: ParseRule::Repeat,
 			beginning: false,
 			node_depth: self.api.node_depth(),
-		});
-	}
+		};
+		self.rule_stack.push(data);
 
-	fn end_repeat(&mut self) {
-		assert!(matches!(
-			self.rule_stack.pop(),
-			Some(RuleData {
-				rule: ParseRule::Repeat,
-				..
-			})
-		));
+		let ret = f(self);
+		assert_eq!(data, self.rule_stack.pop().unwrap());
+		ret
 	}
 
 	fn is_empty(&self) -> bool { matches!(self.api.peek().kind, T![eof]) }
