@@ -289,16 +289,3 @@ impl<'a> NameResolver<'a> {
 	pub fn pop_scope(&mut self) { self.scopes.pop().expect("pop without any scope"); }
 }
 
-fn is_child_of(ctx: &Ctx, parent: Id<AbsPath>, mut child: Id<AbsPath>) -> bool {
-	loop {
-		if parent == child {
-			return true;
-		}
-
-		child = match *ctx.geti(child) {
-			AbsPath::Package(_) => return false,
-			AbsPath::Name { prec, .. } => prec,
-		};
-	}
-}
-
