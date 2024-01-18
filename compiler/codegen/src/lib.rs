@@ -658,6 +658,7 @@ impl<'a> Codegen<'a> {
 						self.val_store(builder, v, ty, lhs, 0);
 						return None;
 					},
+					hir::InfixOp::Error => unreachable!(),
 				};
 				Some((v, ty, false))
 			},
@@ -866,6 +867,7 @@ impl<'a> Codegen<'a> {
 						let v = builder.ins().bnot(expr);
 						Some((v, ty, false))
 					},
+					hir::PrefixOp::Error => unreachable!(),
 				}
 			},
 			hir::ExprKind::Return(r) => {
@@ -893,6 +895,7 @@ impl<'a> Codegen<'a> {
 				}
 				None
 			},
+			hir::ExprKind::Error => unreachable!(),
 		}
 	}
 
@@ -979,3 +982,4 @@ impl<'a> Codegen<'a> {
 		);
 	}
 }
+

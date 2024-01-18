@@ -1,3 +1,5 @@
+#![feature(try_blocks)]
+
 use std::path::Path;
 
 use diagnostics::{Diagnostic, FilePath, FullDiagnostic};
@@ -5,12 +7,13 @@ use hir::ident::{AbsPath, PackageId};
 use rustc_hash::FxHashMap;
 use syntax::ast;
 use text::Text;
-use verde::{storage, Db, Id, Tracked};
+use verde::{storage, Ctx, Db, Id, Tracked};
 
 use crate::index::ErasedTempId;
 
 pub mod index;
 pub mod lower;
+mod resolve;
 
 // TODO: prelude.
 
@@ -34,7 +37,6 @@ pub struct Storage(
 	index::local::PackageTree,
 	index::local::generate_index,
 	index::local::build_package_tree,
-	lower::CachedName,
 	lower::LoweredModule,
 	lower::lower_to_hir,
 );
@@ -62,8 +64,6 @@ impl Module {
 	pub fn new(ast: ast::File, file: FilePath, path: Id<AbsPath>) -> Self { Self { path, file, ast } }
 
 	/// Figure out the module's path from it's relative file path from a root file.
-	///
-	/// `prefix` is a prefix to add to path - possibly just the package ID if we're looking at the root module.
 	pub fn from_file(db: &dyn Db, root: FilePath, ast: ast::File, file: FilePath, package: PackageId) -> Self {
 		if root == file {
 			return Self::new(ast, file, db.add(package.into()));
@@ -111,3 +111,17 @@ pub struct Packages {
 	pub id: (),
 	pub packages: FxHashMap<PackageId, Id<VisiblePackages>>,
 }
+
+fn is_child_of(ctx: &Ctx, parent: Id<AbsPath>, mut child: Id<AbsPath>) -> bool {
+	loop {
+		if parent == child {
+			return true;
+		}
+
+		child = match *ctx.geti(child) {
+			AbsPath::Package(_) => return false,
+			AbsPath::Name { prec, .. } => prec,
+		};
+	}
+}
+

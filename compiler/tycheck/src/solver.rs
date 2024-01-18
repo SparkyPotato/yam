@@ -327,6 +327,7 @@ impl Constraint {
 							)
 						)
 					},
+					hir::InfixOp::Error => |_: &thir::Type| true,
 				};
 
 				let conc = conc(&solver.partial[lhs].ty)
@@ -548,6 +549,7 @@ impl Constraint {
 						)
 					},
 					hir::PrefixOp::Deref => |ty: &thir::Type| matches!(ty, thir::Type::Ptr(_)),
+					hir::PrefixOp::Error => |_: &thir::Type| true,
 				};
 
 				let conc = conc(&solver.partial[expr].ty)
@@ -714,3 +716,4 @@ fn fmt_type(ctx: &Ctx, ty: Id<thir::Type>) -> String {
 		thir::Type::Void => "void".to_string(),
 	}
 }
+

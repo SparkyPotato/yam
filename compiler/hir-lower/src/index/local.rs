@@ -148,6 +148,7 @@ impl RelPath {
 #[derive(Eq, PartialEq)]
 pub enum Declaration {
 	Name {
+		path: Id<AbsPath>,
 		ty: NameTy,
 		id: TempId<ast::Name>,
 	},
@@ -242,17 +243,18 @@ impl<'a> IndexGen<'a> {
 			return;
 		};
 
+		let path = self.map.declare(self.ctx, text, item);
 		if public {
 			self.public.names.insert(text);
 		}
 		let old = self.decls.insert(
 			text,
 			Declaration::Name {
+				path,
 				ty,
 				id: self.map.add_temp(name.clone()),
 			},
 		);
-		self.map.declare(self.ctx, text, item);
 
 		if let Some((old, item)) = self.span(text, old) {
 			let span = name.span().with(self.map.file);
@@ -335,3 +337,4 @@ impl<'a> IndexGen<'a> {
 		}
 	}
 }
+

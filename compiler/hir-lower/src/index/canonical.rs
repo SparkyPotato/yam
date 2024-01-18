@@ -16,6 +16,7 @@ use crate::{
 		NameTy,
 		TempId,
 	},
+	is_child_of,
 	Packages,
 	VisiblePackages,
 };
@@ -71,18 +72,14 @@ pub fn canonicalize_module_tree(
 		sub.insert(ctx.get(tree).path, tree);
 	}
 
-	let (public, private) = if let Some(index) = tree.index {
+	if let Some(index) = tree.index {
 		let index = ctx.get(index);
 		let p = ctx.get(index.public);
 
 		for (&name, decl) in index.decls.iter() {
-			match decl {
-				local::Declaration::Name { ty, id } => {
-					let decl = Declaration::Name {
-						path: ctx.add(AbsPath::Name { prec: index.path, name }),
-						ty: *ty,
-						id: *id,
-					};
+			match *decl {
+				local::Declaration::Name { path, ty, id } => {
+					let decl = Declaration::Name { path, ty, id };
 
 					match private.names.entry(name) {
 						Entry::Vacant(v) => {
@@ -107,6 +104,7 @@ pub fn canonicalize_module_tree(
 		let mut resolver = Resolver {
 			ctx,
 			us: tree_id,
+			path: tree.path,
 			public,
 			private,
 			visible,
@@ -130,10 +128,8 @@ pub fn canonicalize_module_tree(
 			}
 		}
 
-		resolver.finish()
-	} else {
-		(public, private)
-	};
+		(public, private) = resolver.finish();
+	}
 
 	ModuleTree {
 		path: tree.path,
@@ -143,21 +139,42 @@ pub fn canonicalize_module_tree(
 	}
 }
 
-#[derive(Copy, Clone, Eq, PartialEq)]
-pub enum Declaration {
+pub enum Declaration<M> {
 	Name {
 		path: Id<AbsPath>,
 		ty: NameTy,
 		id: TempId<ast::Name>,
 	},
-	Module(Id<ModuleTree>),
+	Module(Id<M>),
 }
+
+impl<M> Copy for Declaration<M> {}
+impl<M> Clone for Declaration<M> {
+	fn clone(&self) -> Self { *self }
+}
+impl<M> PartialEq for Declaration<M> {
+	fn eq(&self, other: &Self) -> bool {
+		match (self, other) {
+			(
+				Declaration::Name { path, ty, id },
+				Declaration::Name {
+					path: p1,
+					ty: ty1,
+					id: id1,
+				},
+			) => path == p1 && ty == ty1 && id == id1,
+			(Declaration::Module(m1), Declaration::Module(m2)) => m1 == m2,
+			(..) => false,
+		}
+	}
+}
+impl<M> Eq for Declaration<M> {}
 
 #[derive(Tracked, Eq, PartialEq)]
 pub struct CanonicalIndex {
 	#[id]
 	path: (Id<AbsPath>, bool),
-	pub names: FxHashMap<Text, Declaration>,
+	pub names: FxHashMap<Text, Declaration<ModuleTree>>,
 }
 
 impl CanonicalIndex {
@@ -191,6 +208,7 @@ pub struct ModuleTree {
 struct Resolver<'a> {
 	ctx: &'a Ctx<'a>,
 	us: Id<local::ModuleTree>,
+	path: Id<AbsPath>,
 	public: CanonicalIndex,
 	private: CanonicalIndex,
 	visible: Id<VisiblePackages>,
@@ -199,15 +217,15 @@ struct Resolver<'a> {
 }
 
 impl Resolver<'_> {
-	fn resolve(&mut self, path: &RelPath) -> Option<Declaration> {
+	fn resolve(&mut self, path: &RelPath) -> Option<Declaration<ModuleTree>> {
 		match path.dot {
-			Some(_) => self.resolve_from_root(&path.names),
-			None => self.resolve_from_current(&path.names),
+			Some(_) => self.resolve_from_root(path.names.iter().copied()),
+			None => self.resolve_from_current(path.names.iter().copied()),
 		}
 	}
 
-	fn resolve_from_current(&mut self, path: &[TempName]) -> Option<Declaration> {
-		let mut names = path.iter();
+	fn resolve_from_current(&mut self, path: impl IntoIterator<Item = TempName>) -> Option<Declaration<ModuleTree>> {
+		let mut names = path.into_iter();
 		let mut prev = names.next()?; // There's always atleast one name.
 
 		let Some(&decl) = self.private.names.get(&prev.name) else {
@@ -269,76 +287,112 @@ impl Resolver<'_> {
 		Some(decl)
 	}
 
-	fn resolve_from_root(&mut self, path: &[TempName]) -> Option<Declaration> {
-		let mut names = path.iter();
-		let first = names.next()?; // There's always atleast one name.
-		let span = first.id.erased();
-		if !self.error_set.contains(&span) {
-			self.ctx
-				.push(span.error("root imports are unsupported").label(span.mark()));
-			self.error_set.insert(span);
+	fn resolve_from_root(&mut self, path: impl IntoIterator<Item = TempName>) -> Option<Declaration<ModuleTree>> {
+		let mut names = path.into_iter();
+		let mut prev = names.next()?; // There's always atleast one name.
+
+		let visible = self.ctx.get(self.visible);
+		let Some(pkg) = visible.packages.get(&prev.name) else {
+			let span = prev.id.erased();
+			if !self.error_set.contains(&span) {
+				self.ctx.push(
+					span.error("unknown package")
+						.label(span.label("404: this package does not exist")),
+				);
+				self.error_set.insert(span);
+			}
+			return None;
+		};
+		let ptree = self.ctx.get(self.ptree);
+		let tree = *ptree
+			.packages
+			.get(pkg)
+			.expect("Invalid package ID in visibile packages");
+
+		let mut decl = Declaration::Module(tree);
+		while let Some(name) = names.next() {
+			match decl {
+				Declaration::Module(tree) => {
+					if tree == self.us {
+						return self.resolve_from_current(names);
+					}
+
+					let got = self.ctx.get(tree);
+					if let Some(id) = got.index {
+						let index = self.ctx.get(id);
+						let private = is_child_of(self.ctx, got.path, self.path);
+						let is_public = (!private)
+							.then(|| self.ctx.get(index.public).names.contains(&name.name))
+							.unwrap_or(false);
+						let ldecl = index.decls.get(&name.name);
+						if !private && !is_public {
+							let span = name.id.erased();
+							if !self.error_set.contains(&span) {
+								self.ctx.push(
+									span.error("cannot import private name")
+										.label(span.label("this is private")),
+								);
+								self.error_set.insert(span);
+							}
+							return None;
+						}
+						decl = if let Some(decl) = ldecl {
+							match *decl {
+								local::Declaration::Name { path, ty, id } => Declaration::Name { path, ty, id },
+								local::Declaration::Import { .. } => {
+									let span = name.id.erased();
+									if !self.error_set.contains(&span) {
+										self.ctx.push(
+											span.error("importing re-exports is not supported yet")
+												.label(span.label("this is a re-export")),
+										);
+										self.error_set.insert(span);
+									}
+									return None;
+								},
+							}
+						} else {
+							match got.children.get(&name.name) {
+								Some(&tree) => Declaration::Module(tree),
+								None => {
+									let span = name.id.erased();
+									if !self.error_set.contains(&span) {
+										self.ctx.push(span.error("unknown submodule").label(span.label(format!(
+											"404: this module does not exist in `{}`",
+											prev.name.as_str()
+										))));
+										self.error_set.insert(span);
+									}
+									return None;
+								},
+							}
+						}
+					}
+				},
+				Declaration::Name { id, .. } => {
+					let span = prev.id.erased();
+					if !self.error_set.contains(&span) {
+						self.ctx.push(
+							span.error("cannot import from item")
+								.label(name.id.erased().label("tried importing from item here"))
+								.label(span.label("this is an item"))
+								.label(id.erased().label("item defined here")),
+						);
+						self.error_set.insert(span);
+					}
+					return None;
+				},
+			}
+
+			prev = name;
 		}
 
-		None
-
-		// let visible = self.ctx.get(self.visible);
-		// let Some(pkg) = visible.packages.get(&first.name) else {
-		// 	let span = first.id.erased();
-		// 	if !self.error_set.contains(&span) {
-		// 		self.ctx.push(
-		// 			span.error("unknown package")
-		// 				.label(span.label("404: this package does not exist")),
-		// 		);
-		// 		self.error_set.insert(span);
-		// 	}
-		// 	return None;
-		// };
-		// let ptree = self.ctx.get(self.ptree);
-		// let mut tree = *ptree
-		// 	.packages
-		// 	.get(pkg)
-		// 	.expect("Invalid package ID in visibile packages");
-		//
-		// let mut prev = first.name;
-		// while let Some(name) = names.next() {
-		// 	if tree == self.us {
-		// 		let span = name.id.erased();
-		// 		if !self.error_set.contains(&span) {
-		// 			// TODO: Allow this.
-		// 			self.ctx.push(
-		// 				span.error("cannot use root import through the current module")
-		// 					.label(span.label(format!("try importing directly with `{}...`", name.name.as_str()))),
-		// 			);
-		// 			self.error_set.insert(span);
-		// 		}
-		// 		return None;
-		// 	}
-		//
-		// 	let got = self.ctx.get(tree);
-		// 	if let Some(id) = got.index {
-		// 		let index = self.ctx.get(id);
-		// 	}
-		//
-		// 	tree =
-		// 		match got.children.get(&name.name) {
-		// 			Some(&tree) => tree,
-		// 			None => {
-		// 				let span = name.id.erased();
-		// 				if !self.error_set.contains(&span) {
-		// 					self.ctx.push(span.error("unknown submodule").label(
-		// 						span.label(format!("404: this submodule does not exist in `{}`", prev.as_str())),
-		// 					));
-		// 					self.error_set.insert(span);
-		// 				}
-		// 				return None;
-		// 			},
-		// 		};
-		//
-		// 	prev = name.name;
-		// }
-		//
-		// return None;
+		Some(match decl {
+			Declaration::Name { path, ty, id } => Declaration::Name { path, ty, id },
+			Declaration::Module(_) => unreachable!(),
+		})
 	}
 
 	fn finish(self) -> (CanonicalIndex, CanonicalIndex) { (self.public, self.private) }
 }
+

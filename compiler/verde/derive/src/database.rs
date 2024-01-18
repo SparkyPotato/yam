@@ -90,9 +90,9 @@ pub(crate) fn database(input: ItemStruct) -> Result<TokenStream> {
 
 	let derive = if cfg!(feature = "serde") {
 		quote! {
-            #[derive(::verde::serde::Serialize, ::verde::serde::Deserialize)]
-            #[serde(crate = "::verde::serde")]
-        }
+			#[derive(::verde::serde::Serialize, ::verde::serde::Deserialize)]
+			#[serde(crate = "::verde::serde")]
+		}
 	} else {
 		quote! {}
 	};

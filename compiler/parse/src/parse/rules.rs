@@ -661,7 +661,7 @@ mod expr {
 				p!(p.run(Block));
 				if matches!(p.api.peek().kind, T![else]) {
 					p.api.bump();
-					p!(p.run(Expr)); // TODO: this should be a block or an if expr
+					p!(p.run(Expr)); // TODO: this maybe should be a block or an if expr - it was here but i don't know why.
 				}
 
 				p.api.finish_node();

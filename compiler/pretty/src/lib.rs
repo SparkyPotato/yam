@@ -261,6 +261,7 @@ impl PrettyPrinter<'_> {
 					hir::InfixOp::XorAssign => "^=",
 					hir::InfixOp::BitOrAssign => "|=",
 					hir::InfixOp::BitAndAssign => "&=",
+					hir::InfixOp::Error => "<error>",
 				});
 				self.expr(i.lhs)
 					.append(RcDoc::space())
@@ -346,6 +347,7 @@ impl PrettyPrinter<'_> {
 					hir::PrefixOp::Not => "!",
 					hir::PrefixOp::Neg => "-",
 					hir::PrefixOp::Deref => "*",
+					hir::PrefixOp::Error => "<error>",
 				});
 				op.append(self.expr(p.expr))
 			},
@@ -353,6 +355,7 @@ impl PrettyPrinter<'_> {
 				needs_group = true;
 				RcDoc::text("return").append(r.map(|e| RcDoc::space().append(self.expr(e))))
 			},
+			hir::ExprKind::Error => RcDoc::text("<error>"),
 		};
 
 		RcDoc::text("(")

@@ -146,6 +146,7 @@ pub enum TypeKind {
 	Enum(Id<AbsPath>),
 	Alias(Id<AbsPath>),
 	Ptr(PtrType),
+	Error,
 }
 
 impl Debug for TypeKind {
@@ -158,6 +159,7 @@ impl Debug for TypeKind {
 			TypeKind::Enum(_) => write!(f, "enum"),
 			TypeKind::Alias(_) => write!(f, "alias"),
 			TypeKind::Ptr(_) => write!(f, "pointer"),
+			TypeKind::Error => write!(f, "<error>"),
 		}
 	}
 }
@@ -184,7 +186,7 @@ pub struct PtrType {
 #[derive(Clone, PartialEq, Eq)]
 pub struct Expr {
 	pub kind: ExprKind,
-	pub id: Option<AstId<a::Expr>>,
+	pub id: AstId<a::Expr>,
 }
 
 #[derive(Clone, PartialEq, Eq)]
@@ -211,6 +213,7 @@ pub enum ExprKind {
 	Ref(RefExpr),
 	Prefix(PrefixExpr),
 	Return(Option<Ix<Expr>>),
+	Error,
 }
 
 #[derive(Clone, PartialEq, Eq)]
@@ -277,6 +280,7 @@ pub enum InfixOp {
 	XorAssign,
 	BitOrAssign,
 	BitAndAssign,
+	Error,
 }
 
 #[derive(Clone, PartialEq, Eq)]
@@ -359,4 +363,5 @@ pub enum PrefixOp {
 	Not,
 	Neg,
 	Deref,
+	Error,
 }

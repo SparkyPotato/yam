@@ -2,7 +2,7 @@ use std::{fmt::Debug, hash::Hash, marker::PhantomData};
 
 use diagnostics::{FilePath, FullSpan, Span};
 use rustc_hash::FxHashMap;
-use syntax::{ast::Item, AstElement, SyntaxElement};
+use syntax::{ast::Item, AstElement, SyntaxElement, TextRange};
 use verde::Id;
 
 use crate::ident::AbsPath;
@@ -17,7 +17,27 @@ impl Span for ErasedAstId {
 
 	fn to_raw(self, ctx: &Self::Ctx) -> FullSpan {
 		let item = ctx.items.get(&self.item).unwrap();
-		let span = item.sub[self.index as usize].text_range();
+		let span = match item.sub[self.index as usize] {
+			ItemElement::Concrete(ref n) => n.text_range(),
+			ItemElement::Error => {
+				let start = ErasedAstId {
+					item: self.item,
+					index: self.index - 1,
+				}
+				.to_raw(ctx);
+				let end = ErasedAstId {
+					item: self.item,
+					index: self.index + 1,
+				}
+				.to_raw(ctx);
+				let start = if start.end + 1 == end.start {
+					end.start
+				} else {
+					start.end + 1
+				};
+				TextRange::new(start.into(), end.start.into())
+			},
+		};
 		FullSpan {
 			start: span.start().into(),
 			end: span.end().into(),
@@ -57,11 +77,17 @@ impl<T> AstId<T> {
 }
 
 #[derive(Debug, Clone)]
+pub enum ItemElement {
+	Concrete(SyntaxElement),
+	Error,
+}
+
+#[derive(Debug, Clone)]
 pub struct ItemData {
 	pub item: Item,
 	pub file: FilePath,
 	pub path: Id<AbsPath>,
-	pub sub: Vec<SyntaxElement>,
+	pub sub: Vec<ItemElement>,
 }
 
 #[derive(Debug, Default)]
@@ -76,9 +102,12 @@ impl AstMap {
 		}
 	}
 
-	pub fn get<T: AstElement>(&self, id: AstId<T>) -> T {
+	pub fn get<T: AstElement>(&self, id: AstId<T>) -> Option<T> {
 		let item = self.items.get(&id.0.item).unwrap();
 		let node = item.sub[id.0.index as usize].clone();
-		T::cast(node).expect("invalid AstId")
+		match node {
+			ItemElement::Concrete(n) => Some(T::cast(n).expect("invalid AstId")),
+			ItemElement::Error => None,
+		}
 	}
 }

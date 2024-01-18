@@ -160,6 +160,7 @@ impl<'a> Checker<'a> {
 			hir::TypeKind::Struct(s) => self.solver.concrete(self.ctx.add(thir::Type::Struct(s)), span),
 			hir::TypeKind::Enum(e) => self.solver.concrete(self.ctx.add(thir::Type::Enum(e)), span),
 			hir::TypeKind::Alias(p) => self.solver.concrete(self.ctx.add(self.reader.type_alias(p)), span),
+			hir::TypeKind::Error => self.solver.infer(span),
 		}
 	}
 
@@ -177,9 +178,9 @@ impl<'a> Checker<'a> {
 
 	fn expr(&mut self, expr: Ix<hir::Expr>) -> Ix<Partial> {
 		let e = &self.reader.exprs[expr];
-		let span = e.id.map(|x| x.erased());
+		let span = e.id.erased();
 		let ty = match e.kind {
-			hir::ExprKind::Continue => self.solver.concrete(self.void, span),
+			hir::ExprKind::Continue => self.solver.concrete(self.void, Some(span)),
 			hir::ExprKind::Array(ref a) => self.array(a, span),
 			hir::ExprKind::Let(ref l) => self.let_(l, span),
 			hir::ExprKind::Block(ref b) => self.block(b),
@@ -197,7 +198,7 @@ impl<'a> Checker<'a> {
 			hir::ExprKind::Struct(ref s) => self.struct_init(s, span),
 			hir::ExprKind::Local(l) => {
 				let x = self.locals_out[l];
-				let y = self.solver.infer(span);
+				let y = self.solver.infer(Some(span));
 				self.solver.unify(x, y);
 				y
 			},
@@ -206,35 +207,36 @@ impl<'a> Checker<'a> {
 					thir::ItemDeclKind::Fn(ref f) => f.params[p],
 					_ => unreachable!("param to non-fn"),
 				};
-				self.solver.concrete(ty, span)
+				self.solver.concrete(ty, Some(span))
 			},
 			hir::ExprKind::EnumVariant(ref v) => self.enum_variant(v, span),
 			hir::ExprKind::Ref(ref r) => self.ref_(r, span),
 			hir::ExprKind::Prefix(ref p) => self.prefix_op(p, span),
 			hir::ExprKind::Return(ref r) => todo!(),
+			hir::ExprKind::Error => self.solver.infer(Some(span)),
 		};
 		self.exprs_out.insert(expr, ty);
 		ty
 	}
 
-	fn array(&mut self, array: &hir::ArrayExpr, span: Option<ErasedAstId>) -> Ix<Partial> {
+	fn array(&mut self, array: &hir::ArrayExpr, span: ErasedAstId) -> Ix<Partial> {
 		let ty;
 		let len;
 		if array.repeat {
 			ty = self.expr(array.elems[0]);
 			len = self.reader.array_len(self.ctx, array.elems[1]);
 		} else {
-			ty = self.solver.infer(span);
+			ty = self.solver.infer(Some(span));
 			for &elem in array.elems.iter() {
 				let elem = self.expr(elem);
 				self.solver.unify(ty, elem);
 			}
 			len = array.elems.len() as _;
 		}
-		self.solver.array(ty, len, span)
+		self.solver.array(ty, len, Some(span))
 	}
 
-	fn let_(&mut self, let_: &hir::LetExpr, span: Option<ErasedAstId>) -> Ix<Partial> {
+	fn let_(&mut self, let_: &hir::LetExpr, span: ErasedAstId) -> Ix<Partial> {
 		let ty = let_
 			.ty
 			.map(|ty| self.type_(ty))
@@ -246,36 +248,34 @@ impl<'a> Checker<'a> {
 		self.solver.unify(ty, init);
 		self.locals_out.insert(let_.local, ty);
 
-		self.solver.concrete(self.void, span)
+		self.solver.concrete(self.void, Some(span))
 	}
 
-	fn infix(&mut self, infix: &hir::InfixExpr, span: Option<ErasedAstId>) -> Ix<Partial> {
+	fn infix(&mut self, infix: &hir::InfixExpr, span: ErasedAstId) -> Ix<Partial> {
 		let lhs = self.expr(infix.lhs);
 		let rhs = self.expr(infix.rhs);
-		let result = self.solver.infer(span);
+		let result = self.solver.infer(Some(span));
 		self.solver.infix_op(lhs, rhs, infix.op, result);
 		result
 	}
 
-	fn call(&mut self, call: &hir::CallExpr, span: Option<ErasedAstId>) -> Ix<Partial> {
+	fn call(&mut self, call: &hir::CallExpr, span: ErasedAstId) -> Ix<Partial> {
 		let callee = self.expr(call.callee);
 		let args = call.args.iter().map(|&arg| self.expr(arg)).collect();
-		let result = self.solver.infer(span);
+		let result = self.solver.infer(Some(span));
 		self.solver.call(callee, args, result);
 		result
 	}
 
-	fn struct_init(&mut self, init: &hir::StructExpr, span: Option<ErasedAstId>) -> Ix<Partial> {
+	fn struct_init(&mut self, init: &hir::StructExpr, span: ErasedAstId) -> Ix<Partial> {
 		let &i = self.decls.get(&init.struct_).unwrap();
 		match self.ctx.get(i).kind {
 			thir::ItemDeclKind::Struct(ref s) => {
 				if s.fields.len() != init.args.len() {
-					span.map(|x| {
-						self.ctx.push(
-							x.error(format!("expected {} fields", s.fields.len()))
-								.label(x.label(format!("found {}", init.args.len()))),
-						);
-					});
+					self.ctx.push(
+						span.error(format!("expected {} fields", s.fields.len()))
+							.label(span.label(format!("found {}", init.args.len()))),
+					);
 				}
 
 				let &i = self.reader.items.get(&init.struct_).unwrap();
@@ -292,65 +292,65 @@ impl<'a> Checker<'a> {
 					self.solver.unify(ty, arg);
 				}
 
-				self.solver.concrete(s.ty, span)
+				self.solver.concrete(s.ty, Some(span))
 			},
 			_ => unreachable!("struct_init to non-struct"),
 		}
 	}
 
-	fn cast(&mut self, cast: &hir::CastExpr, _: Option<ErasedAstId>) -> Ix<Partial> {
+	fn cast(&mut self, cast: &hir::CastExpr, _: ErasedAstId) -> Ix<Partial> {
 		let expr = self.expr(cast.expr);
 		let ty = self.type_(cast.ty);
 		self.solver.cast(expr, ty);
 		ty
 	}
 
-	fn field(&mut self, field: &hir::FieldExpr, span: Option<ErasedAstId>) -> Ix<Partial> {
+	fn field(&mut self, field: &hir::FieldExpr, span: ErasedAstId) -> Ix<Partial> {
 		let expr = self.expr(field.expr);
-		let result = self.solver.infer(span);
+		let result = self.solver.infer(Some(span));
 		self.solver.field(expr, field.field, result);
 		result
 	}
 
-	fn index(&mut self, index: &hir::IndexExpr, span: Option<ErasedAstId>) -> Ix<Partial> {
+	fn index(&mut self, index: &hir::IndexExpr, span: ErasedAstId) -> Ix<Partial> {
 		let expr = self.expr(index.expr);
 		let index = self.expr(index.index);
-		let result = self.solver.infer(span);
+		let result = self.solver.infer(Some(span));
 		self.solver.index(expr, index, result);
 		result
 	}
 
-	fn literal(&mut self, literal: &hir::Literal, span: Option<ErasedAstId>) -> Ix<Partial> {
+	fn literal(&mut self, literal: &hir::Literal, span: ErasedAstId) -> Ix<Partial> {
 		match literal {
-			hir::Literal::Bool(_) => self.solver.concrete(self.bool, span),
-			hir::Literal::Char(_) => self.solver.concrete(self.char, span),
+			hir::Literal::Bool(_) => self.solver.concrete(self.bool, Some(span)),
+			hir::Literal::Char(_) => self.solver.concrete(self.char, Some(span)),
 			hir::Literal::Float(_) => {
-				let ty = self.solver.infer(span);
+				let ty = self.solver.infer(Some(span));
 				self.solver.float(ty);
 				ty
 			},
 			hir::Literal::Int(_) => {
-				let ty = self.solver.infer(span);
+				let ty = self.solver.infer(Some(span));
 				self.solver.int(ty);
 				ty
 			},
 			hir::Literal::String(_) => {
 				let char = self.solver.concrete(self.char, None);
-				self.solver.ptr(false, char, span)
+				self.solver.ptr(false, char, Some(span))
 			},
 		}
 	}
 
-	fn loop_(&mut self, loop_: &hir::LoopExpr, span: Option<ErasedAstId>) -> Ix<Partial> {
+	fn loop_(&mut self, loop_: &hir::LoopExpr, span: ErasedAstId) -> Ix<Partial> {
 		let body = self.block(&loop_.body);
-		let ty = self.solver.concrete(self.void, span);
+		let ty = self.solver.concrete(self.void, Some(span));
 		self.solver.unify(body, ty);
 		ty
 	}
 
-	fn match_(&mut self, match_: &hir::MatchExpr, span: Option<ErasedAstId>) -> Ix<Partial> {
+	fn match_(&mut self, match_: &hir::MatchExpr, span: ErasedAstId) -> Ix<Partial> {
 		let expr = self.expr(match_.expr);
-		let result = self.solver.infer(span);
+		let result = self.solver.infer(Some(span));
 		for arm in match_.arms.iter() {
 			let value = self.expr(arm.value);
 			self.solver.unify(expr, value);
@@ -360,23 +360,23 @@ impl<'a> Checker<'a> {
 		result
 	}
 
-	fn fn_ref(&mut self, f: &Id<AbsPath>, span: Option<ErasedAstId>) -> Ix<Partial> {
+	fn fn_ref(&mut self, f: &Id<AbsPath>, span: ErasedAstId) -> Ix<Partial> {
 		let &f = self.decls.get(f).unwrap();
 		match self.ctx.get(f).kind {
-			thir::ItemDeclKind::Fn(ref f) => self.solver.concrete(f.ty, span),
+			thir::ItemDeclKind::Fn(ref f) => self.solver.concrete(f.ty, Some(span)),
 			_ => unreachable!("fn_ref to non-fn"),
 		}
 	}
 
-	fn static_ref(&mut self, s: &Id<AbsPath>, span: Option<ErasedAstId>) -> Ix<Partial> {
+	fn static_ref(&mut self, s: &Id<AbsPath>, span: ErasedAstId) -> Ix<Partial> {
 		let &s = self.decls.get(s).unwrap();
 		match self.ctx.get(s).kind {
-			thir::ItemDeclKind::Static(ref s) => self.solver.concrete(s.ty, span),
+			thir::ItemDeclKind::Static(ref s) => self.solver.concrete(s.ty, Some(span)),
 			_ => unreachable!("static_ref to non-static"),
 		}
 	}
 
-	fn enum_variant(&mut self, v: &hir::VariantExpr, span: Option<ErasedAstId>) -> Ix<Partial> {
+	fn enum_variant(&mut self, v: &hir::VariantExpr, span: ErasedAstId) -> Ix<Partial> {
 		let &i = self.reader.items.get(&v.path).unwrap();
 		match self.ctx.get(i).kind {
 			hir::ItemKind::Enum(ref e) => {
@@ -388,12 +388,10 @@ impl<'a> Checker<'a> {
 					}
 				}
 				if !found {
-					span.map(|x| {
-						self.ctx.push(
-							x.error(format!("unknown variant of enum `{}`", e.name.name.as_str()))
-								.label(x.label(format!("variant `{}` doesn't exit", v.variant.name.as_str()))),
-						);
-					});
+					self.ctx.push(
+						span.error(format!("unknown variant of enum `{}`", e.name.name.as_str()))
+							.label(span.label(format!("variant `{}` doesn't exit", v.variant.name.as_str()))),
+					);
 				}
 			},
 			_ => unreachable!("enum_variant to non-enum"),
@@ -401,20 +399,21 @@ impl<'a> Checker<'a> {
 
 		let &i = self.decls.get(&v.path).unwrap();
 		match self.ctx.get(i).kind {
-			thir::ItemDeclKind::Enum(ref e) => self.solver.concrete(e.ty, span),
+			thir::ItemDeclKind::Enum(ref e) => self.solver.concrete(e.ty, Some(span)),
 			_ => unreachable!("enum_variant to non-enum"),
 		}
 	}
 
-	fn ref_(&mut self, r: &hir::RefExpr, span: Option<ErasedAstId>) -> Ix<Partial> {
+	fn ref_(&mut self, r: &hir::RefExpr, span: ErasedAstId) -> Ix<Partial> {
 		let ty = self.expr(r.expr);
-		self.solver.ptr(r.mutable, ty, span)
+		self.solver.ptr(r.mutable, ty, Some(span))
 	}
 
-	fn prefix_op(&mut self, p: &hir::PrefixExpr, span: Option<ErasedAstId>) -> Ix<Partial> {
+	fn prefix_op(&mut self, p: &hir::PrefixExpr, span: ErasedAstId) -> Ix<Partial> {
 		let expr = self.expr(p.expr);
-		let result = self.solver.infer(span);
+		let result = self.solver.infer(Some(span));
 		self.solver.prefix(p.op, expr, result);
 		result
 	}
 }
+

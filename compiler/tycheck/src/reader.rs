@@ -57,6 +57,7 @@ impl<'a> HirReader<'a> {
 				mutable: p.mutable,
 				ty: self.req_type(ctx, p.ty),
 			}),
+			hir::TypeKind::Error => thir::Type::Error,
 		};
 		ctx.add(ty)
 	}
@@ -70,25 +71,22 @@ impl<'a> HirReader<'a> {
 
 	pub fn array_len(&self, ctx: &Ctx, len: Ix<hir::Expr>) -> u64 {
 		let expr = &self.exprs[len];
-		let span = expr.id.map(|x| x.erased());
+		let span = expr.id.erased();
 		match expr.kind {
 			hir::ExprKind::Literal(l) => match l {
 				hir::Literal::Int(i) => return i as _,
-				_ => span.map(|x| {
-					ctx.push(
-						x.error("expected `{int}`")
-							.label(x.label("array lengths must be integers")),
-					)
-				}),
+				_ => ctx.push(
+					span.error("expected `{int}`")
+						.label(span.label("array lengths must be integers")),
+				),
 			},
-			_ => span.map(|x| {
-				ctx.push(
-					x.error("expected `{int}`")
-						.label(x.label("array lengths must be literals")),
-				)
-			}),
+			_ => ctx.push(
+				span.error("expected `{int}`")
+					.label(span.label("array lengths must be literals")),
+			),
 		};
 
 		0
 	}
 }
+

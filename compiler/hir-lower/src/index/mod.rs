@@ -2,7 +2,7 @@ use std::{fmt::Debug, hash::Hash};
 
 use diagnostics::{FilePath, FullSpan, Span};
 use hir::{
-	ast::{AstId, AstMap, ErasedAstId, ItemData},
+	ast::{AstId, AstMap, ErasedAstId, ItemData, ItemElement},
 	ident::AbsPath,
 };
 use rustc_hash::FxHashMap;
@@ -119,7 +119,7 @@ impl ModuleMap {
 		Some(name.span().with(self.file))
 	}
 
-	pub fn declare(&mut self, db: &dyn Db, name: Text, item: ast::Item) {
+	pub fn declare(&mut self, db: &dyn Db, name: Text, item: ast::Item) -> Id<AbsPath> {
 		let path = db.add(AbsPath::Name {
 			prec: self.module,
 			name,
@@ -134,6 +134,8 @@ impl ModuleMap {
 				sub: Vec::new(),
 			},
 		);
+
+		path
 	}
 
 	pub fn define(&mut self, name: Text) -> ItemBuilder {
@@ -147,9 +149,28 @@ pub struct ItemBuilder<'a> {
 }
 
 impl ItemBuilder<'_> {
-	pub fn add<T: AstElement>(&mut self, node: T) -> AstId<T> {
+	pub fn add<T: AstElement>(&mut self, node: Option<T>) -> AstId<T> {
+		match node {
+			Some(t) => self.add_conc(t),
+			None => self.add_errored(),
+		}
+	}
+
+	pub fn add_conc<T: AstElement>(&mut self, node: T) -> AstId<T> {
 		let index = self.item.sub.len() as u32;
-		self.item.sub.push(node.inner());
+		self.item.sub.push(ItemElement::Concrete(node.inner()));
+		AstId(
+			ErasedAstId {
+				item: self.item.path,
+				index,
+			},
+			std::marker::PhantomData,
+		)
+	}
+
+	pub fn add_errored<T: AstElement>(&mut self) -> AstId<T> {
+		let index = self.item.sub.len() as u32;
+		self.item.sub.push(ItemElement::Error);
 		AstId(
 			ErasedAstId {
 				item: self.item.path,
@@ -161,7 +182,11 @@ impl ItemBuilder<'_> {
 
 	pub fn cast<T: AstElement, U: AstElement>(&self, id: AstId<T>) -> AstId<U> {
 		let elem = self.item.sub[id.0.index as usize].clone();
-		if U::cast(elem).is_some() {
+		let valid = match elem {
+			ItemElement::Concrete(elem) => U::cast(elem).is_some(),
+			ItemElement::Error => true,
+		};
+		if valid {
 			AstId(
 				ErasedAstId {
 					item: self.item.path,
@@ -219,3 +244,4 @@ pub fn build_ast_map(modules: impl IntoIterator<Item = ModuleMap>) -> (AstMap, T
 	let ast = AstMap::new(items);
 	(ast, temp)
 }
+
