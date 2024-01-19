@@ -4,6 +4,8 @@ pub import prelude;
 struct S {}
 
 fn x() -> u64 {
+	let b;
+	b();
 	let a = S();
 	a + 1
 }

@@ -271,6 +271,8 @@ impl TypeSolver {
 		let s = self.partial[ty].span.unwrap();
 		s.label(format!("this is of type `{}`", self.fmt_type(ctx, ty)))
 	}
+
+	fn is_infer(&self, ty: Ix<Partial>) -> bool { matches!(self.partial[ty].ty, PartialType::Infer) }
 }
 
 impl Constraint {
@@ -658,10 +660,10 @@ impl Constraint {
 								.label(s.label(format!("found `{}`", b))),
 						);
 					},
-					(None, None) => unreachable!("spanless unification error"),
+					(None, None) => {},
 				}
 			},
-			Constraint::InfixOp { lhs, rhs, .. } => {
+			Constraint::InfixOp { lhs, rhs, .. } if !solver.is_infer(lhs) && !solver.is_infer(rhs) => {
 				let lhss = &solver.partial[lhs].span.unwrap();
 				ctx.push(
 					lhss.error("invalid operands for infix operator")
@@ -669,11 +671,11 @@ impl Constraint {
 						.label(solver.ty_label(ctx, rhs)),
 				);
 			},
-			Constraint::Call { callee, .. } => {
+			Constraint::Call { callee, .. } if !solver.is_infer(callee) => {
 				let callees = &solver.partial[callee].span.unwrap();
 				ctx.push(callees.error("cannot call").label(solver.ty_label(ctx, callee)));
 			},
-			Constraint::Cast { expr, ty } => {
+			Constraint::Cast { expr, ty } if !solver.is_infer(expr) && !solver.is_infer(ty) => {
 				let exprs = &solver.partial[expr].span.unwrap();
 				ctx.push(
 					exprs
@@ -682,7 +684,7 @@ impl Constraint {
 						.label(solver.ty_label(ctx, ty)),
 				);
 			},
-			Constraint::Field { expr, field, .. } => {
+			Constraint::Field { expr, field, .. } if !solver.is_infer(expr) => {
 				let exprs = &solver.partial[expr].span.unwrap();
 				let f = field.id.erased();
 				ctx.push(
@@ -692,7 +694,7 @@ impl Constraint {
 						.label(f.mark()),
 				);
 			},
-			Constraint::Index { expr, index, .. } => {
+			Constraint::Index { expr, index, .. } if !solver.is_infer(expr) && !solver.is_infer(index) => {
 				let exprs = &solver.partial[expr].span.unwrap();
 				ctx.push(
 					exprs
@@ -701,7 +703,7 @@ impl Constraint {
 						.label(solver.ty_label(ctx, index)),
 				);
 			},
-			Constraint::Prefix { expr, .. } => {
+			Constraint::Prefix { expr, .. } if !solver.is_infer(expr) => {
 				let exprs = &solver.partial[expr].span.unwrap();
 				ctx.push(
 					exprs
@@ -723,6 +725,7 @@ impl Constraint {
 						.label(s.label("found `{{int}}`")),
 				);
 			},
+			_ => {},
 		}
 	}
 }
