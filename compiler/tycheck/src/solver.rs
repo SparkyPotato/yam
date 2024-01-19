@@ -1,5 +1,5 @@
 use arena::{Arena, Ix};
-use diagnostics::Span;
+use diagnostics::{Label, Span};
 use hir::{ast::ErasedAstId, ident::AbsPath, LangItem};
 use rustc_hash::{FxHashMap, FxHashSet};
 use verde::{Ctx, Id};
@@ -163,7 +163,7 @@ impl TypeSolver {
 		match p.ty {
 			PartialType::Concrete(_) => {},
 			PartialType::Array { ty, .. } => self.infer_error(ctx, ty, span, errored),
-			PartialType::Fn { abi, ref params, ret } => {
+			PartialType::Fn { ref params, ret, .. } => {
 				for &p in params {
 					self.infer_error(ctx, p, span, errored);
 				}
@@ -240,6 +240,36 @@ impl TypeSolver {
 		};
 		self.concretize(ctx);
 		c
+	}
+
+	fn fmt_type(&self, ctx: &Ctx, ty: Ix<Partial>) -> String {
+		match self.partial[ty].ty {
+			PartialType::Infer => "_".to_string(),
+			PartialType::Concrete(ty) => fmt_type(ctx, ty),
+			PartialType::Array { ty, len } => format!("[{}; {}]", self.fmt_type(ctx, ty), len),
+			PartialType::Fn { abi, ref params, ret } => {
+				let abi = abi.map(|x| format!("extern \"{}\" ", x)).unwrap_or(String::new());
+				let params = params
+					.iter()
+					.map(|&p| self.fmt_type(ctx, p))
+					.collect::<Vec<_>>()
+					.join(", ");
+				let ret = self.fmt_type(ctx, ret);
+				format!("{} fn({}) -> {}", abi, params, ret)
+			},
+			PartialType::Ptr { mutable, ty } => {
+				if mutable {
+					format!("*mut {}", self.fmt_type(ctx, ty))
+				} else {
+					format!("*{}", self.fmt_type(ctx, ty))
+				}
+			},
+		}
+	}
+
+	fn ty_label(&self, ctx: &Ctx, ty: Ix<Partial>) -> Label<ErasedAstId> {
+		let s = self.partial[ty].span.unwrap();
+		s.label(format!("this is of type `{}`", self.fmt_type(ctx, ty)))
 	}
 }
 
@@ -612,57 +642,87 @@ impl Constraint {
 	fn error(self, solver: &mut TypeSolver, ctx: &Ctx) {
 		match self {
 			Constraint::Unify(a, b) => {
-				let a = &solver.partial[a];
-				let b = &solver.partial[b];
-				match (&a.ty, &b.ty) {
-					(&PartialType::Concrete(at), &PartialType::Concrete(bt)) => {
-						if at != bt {
-							let a_s = a.span;
-							let b_s = b.span;
-							match (a_s, b_s) {
-								(Some(a_s), Some(b_s)) => ctx.push(
-									a_s.error("mismatched types")
-										.label(a_s.label(format!("expected `{}`", fmt_type(ctx, at))))
-										.label(b_s.label(format!("found `{}`", fmt_type(ctx, bt)))),
-								),
-								(Some(s), None) | (None, Some(s)) => {
-									ctx.push(
-										s.error(format!("expected type `{}`", fmt_type(ctx, at)))
-											.label(s.label(format!("found `{}`", fmt_type(ctx, bt)))),
-									);
-								},
-								(None, None) => {},
-							}
-						}
+				let a_s = &solver.partial[a].span;
+				let b_s = &solver.partial[b].span;
+				let a = solver.fmt_type(ctx, a);
+				let b = solver.fmt_type(ctx, b);
+				match (a_s, b_s) {
+					(Some(a_s), Some(b_s)) => ctx.push(
+						a_s.error("mismatched types")
+							.label(a_s.label(format!("expected `{}`", a)))
+							.label(b_s.label(format!("found `{}`", b))),
+					),
+					(Some(s), None) | (None, Some(s)) => {
+						ctx.push(
+							s.error(format!("expected type `{}`", a))
+								.label(s.label(format!("found `{}`", b))),
+						);
 					},
-					_ => {},
+					(None, None) => unreachable!("spanless unification error"),
 				}
 			},
-			Constraint::InfixOp { lhs, rhs, op, result } => {},
-			Constraint::Call { callee, args, result } => {},
-			Constraint::Cast { expr, ty } => {},
-			Constraint::Field { expr, field, result } => {},
-			Constraint::Index { expr, index, result } => {},
-			Constraint::Prefix { op, expr, result } => {},
-			Constraint::Float(expr) => {
-				let expr = &solver.partial[expr];
-				let span = expr.span;
-				match &expr.ty {
-					&PartialType::Concrete(ty) => {
-						let t = &*ctx.geti(ty);
-						if !matches!(t, thir::Type::LangItem(LangItem::F32 | LangItem::F64)) {
-							if let Some(s) = span {
-								ctx.push(
-									s.error(format!("expected `{}`, found `{{float}}`", fmt_type(ctx, ty)))
-										.label(s.mark()),
-								);
-							}
-						}
-					},
-					_ => {},
-				}
+			Constraint::InfixOp { lhs, rhs, .. } => {
+				let lhss = &solver.partial[lhs].span.unwrap();
+				ctx.push(
+					lhss.error("invalid operands for infix operator")
+						.label(solver.ty_label(ctx, lhs))
+						.label(solver.ty_label(ctx, rhs)),
+				);
 			},
-			Constraint::Int(expr) => {},
+			Constraint::Call { callee, .. } => {
+				let callees = &solver.partial[callee].span.unwrap();
+				ctx.push(callees.error("cannot call").label(solver.ty_label(ctx, callee)));
+			},
+			Constraint::Cast { expr, ty } => {
+				let exprs = &solver.partial[expr].span.unwrap();
+				ctx.push(
+					exprs
+						.error("invalid operands for cast")
+						.label(solver.ty_label(ctx, expr))
+						.label(solver.ty_label(ctx, ty)),
+				);
+			},
+			Constraint::Field { expr, field, .. } => {
+				let exprs = &solver.partial[expr].span.unwrap();
+				let f = field.id.erased();
+				ctx.push(
+					exprs
+						.error("unknown field")
+						.label(solver.ty_label(ctx, expr))
+						.label(f.mark()),
+				);
+			},
+			Constraint::Index { expr, index, .. } => {
+				let exprs = &solver.partial[expr].span.unwrap();
+				ctx.push(
+					exprs
+						.error("invalid operands for indexing")
+						.label(solver.ty_label(ctx, expr))
+						.label(solver.ty_label(ctx, index)),
+				);
+			},
+			Constraint::Prefix { expr, .. } => {
+				let exprs = &solver.partial[expr].span.unwrap();
+				ctx.push(
+					exprs
+						.error("invalid operand for prefix operator")
+						.label(solver.ty_label(ctx, expr)),
+				);
+			},
+			Constraint::Float(f) => {
+				let s = &solver.partial[f].span.unwrap();
+				ctx.push(
+					s.error(format!("expected `{}`", solver.fmt_type(ctx, f)))
+						.label(s.label("found `{{float}}`")),
+				);
+			},
+			Constraint::Int(i) => {
+				let s = &solver.partial[i].span.unwrap();
+				ctx.push(
+					s.error(format!("expected `{}`", solver.fmt_type(ctx, i)))
+						.label(s.label("found `{{int}}`")),
+				);
+			},
 		}
 	}
 }
@@ -688,6 +748,7 @@ fn fmt_type(ctx: &Ctx, ty: Id<thir::Type>) -> String {
 			format!("[{}; {}]", ty, a.len)
 		},
 		thir::Type::Fn(f) => {
+			let abi = f.abi.map(|x| format!("extern \"{}\" ", x)).unwrap_or(String::new());
 			let params = f
 				.params
 				.iter()
@@ -695,7 +756,7 @@ fn fmt_type(ctx: &Ctx, ty: Id<thir::Type>) -> String {
 				.collect::<Vec<_>>()
 				.join(", ");
 			let ret = fmt_type(ctx, f.ret);
-			format!("fn({}) -> {}", params, ret)
+			format!("{} fn({}) -> {}", abi, params, ret)
 		},
 		&thir::Type::Struct(p) | &thir::Type::Enum(p) => {
 			let p = ctx.geti(p);

@@ -230,12 +230,11 @@ impl Resolver<'_> {
 
 		let Some(&decl) = self.private.names.get(&prev.name) else {
 			let span = prev.id.erased();
-			if !self.error_set.contains(&span) {
+			if self.error_set.insert(span) {
 				self.ctx.push(
 					span.error("unknown submodule")
 						.label(span.label("404: this submodule does not exist")),
 				);
-				self.error_set.insert(span);
 			}
 			return None;
 		};
@@ -250,7 +249,7 @@ impl Resolver<'_> {
 						Some(&decl) => decl,
 						None => {
 							let span = name.id.erased();
-							if !self.error_set.contains(&span) {
+							if self.error_set.insert(span) {
 								let private = self.ctx.get(tree.private);
 								self.ctx.push(if private.names.contains_key(&name.name) {
 									span.error("cannot import private name")
@@ -260,7 +259,6 @@ impl Resolver<'_> {
 										span.label(format!("404: name does not exist in `{}`", prev.name.as_str())),
 									)
 								});
-								self.error_set.insert(span);
 							}
 							return None;
 						},
@@ -268,14 +266,13 @@ impl Resolver<'_> {
 				},
 				Declaration::Name { id, .. } => {
 					let span = prev.id.erased();
-					if !self.error_set.contains(&span) {
+					if self.error_set.insert(span) {
 						self.ctx.push(
 							span.error("cannot import from item")
 								.label(name.id.erased().label("tried importing from item here"))
 								.label(span.label("this is an item"))
 								.label(id.erased().label("item defined here")),
 						);
-						self.error_set.insert(span);
 					}
 					return None;
 				},
@@ -294,12 +291,11 @@ impl Resolver<'_> {
 		let visible = self.ctx.get(self.visible);
 		let Some(pkg) = visible.packages.get(&prev.name) else {
 			let span = prev.id.erased();
-			if !self.error_set.contains(&span) {
+			if self.error_set.insert(span) {
 				self.ctx.push(
 					span.error("unknown package")
 						.label(span.label("404: this package does not exist")),
 				);
-				self.error_set.insert(span);
 			}
 			return None;
 		};
@@ -327,12 +323,11 @@ impl Resolver<'_> {
 						let ldecl = index.decls.get(&name.name);
 						if !private && !is_public {
 							let span = name.id.erased();
-							if !self.error_set.contains(&span) {
+							if self.error_set.insert(span) {
 								self.ctx.push(
 									span.error("cannot import private name")
 										.label(span.label("this is private")),
 								);
-								self.error_set.insert(span);
 							}
 							return None;
 						}
@@ -341,12 +336,11 @@ impl Resolver<'_> {
 								local::Declaration::Name { path, ty, id } => Declaration::Name { path, ty, id },
 								local::Declaration::Import { .. } => {
 									let span = name.id.erased();
-									if !self.error_set.contains(&span) {
+									if self.error_set.insert(span) {
 										self.ctx.push(
 											span.error("importing re-exports is not supported yet")
 												.label(span.label("this is a re-export")),
 										);
-										self.error_set.insert(span);
 									}
 									return None;
 								},
@@ -356,12 +350,11 @@ impl Resolver<'_> {
 								Some(&tree) => Declaration::Module(tree),
 								None => {
 									let span = name.id.erased();
-									if !self.error_set.contains(&span) {
+									if self.error_set.insert(span) {
 										self.ctx.push(span.error("unknown submodule").label(span.label(format!(
 											"404: this module does not exist in `{}`",
 											prev.name.as_str()
 										))));
-										self.error_set.insert(span);
 									}
 									return None;
 								},
@@ -371,14 +364,13 @@ impl Resolver<'_> {
 				},
 				Declaration::Name { id, .. } => {
 					let span = prev.id.erased();
-					if !self.error_set.contains(&span) {
+					if self.error_set.insert(span) {
 						self.ctx.push(
 							span.error("cannot import from item")
 								.label(name.id.erased().label("tried importing from item here"))
 								.label(span.label("this is an item"))
 								.label(id.erased().label("item defined here")),
 						);
-						self.error_set.insert(span);
 					}
 					return None;
 				},

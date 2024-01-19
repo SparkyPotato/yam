@@ -11,6 +11,7 @@ use crate::{
 		canonical::{CanonicalTree, Declaration, ModuleTree},
 		NameTy,
 	},
+	is_child_of,
 	VisiblePackages,
 };
 

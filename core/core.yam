@@ -1,3 +1,10 @@
 @lang(prelude)
 pub import prelude;
 
+struct S {}
+
+fn x() -> u64 {
+	let a = S();
+	a + 1
+}
+
