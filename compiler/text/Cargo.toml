@@ -4,5 +4,5 @@ version = "0.0.0"
 edition = "2021"
 
 [dependencies]
-lasso = { version = "0.7", features = ["multi-threaded", "ahasher"] }
-once_cell = "1.18"
+lasso = { workspace = true, features = ["multi-threaded", "ahasher"] }
+once_cell = { workspace = true }

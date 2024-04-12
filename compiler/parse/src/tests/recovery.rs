@@ -57,8 +57,8 @@ fn expr() {
             Whitespace@39..43 "\n\t\t\t"
             SemiExpr@43..47
               CallExpr@43..46
-                PathExpr@43..44
-                  Path@43..44
+                NameExpr@43..44
+                  Name@43..44
                     Ident@43..44 "f"
                 ArgList@44..46
                   LParen@44..45 "("
@@ -67,8 +67,8 @@ fn expr() {
             Whitespace@47..51 "\n\t\t\t"
             SemiExpr@51..54
               IndexExpr@51..53
-                PathExpr@51..52
-                  Path@51..52
+                NameExpr@51..52
+                  Name@51..52
                     Ident@51..52 "b"
                 LBracket@52..53 "["
                 Error@53..53
@@ -138,7 +138,8 @@ fn item() {
             Whitespace@19..20 " "
             PathType@20..22
               Path@20..22
-                Ident@20..22 "u8"
+                Name@20..22
+                  Ident@20..22 "u8"
           Comma@22..23 ","
           Param@23..23
             Name@23..23

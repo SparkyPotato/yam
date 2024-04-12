@@ -387,4 +387,3 @@ impl Resolver<'_> {
 
 	fn finish(self) -> (CanonicalIndex, CanonicalIndex) { (self.public, self.private) }
 }
-

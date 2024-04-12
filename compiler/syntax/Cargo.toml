@@ -12,4 +12,4 @@ diagnostics = { path = "../diagnostics" }
 lex = { path = "../lex" }
 text = { path = "../text" }
 
-cstree = { version = "0.12", features = ["derive", "multi_threaded_interning"] }
+cstree = { workspace = true, features = ["derive", "multi_threaded_interning"] }

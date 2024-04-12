@@ -780,4 +780,3 @@ fn fmt_type(ctx: &Ctx, ty: Id<thir::Type>) -> String {
 		thir::Type::Void => "void".to_string(),
 	}
 }
-

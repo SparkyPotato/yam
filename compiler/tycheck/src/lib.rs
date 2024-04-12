@@ -416,4 +416,3 @@ impl<'a> Checker<'a> {
 		result
 	}
 }
-

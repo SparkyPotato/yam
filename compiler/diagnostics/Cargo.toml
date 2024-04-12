@@ -7,5 +7,5 @@ edition = "2021"
 text = { path = "../text" }
 verde = { path = "../verde" }
 
-ariadne = "0.3"
-rustc-hash = "1.1"
+ariadne = { workspace = true }
+rustc-hash = { workspace = true }

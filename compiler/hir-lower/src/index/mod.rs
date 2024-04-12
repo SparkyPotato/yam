@@ -244,4 +244,3 @@ pub fn build_ast_map(modules: impl IntoIterator<Item = ModuleMap>) -> (AstMap, T
 	let ast = AstMap::new(items);
 	(ast, temp)
 }
-

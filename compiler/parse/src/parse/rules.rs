@@ -653,19 +653,7 @@ mod expr {
 
 				p.api.finish_node();
 			},
-			T![if] => {
-				p.api.start_node(SyntaxKind::IfExpr);
-
-				p.api.bump();
-				p!(p.run(Expr));
-				p!(p.run(Block));
-				if matches!(p.api.peek().kind, T![else]) {
-					p.api.bump();
-					p!(p.run(Expr)); // TODO: this maybe should be a block or an if expr - it was here but i don't know why.
-				}
-
-				p.api.finish_node();
-			},
+			T![if] => p!(if_expr(p)),
 			T![let] => {
 				p.api.start_node(SyntaxKind::LetExpr);
 
@@ -694,6 +682,26 @@ mod expr {
 				p.api.finish_node();
 			},
 		}
+
+		Recovery::ok()
+	}
+
+	fn if_expr(p: &mut Parser) -> Recovery {
+		p.api.start_node(SyntaxKind::IfExpr);
+
+		p.api.bump();
+		p!(p.run(Expr));
+		p!(p.run(Block));
+		if matches!(p.api.peek().kind, T![else]) {
+			p.api.bump();
+			if matches!(p.api.peek().kind, T![if]) {
+				p!(if_expr(p));
+			} else {
+				p!(p.run(Block));
+			}
+		}
+
+		p.api.finish_node();
 
 		Recovery::ok()
 	}
@@ -781,3 +789,4 @@ mod expr {
 		Recovery::ok()
 	}
 }
+

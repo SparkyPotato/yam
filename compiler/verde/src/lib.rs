@@ -20,7 +20,7 @@ macro_rules! span {
 	(trace, $($x:tt)*) => {
 		tracing::span!(tracing::Level::TRACE, $($x)*)
 	};
-    (debug, $($x:tt)*) => {
+	(debug, $($x:tt)*) => {
 		tracing::span!(tracing::Level::DEBUG, $($x)*)
 	};
 	(info, $($x:tt)*) => {

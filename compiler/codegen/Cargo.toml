@@ -9,9 +9,9 @@ hir = { path = "../hir" }
 thir = { path = "../thir" }
 verde = { path = "../verde" }
 
-cranelift = "0.103.0"
-cranelift-module = "0.103.0"
-cranelift-object = "0.103.0"
-parking_lot = "0.12.1"
-rustc-hash = "1.1.0"
-target-lexicon = "0.12.12"
+cranelift = { workspace = true }
+cranelift-module = { workspace = true }
+cranelift-object = { workspace = true }
+parking_lot = { workspace = true }
+rustc-hash = { workspace = true }
+target-lexicon = { workspace = true }

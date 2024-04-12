@@ -10,5 +10,5 @@ hir = { path = "../hir" }
 thir = { path = "../thir" }
 verde = { path = "../verde" }
 
-rustc-hash = "1.1"
-tracing = "0.1"
+rustc-hash = { workspace = true }
+tracing = { workspace = true }

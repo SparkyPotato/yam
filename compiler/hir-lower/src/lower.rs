@@ -1,6 +1,6 @@
 use arena::{Arena, Ix};
 use diagnostics::{FilePath, RawSpan, Span};
-use hir::{ident::AbsPath, ExprKind, ast::AstId};
+use hir::{ast::AstId, ident::AbsPath, ExprKind};
 use rustc_hash::FxHashMap;
 use syntax::{ast, token, AstElement, AstToken, SyntaxElement};
 use text::Text;
@@ -9,7 +9,7 @@ use verde::{query, Ctx, Db, Id, Tracked};
 
 use crate::{
 	index::{canonical::CanonicalTree, local::name_of_item, ItemBuilder, ModuleMap, NameTy},
-	resolve::{NameExprResolution, NameResolver, Resolution, ResPath},
+	resolve::{NameExprResolution, NameResolver, ResPath, Resolution},
 	Module,
 	VisiblePackages,
 };
@@ -361,7 +361,9 @@ impl<'a> Lowerer<'a> {
 		let mut errored = false;
 
 		self.resolver.push_scope();
-		let Some(b) = b else { return hir::Block::default(); };
+		let Some(b) = b else {
+			return hir::Block::default();
+		};
 		for stmt in b.statements() {
 			match stmt {
 				ast::Stmt::Item(i) => {
@@ -610,7 +612,10 @@ impl<'a> Lowerer<'a> {
 	fn field_access(&mut self, mut from: hir::ExprKind, mut path: ResPath) -> hir::ExprKind {
 		while let Some(name) = path.elems.pop() {
 			let parent = ast::Expr::cast(name.ast.clone().inner().parent().unwrap().clone().into()).unwrap();
-			let expr = self.exprs.push(hir::Expr { kind: from, id: self.builder.add(Some(parent)), });
+			let expr = self.exprs.push(hir::Expr {
+				kind: from,
+				id: self.builder.add(Some(parent)),
+			});
 			from = hir::ExprKind::Field(hir::FieldExpr {
 				expr,
 				field: self.name(Some(name.ast)),
@@ -786,7 +791,9 @@ impl<'a> Lowerer<'a> {
 		hir::Name { name, id }
 	}
 
-	fn make_if(&mut self, id: AstId<ast::Expr>, cond: Ix<hir::Expr>, then: Ix<hir::Expr>, else_: Option<Ix<hir::Expr>>) -> hir::MatchExpr {
+	fn make_if(
+		&mut self, id: AstId<ast::Expr>, cond: Ix<hir::Expr>, then: Ix<hir::Expr>, else_: Option<Ix<hir::Expr>>,
+	) -> hir::MatchExpr {
 		let else_ = else_.unwrap_or_else(|| {
 			self.exprs.push(hir::Expr {
 				kind: hir::ExprKind::Block(hir::Block::default()),
@@ -815,4 +822,3 @@ impl<'a> Lowerer<'a> {
 		}
 	}
 }
-

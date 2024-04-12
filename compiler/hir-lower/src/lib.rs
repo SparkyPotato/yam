@@ -124,4 +124,3 @@ fn is_child_of(ctx: &Ctx, parent: Id<AbsPath>, mut child: Id<AbsPath>) -> bool {
 		};
 	}
 }
-

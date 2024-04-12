@@ -289,4 +289,3 @@ impl<'a> NameResolver<'a> {
 
 	pub fn pop_scope(&mut self) { self.scopes.pop().expect("pop without any scope"); }
 }
-

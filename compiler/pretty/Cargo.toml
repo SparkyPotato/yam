@@ -9,4 +9,4 @@ hir = { path = "../hir" }
 thir = { path = "../thir" }
 verde = { path = "../verde" }
 
-pretty = "0.12.3"
+pretty = { workspace = true }

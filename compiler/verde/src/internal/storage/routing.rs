@@ -136,13 +136,13 @@ mod normal {
 mod test {
 	use std::{
 		any::TypeId,
-		cell::RefCell,
 		sync::atomic::{AtomicU16, Ordering},
 	};
 
 	use parking_lot::{
 		lock_api::{RawMutex, RawMutexFair},
 		Mutex,
+		RwLock,
 	};
 	use rustc_hash::FxHashMap;
 
@@ -171,14 +171,14 @@ mod test {
 		}
 	}
 
-	type GenFunc = Box<dyn FnOnce() -> (StorageType, u16)>;
+	type GenFunc = Box<dyn FnOnce() -> (StorageType, u16) + Send>;
 
 	/// A static table that maps [`TypeId`]s to [`Route`]s, generated at database initialization.
 	/// This is required because `TypeId`s are not guaranteed to be stable across compilations, while `Route`s are.
 	#[derive(Default)]
 	pub struct RoutingTable {
-		routes: RefCell<FxHashMap<TypeId, Route>>,
-		type_names: RefCell<FxHashMap<Route, &'static str>>,
+		routes: RwLock<FxHashMap<TypeId, Route>>,
+		type_names: RwLock<FxHashMap<Route, &'static str>>,
 		dynamic_storage_index: u16,
 		next_route_index: AtomicU16,
 		make: Mutex<Vec<GenFunc>>,
@@ -189,23 +189,23 @@ mod test {
 		where
 			StorageType: From<<T as Storable>::Storage>,
 		{
-			self.route_for(TypeId::of::<T>(), "")
+			let route = self.route_for(TypeId::of::<T>(), "");
+			self.make
+				.lock()
+				.push(Box::new(move || (T::Storage::default().into(), route.index)));
+			route
 		}
 
 		pub fn route_for(&self, id: TypeId, _: &'static str) -> Route {
-			*self.routes.borrow_mut().entry(id).or_insert_with(|| {
-				let route = Route {
-					storage: self.dynamic_storage_index,
-					index: self.next_route_index.load(Ordering::Relaxed),
-				};
-				self.next_route_index.fetch_add(1, Ordering::Relaxed);
-				route
+			*self.routes.write().entry(id).or_insert_with(|| Route {
+				storage: self.dynamic_storage_index,
+				index: self.next_route_index.fetch_add(1, Ordering::Relaxed),
 			})
 		}
 
-		pub fn name(&self, route: Route) -> &str { self.type_names.borrow().get(&route).unwrap() }
+		pub fn name(&self, route: Route) -> &str { self.type_names.read().get(&route).unwrap() }
 
-		pub fn make(&self) -> Vec<Box<dyn FnOnce() -> (StorageType, u16)>> {
+		pub fn make(&self) -> Vec<GenFunc> {
 			let mut m = self.make.lock();
 			std::mem::take(&mut *m)
 		}
@@ -248,8 +248,8 @@ mod test {
 
 		pub fn finish(self) -> RoutingTable {
 			RoutingTable {
-				routes: RefCell::new(self.routes),
-				type_names: RefCell::new(self.type_names),
+				routes: RwLock::new(self.routes),
+				type_names: RwLock::new(self.type_names),
 				dynamic_storage_index: self.dynamic_storage_index,
 				next_route_index: AtomicU16::new(0),
 				make: Mutex::new(Vec::new()),
@@ -284,3 +284,4 @@ mod test {
 pub use normal::*;
 #[cfg(any(feature = "test", test))]
 pub use test::*;
+

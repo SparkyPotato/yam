@@ -6,4 +6,4 @@ edition = "2021"
 [dependencies]
 diagnostics = { path = "../diagnostics" }
 
-logos = "0.13"
+logos = { workspace = true }

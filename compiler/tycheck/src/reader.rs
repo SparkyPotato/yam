@@ -89,4 +89,3 @@ impl<'a> HirReader<'a> {
 		0
 	}
 }
-

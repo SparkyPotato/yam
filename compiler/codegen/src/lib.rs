@@ -982,4 +982,3 @@ impl<'a> Codegen<'a> {
 		);
 	}
 }
-
