@@ -73,6 +73,13 @@ impl ResPath {
 		ret
 	}
 
+	fn empty() -> Self {
+		Self {
+			root: None,
+			elems: Vec::new(),
+		}
+	}
+
 	fn from_ast(path: ast::Path) -> Self {
 		let mut segs = path.path_segments();
 		let first = segs.next().unwrap();
@@ -135,6 +142,8 @@ pub enum Resolution {
 pub struct NameResolver<'a> {
 	ctx: &'a Ctx<'a>,
 	this: Id<AbsPath>,
+	item: Id<AbsPath>,
+	ty: Option<NameTy>,
 	packages: &'a VisiblePackages,
 	tree: &'a CanonicalTree,
 	scopes: Vec<FxHashMap<Text, Ix<hir::Local>>>,
@@ -144,11 +153,14 @@ pub struct NameResolver<'a> {
 
 impl<'a> NameResolver<'a> {
 	pub fn new(
-		ctx: &'a Ctx, this: Id<AbsPath>, packages: &'a VisiblePackages, tree: &'a CanonicalTree, file: FilePath,
+		ctx: &'a Ctx, this: Id<AbsPath>, item: Id<AbsPath>, ty: Option<NameTy>, packages: &'a VisiblePackages,
+		tree: &'a CanonicalTree, file: FilePath,
 	) -> Self {
 		Self {
 			ctx,
 			this,
+			item,
+			ty,
 			packages,
 			tree,
 			scopes: Vec::new(),
@@ -181,25 +193,8 @@ impl<'a> NameResolver<'a> {
 	}
 
 	fn resolve_inner(&mut self, mut path: ResPath) -> Resolution {
-		if let Some(d) = path.root.take() {
-			if let Some(name) = path.elems.last() {
-				let Some(pkg) = self.packages.packages.get(&name.name) else {
-					let span = name.ast.span().with(self.file);
-					self.ctx.push(
-						span.error("unknown package")
-							.label(span.label("404: this package was not found")),
-					);
-					return Resolution::Error;
-				};
-				let tree = self.tree.packages[pkg];
-				self.resolve_from_mod(path, tree)
-			} else {
-				// TODO: Map `.` to the current item.
-				let span = d.span().with(self.file);
-				self.ctx
-					.push(span.error("self `.` is not supported").label(span.mark()));
-				Resolution::Error
-			}
+		if let Some(_) = path.root.take() {
+			self.resolve_global(path)
 		} else {
 			let first = path.elems.last().expect("empty path");
 			if let Some(local) = self.resolve_local(first.name) {
@@ -226,6 +221,29 @@ impl<'a> NameResolver<'a> {
 				});
 				self.resolve_from_mod(path, tree)
 			}
+		}
+	}
+
+	fn resolve_global(&mut self, path: ResPath) -> Resolution {
+		if let Some(name) = path.elems.last() {
+			let Some(pkg) = self.packages.packages.get(&name.name) else {
+				let span = name.ast.span().with(self.file);
+				self.ctx.push(
+					span.error("unknown package")
+						.label(span.label("404: this package was not found")),
+				);
+				return Resolution::Error;
+			};
+			let tree = self.tree.packages[pkg];
+			self.resolve_from_mod(path, tree)
+		} else {
+			self.ty
+				.map(|ty| Resolution::Item {
+					path: self.item,
+					ty,
+					unresolved: ResPath::empty(),
+				})
+				.unwrap_or(Resolution::Error)
 		}
 	}
 
@@ -289,3 +307,4 @@ impl<'a> NameResolver<'a> {
 
 	pub fn pop_scope(&mut self) { self.scopes.pop().expect("pop without any scope"); }
 }
+

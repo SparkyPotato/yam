@@ -310,18 +310,18 @@ impl Resolver<'_> {
 			match decl {
 				Declaration::Module(tree) => {
 					if tree == self.us {
-						return self.resolve_from_current(names);
+						return self.resolve_from_current(std::iter::once(name).chain(names));
 					}
 
 					let got = self.ctx.get(tree);
 					if let Some(id) = got.index {
 						let index = self.ctx.get(id);
-						let private = is_child_of(self.ctx, got.path, self.path);
-						let is_public = (!private)
+						let can_access_priv = is_child_of(self.ctx, got.path, self.path);
+						let is_public = (!can_access_priv)
 							.then(|| self.ctx.get(index.public).names.contains(&name.name))
 							.unwrap_or(false);
 						let ldecl = index.decls.get(&name.name);
-						if !private && !is_public {
+						if !can_access_priv && !is_public && ldecl.is_some() {
 							let span = name.id.erased();
 							if self.error_set.insert(span) {
 								self.ctx.push(
@@ -334,12 +334,16 @@ impl Resolver<'_> {
 						decl = if let Some(decl) = ldecl {
 							match *decl {
 								local::Declaration::Name { path, ty, id } => Declaration::Name { path, ty, id },
-								local::Declaration::Import { .. } => {
+								local::Declaration::Import { ref path, rename } => {
+									let re_span = rename
+										.map(|x| x.erased())
+										.unwrap_or_else(|| path.names.last().unwrap().id.erased());
 									let span = name.id.erased();
 									if self.error_set.insert(span) {
 										self.ctx.push(
 											span.error("importing re-exports is not supported yet")
-												.label(span.label("this is a re-export")),
+												.label(span.label("this is a re-export"))
+												.label(re_span.label("re-exported here")),
 										);
 									}
 									return None;
@@ -351,8 +355,8 @@ impl Resolver<'_> {
 								None => {
 									let span = name.id.erased();
 									if self.error_set.insert(span) {
-										self.ctx.push(span.error("unknown submodule").label(span.label(format!(
-											"404: this module does not exist in `{}`",
+										self.ctx.push(span.error("unknown name").label(span.label(format!(
+											"404: this name does not exist in `{}`",
 											prev.name.as_str()
 										))));
 									}
@@ -387,3 +391,4 @@ impl Resolver<'_> {
 
 	fn finish(self) -> (CanonicalIndex, CanonicalIndex) { (self.public, self.private) }
 }
+

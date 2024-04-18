@@ -41,23 +41,17 @@ pub struct Storage(
 	lower::lower_to_hir,
 );
 
-#[derive(Tracked)]
+// Not on deriving `Eq` and `PartialEq`:
+// This does a pointer comparison, which is surprisingly what we want.
+// On every reparse, this pointer will change and we want to invalidate the index as well the lowered HIR for
+// this module. However, if there wasn't a reparse, we want to keep the old index and HIR if possible - and the
+// pointer wouldn't have changed.
+#[derive(Tracked, Eq, PartialEq)]
 pub struct Module {
 	#[id]
 	pub path: Id<AbsPath>,
 	pub file: FilePath,
 	pub ast: ast::File,
-}
-
-impl Eq for Module {}
-impl PartialEq for Module {
-	fn eq(&self, other: &Self) -> bool {
-		// This does a pointer comparison, which is surprisingly what we want.
-		// On every reparse, this pointer will change and we want to invalidate the index as well the lowered HIR for
-		// this module. However, if there wasn't a reparse, we want to keep the old index and HIR if possible - and the
-		// pointer wouldn't have changed.
-		self.path == other.path && self.ast == other.ast
-	}
 }
 
 impl Module {

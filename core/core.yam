@@ -1,12 +1,9 @@
-@lang(prelude)
+@prelude
 pub import prelude;
 
-struct S {}
-
-fn x() -> u64 {
-	let b;
-	b();
-	let a = S();
-	a + 1
+struct S {
+	x: u64,
 }
+
+fn t(s: S) {}
 

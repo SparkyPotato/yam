@@ -136,4 +136,3 @@ impl Storage for TestDatabase {
 		}
 	}
 }
-

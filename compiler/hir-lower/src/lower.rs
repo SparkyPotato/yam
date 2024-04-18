@@ -82,8 +82,9 @@ fn lower_item(
 ) -> Option<hir::Item> {
 	let packages = ctx.get(packages);
 	let tree = ctx.get(tree);
-	let mut lowerer = Lowerer::new(ctx, module, builder, &*packages, &*tree, file);
 	let path = ctx.add(AbsPath::Name { prec: module, name });
+	let name = name_of_item(&item);
+	let mut lowerer = Lowerer::new(ctx, module, path, name.as_ref().map(|x| x.1), builder, &*packages, &*tree, file);
 
 	let attrs = item.attributes().into_iter().filter_map(|x| lowerer.attr(x)).collect();
 
@@ -98,7 +99,7 @@ fn lower_item(
 
 	Some(hir::Item {
 		path,
-		name: lowerer.name(name_of_item(&item).map(|x| x.0)),
+		name: lowerer.name(name.map(|x| x.0)),
 		attrs,
 		exprs: lowerer.exprs,
 		types: lowerer.types,
@@ -119,13 +120,13 @@ struct Lowerer<'a> {
 
 impl<'a> Lowerer<'a> {
 	fn new(
-		ctx: &'a Ctx<'a>, module: Id<AbsPath>, builder: ItemBuilder<'a>, packages: &'a VisiblePackages,
-		tree: &'a CanonicalTree, file: FilePath,
+		ctx: &'a Ctx<'a>, module: Id<AbsPath>, path: Id<AbsPath>, ty: Option<NameTy>, builder: ItemBuilder<'a>,
+		packages: &'a VisiblePackages, tree: &'a CanonicalTree, file: FilePath,
 	) -> Self {
 		Self {
 			ctx,
 			builder,
-			resolver: NameResolver::new(ctx, module, packages, tree, file),
+			resolver: NameResolver::new(ctx, module, path, ty, packages, tree, file),
 			exprs: Arena::new(),
 			types: Arena::new(),
 			locals: Arena::new(),
