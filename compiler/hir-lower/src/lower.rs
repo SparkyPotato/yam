@@ -368,7 +368,7 @@ impl<'a> Lowerer<'a> {
 		for stmt in b.statements() {
 			match stmt {
 				ast::Stmt::Item(i) => {
-					// TODO: support.
+					// TODO: internal items
 					let span = name_of_item(&i)
 						.map(|(x, _)| x.span())
 						.unwrap_or(i.span())
@@ -426,7 +426,7 @@ impl<'a> Lowerer<'a> {
 				ast::Expr::ContinueKw(_) => hir::ExprKind::Continue,
 				ast::Expr::FieldExpr(f) => self.field(f),
 				ast::Expr::ForExpr(_) => {
-					// TODO: Support.
+					// TODO: for expressions
 					let span = e.span().with(self.file);
 					self.ctx.push(span.error("`for` expressions are not supported"));
 					None?
@@ -582,14 +582,14 @@ impl<'a> Lowerer<'a> {
 						ExprKind::Error
 					},
 					NameTy::Enum => {
-						// TODO: enum aaaa
+						// TODO: support enums
 						let span = f.span().with(self.file);
 						self.ctx
 							.push(span.error("enums are not supported yet").label(span.mark()));
 						hir::ExprKind::Error
 					},
 					NameTy::TypeAlias => {
-						// TODO: type alias aaaa
+						// TODO: support type aliases
 						let span = f.span().with(self.file);
 						self.ctx
 							.push(span.error("type aliases are not supported yet").label(span.mark()));

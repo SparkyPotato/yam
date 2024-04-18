@@ -15,8 +15,6 @@ pub mod index;
 pub mod lower;
 mod resolve;
 
-// TODO: prelude.
-
 pub type TempDiagnostic = Diagnostic<ErasedTempId>;
 
 #[storage]
@@ -41,7 +39,7 @@ pub struct Storage(
 	lower::lower_to_hir,
 );
 
-// Not on deriving `Eq` and `PartialEq`:
+// Note on deriving `Eq` and `PartialEq`:
 // This does a pointer comparison, which is surprisingly what we want.
 // On every reparse, this pointer will change and we want to invalidate the index as well the lowered HIR for
 // this module. However, if there wasn't a reparse, we want to keep the old index and HIR if possible - and the
@@ -118,3 +116,4 @@ fn is_child_of(ctx: &Ctx, parent: Id<AbsPath>, mut child: Id<AbsPath>) -> bool {
 		};
 	}
 }
+

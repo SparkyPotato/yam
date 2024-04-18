@@ -203,7 +203,8 @@ pub struct ModuleTree {
 	sub: FxHashMap<Id<AbsPath>, Id<ModuleTree>>,
 }
 
-// TODO: Contextually group unresolved import errors into a single error to avoid error spam.
+// TODO: contextually group unresolved import errors into a single error to avoid error spam
+// TODO: prelude
 
 struct Resolver<'a> {
 	ctx: &'a Ctx<'a>,
