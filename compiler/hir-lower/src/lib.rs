@@ -66,15 +66,15 @@ impl Module {
 		let root = root.path().parent().expect("root must be a file");
 		// Ensure path is something like `src/x/x.yam`.
 		let p = file.path();
-		assert_eq!(p.extension(), Some("yam".as_ref()), "Path is not a .yam file");
-		let relative = p.strip_prefix(root).expect("Path is not a child of the root");
+		assert_eq!(p.extension(), Some("yam".as_ref()), "path is not a .yam file");
+		let relative = p.strip_prefix(root).expect("path is not a child of the root");
 		// `relative` is now `x/x.yam`.
 
 		let mut last_name = String::new();
 		let mut prec = db.add(package.into());
 		for component in relative.components() {
 			let path: &Path = component.as_ref(); // `x` or `x.yam`.
-			let path = path.to_str().expect("Path is not valid UTF-8");
+			let path = path.to_str().expect("path is not valid UTF-8");
 
 			let file_name = path.strip_suffix(".yam");
 			if file_name != Some(last_name.as_str()) {
