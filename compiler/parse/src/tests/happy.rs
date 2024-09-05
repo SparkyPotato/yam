@@ -575,6 +575,10 @@ fn atom() {
 	let source = r#"
 		fn main() {
 			(x);
+			[];
+			[10];
+			[10, 20, 30];
+			[10; 30];
 			34; "hello"; 4.5; 'c'; true; false;
 			break;
 			continue;
@@ -589,10 +593,10 @@ fn atom() {
 
 	let ast = {
 		expect![[r#"
-    File@0..260
+    File@0..306
       Whitespace@0..3 "\n\t\t"
-      Item@3..260
-        Fn@3..260
+      Item@3..306
+        Fn@3..306
           FnKw@3..5 "fn"
           Whitespace@5..6 " "
           Name@6..10
@@ -601,7 +605,7 @@ fn atom() {
             LParen@10..11 "("
             RParen@11..12 ")"
           Whitespace@12..13 " "
-          Block@13..258
+          Block@13..304
             LBrace@13..14 "{"
             SemiExpr@14..22
               Whitespace@14..18 "\n\t\t\t"
@@ -614,160 +618,200 @@ fn atom() {
               Semi@21..22 ";"
             Whitespace@22..26 "\n\t\t\t"
             SemiExpr@26..29
-              IntLit@26..28 "34"
+              ArrayExpr@26..28
+                LBracket@26..27 "["
+                ArrayList@27..27
+                RBracket@27..28 "]"
               Semi@28..29 ";"
-            Whitespace@29..30 " "
-            SemiExpr@30..38
-              StringLit@30..37 "\"hello\""
+            Whitespace@29..33 "\n\t\t\t"
+            SemiExpr@33..38
+              ArrayExpr@33..37
+                LBracket@33..34 "["
+                ArrayList@34..36
+                  IntLit@34..36 "10"
+                RBracket@36..37 "]"
               Semi@37..38 ";"
-            Whitespace@38..39 " "
-            SemiExpr@39..43
-              FloatLit@39..42 "4.5"
-              Semi@42..43 ";"
-            Whitespace@43..44 " "
-            SemiExpr@44..48
-              CharLit@44..47 "'c'"
-              Semi@47..48 ";"
-            Whitespace@48..49 " "
-            SemiExpr@49..54
-              BoolLit@49..53 "true"
-              Semi@53..54 ";"
-            Whitespace@54..55 " "
-            SemiExpr@55..61
-              BoolLit@55..60 "false"
-              Semi@60..61 ";"
-            Whitespace@61..65 "\n\t\t\t"
-            SemiExpr@65..71
-              BreakExpr@65..70
-                BreakKw@65..70 "break"
-              Semi@70..71 ";"
-            Whitespace@71..75 "\n\t\t\t"
-            SemiExpr@75..84
-              ContinueKw@75..83 "continue"
+            Whitespace@38..42 "\n\t\t\t"
+            SemiExpr@42..55
+              ArrayExpr@42..54
+                LBracket@42..43 "["
+                ArrayList@43..53
+                  IntLit@43..45 "10"
+                  Comma@45..46 ","
+                  Whitespace@46..47 " "
+                  IntLit@47..49 "20"
+                  Comma@49..50 ","
+                  Whitespace@50..51 " "
+                  IntLit@51..53 "30"
+                RBracket@53..54 "]"
+              Semi@54..55 ";"
+            Whitespace@55..59 "\n\t\t\t"
+            SemiExpr@59..68
+              ArrayExpr@59..67
+                LBracket@59..60 "["
+                ArrayRepeat@60..66
+                  IntLit@60..62 "10"
+                  Semi@62..63 ";"
+                  Whitespace@63..64 " "
+                  IntLit@64..66 "30"
+                RBracket@66..67 "]"
+              Semi@67..68 ";"
+            Whitespace@68..72 "\n\t\t\t"
+            SemiExpr@72..75
+              IntLit@72..74 "34"
+              Semi@74..75 ";"
+            Whitespace@75..76 " "
+            SemiExpr@76..84
+              StringLit@76..83 "\"hello\""
               Semi@83..84 ";"
-            Whitespace@84..88 "\n\t\t\t"
-            SemiExpr@88..98
-              ReturnExpr@88..97
-                ReturnKw@88..94 "return"
-                Whitespace@94..95 " "
-                IntLit@95..97 "10"
-              Semi@97..98 ";"
-            Whitespace@98..102 "\n\t\t\t"
-            LoopExpr@102..113
-              LoopKw@102..106 "loop"
-              Whitespace@106..107 " "
-              Block@107..109
-                LBrace@107..108 "{"
-                RBrace@108..109 "}"
-              Whitespace@109..113 "\n\t\t\t"
-            SemiExpr@113..141
-              LoopExpr@113..140
-                LoopKw@113..117 "loop"
-                Whitespace@117..118 " "
-                Block@118..128
-                  LBrace@118..119 "{"
-                  SemiExpr@119..126
-                    Whitespace@119..120 " "
-                    NameExpr@120..125
-                      Name@120..125
-                        Ident@120..125 "hello"
-                    Semi@125..126 ";"
-                  Whitespace@126..127 " "
-                  RBrace@127..128 "}"
-                Whitespace@128..129 " "
-                WhileKw@129..134 "while"
-                Whitespace@134..135 " "
-                BoolLit@135..140 "false"
-              Semi@140..141 ";"
-            Whitespace@141..145 "\n\t\t\t"
-            WhileExpr@145..170
-              WhileKw@145..150 "while"
-              Whitespace@150..151 " "
-              BoolLit@151..155 "true"
-              Whitespace@155..156 " "
-              Block@156..166
-                LBrace@156..157 "{"
-                SemiExpr@157..164
-                  Whitespace@157..158 " "
-                  NameExpr@158..163
-                    Name@158..163
-                      Ident@158..163 "hello"
-                  Semi@163..164 ";"
-                Whitespace@164..165 " "
-                RBrace@165..166 "}"
-              Whitespace@166..170 "\n\t\t\t"
-            ForExpr@170..195
-              ForKw@170..173 "for"
-              Whitespace@173..174 " "
-              Name@174..175
-                Ident@174..175 "x"
-              Whitespace@175..176 " "
-              InKw@176..178 "in"
-              Whitespace@178..179 " "
-              NameExpr@179..181
-                Name@179..180
-                  Ident@179..180 "y"
+            Whitespace@84..85 " "
+            SemiExpr@85..89
+              FloatLit@85..88 "4.5"
+              Semi@88..89 ";"
+            Whitespace@89..90 " "
+            SemiExpr@90..94
+              CharLit@90..93 "'c'"
+              Semi@93..94 ";"
+            Whitespace@94..95 " "
+            SemiExpr@95..100
+              BoolLit@95..99 "true"
+              Semi@99..100 ";"
+            Whitespace@100..101 " "
+            SemiExpr@101..107
+              BoolLit@101..106 "false"
+              Semi@106..107 ";"
+            Whitespace@107..111 "\n\t\t\t"
+            SemiExpr@111..117
+              BreakExpr@111..116
+                BreakKw@111..116 "break"
+              Semi@116..117 ";"
+            Whitespace@117..121 "\n\t\t\t"
+            SemiExpr@121..130
+              ContinueKw@121..129 "continue"
+              Semi@129..130 ";"
+            Whitespace@130..134 "\n\t\t\t"
+            SemiExpr@134..144
+              ReturnExpr@134..143
+                ReturnKw@134..140 "return"
+                Whitespace@140..141 " "
+                IntLit@141..143 "10"
+              Semi@143..144 ";"
+            Whitespace@144..148 "\n\t\t\t"
+            LoopExpr@148..159
+              LoopKw@148..152 "loop"
+              Whitespace@152..153 " "
+              Block@153..155
+                LBrace@153..154 "{"
+                RBrace@154..155 "}"
+              Whitespace@155..159 "\n\t\t\t"
+            SemiExpr@159..187
+              LoopExpr@159..186
+                LoopKw@159..163 "loop"
+                Whitespace@163..164 " "
+                Block@164..174
+                  LBrace@164..165 "{"
+                  SemiExpr@165..172
+                    Whitespace@165..166 " "
+                    NameExpr@166..171
+                      Name@166..171
+                        Ident@166..171 "hello"
+                    Semi@171..172 ";"
+                  Whitespace@172..173 " "
+                  RBrace@173..174 "}"
+                Whitespace@174..175 " "
+                WhileKw@175..180 "while"
                 Whitespace@180..181 " "
-              Block@181..191
-                LBrace@181..182 "{"
-                SemiExpr@182..189
-                  Whitespace@182..183 " "
-                  NameExpr@183..188
-                    Name@183..188
-                      Ident@183..188 "hello"
-                  Semi@188..189 ";"
-                Whitespace@189..190 " "
-                RBrace@190..191 "}"
-              Whitespace@191..195 "\n\t\t\t"
-            IfExpr@195..257
-              IfKw@195..197 "if"
-              Whitespace@197..198 " "
-              BoolLit@198..202 "true"
-              Whitespace@202..203 " "
-              Block@203..213
-                LBrace@203..204 "{"
-                SemiExpr@204..211
-                  Whitespace@204..205 " "
-                  NameExpr@205..210
-                    Name@205..210
-                      Ident@205..210 "hello"
-                  Semi@210..211 ";"
-                Whitespace@211..212 " "
-                RBrace@212..213 "}"
-              Whitespace@213..214 " "
-              ElseKw@214..218 "else"
-              Whitespace@218..219 " "
-              IfExpr@219..257
-                IfKw@219..221 "if"
-                Whitespace@221..222 " "
-                BoolLit@222..227 "false"
-                Whitespace@227..228 " "
-                Block@228..238
-                  LBrace@228..229 "{"
-                  SemiExpr@229..236
-                    Whitespace@229..230 " "
-                    NameExpr@230..235
-                      Name@230..235
-                        Ident@230..235 "hello"
-                    Semi@235..236 ";"
-                  Whitespace@236..237 " "
-                  RBrace@237..238 "}"
-                Whitespace@238..239 " "
-                ElseKw@239..243 "else"
-                Whitespace@243..244 " "
-                Block@244..254
-                  LBrace@244..245 "{"
-                  SemiExpr@245..252
-                    Whitespace@245..246 " "
-                    NameExpr@246..251
-                      Name@246..251
-                        Ident@246..251 "hello"
-                    Semi@251..252 ";"
-                  Whitespace@252..253 " "
-                  RBrace@253..254 "}"
-                Whitespace@254..257 "\n\t\t"
-            RBrace@257..258 "}"
-          Whitespace@258..260 "\n\t""#]]
+                BoolLit@181..186 "false"
+              Semi@186..187 ";"
+            Whitespace@187..191 "\n\t\t\t"
+            WhileExpr@191..216
+              WhileKw@191..196 "while"
+              Whitespace@196..197 " "
+              BoolLit@197..201 "true"
+              Whitespace@201..202 " "
+              Block@202..212
+                LBrace@202..203 "{"
+                SemiExpr@203..210
+                  Whitespace@203..204 " "
+                  NameExpr@204..209
+                    Name@204..209
+                      Ident@204..209 "hello"
+                  Semi@209..210 ";"
+                Whitespace@210..211 " "
+                RBrace@211..212 "}"
+              Whitespace@212..216 "\n\t\t\t"
+            ForExpr@216..241
+              ForKw@216..219 "for"
+              Whitespace@219..220 " "
+              Name@220..221
+                Ident@220..221 "x"
+              Whitespace@221..222 " "
+              InKw@222..224 "in"
+              Whitespace@224..225 " "
+              NameExpr@225..227
+                Name@225..226
+                  Ident@225..226 "y"
+                Whitespace@226..227 " "
+              Block@227..237
+                LBrace@227..228 "{"
+                SemiExpr@228..235
+                  Whitespace@228..229 " "
+                  NameExpr@229..234
+                    Name@229..234
+                      Ident@229..234 "hello"
+                  Semi@234..235 ";"
+                Whitespace@235..236 " "
+                RBrace@236..237 "}"
+              Whitespace@237..241 "\n\t\t\t"
+            IfExpr@241..303
+              IfKw@241..243 "if"
+              Whitespace@243..244 " "
+              BoolLit@244..248 "true"
+              Whitespace@248..249 " "
+              Block@249..259
+                LBrace@249..250 "{"
+                SemiExpr@250..257
+                  Whitespace@250..251 " "
+                  NameExpr@251..256
+                    Name@251..256
+                      Ident@251..256 "hello"
+                  Semi@256..257 ";"
+                Whitespace@257..258 " "
+                RBrace@258..259 "}"
+              Whitespace@259..260 " "
+              ElseKw@260..264 "else"
+              Whitespace@264..265 " "
+              IfExpr@265..303
+                IfKw@265..267 "if"
+                Whitespace@267..268 " "
+                BoolLit@268..273 "false"
+                Whitespace@273..274 " "
+                Block@274..284
+                  LBrace@274..275 "{"
+                  SemiExpr@275..282
+                    Whitespace@275..276 " "
+                    NameExpr@276..281
+                      Name@276..281
+                        Ident@276..281 "hello"
+                    Semi@281..282 ";"
+                  Whitespace@282..283 " "
+                  RBrace@283..284 "}"
+                Whitespace@284..285 " "
+                ElseKw@285..289 "else"
+                Whitespace@289..290 " "
+                Block@290..300
+                  LBrace@290..291 "{"
+                  SemiExpr@291..298
+                    Whitespace@291..292 " "
+                    NameExpr@292..297
+                      Name@292..297
+                        Ident@292..297 "hello"
+                    Semi@297..298 ";"
+                  Whitespace@298..299 " "
+                  RBrace@299..300 "}"
+                Whitespace@300..303 "\n\t\t"
+            RBrace@303..304 "}"
+          Whitespace@304..306 "\n\t""#]]
 	};
 
 	let diags = expect![""];

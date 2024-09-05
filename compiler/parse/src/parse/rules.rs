@@ -568,9 +568,37 @@ mod expr {
 			p,
 			T!['('] => {
 				p.api.start_node(SyntaxKind::ParenExpr);
+
 				p.api.bump();
 				p!(p.run(Expr));
 				p!(p.expect(T![')']));
+
+				p.api.finish_node();
+			},
+			T!['['] => {
+				p.api.start_node(SyntaxKind::ArrayExpr);
+
+				p.api.bump();
+				let c = p.api.checkpoint();
+				if matches!(p.api.peek().kind, T![']']) {
+					p.api.start_node_at(c, SyntaxKind::ArrayList);
+				} else {
+					p!(p.run(Expr));
+					if matches!(p.api.peek().kind, T![']']) {
+						p.api.start_node_at(c, SyntaxKind::ArrayList);
+					} else if matches!(p.api.peek().kind, T![;]) {
+						p.api.start_node_at(c, SyntaxKind::ArrayRepeat);
+						p.api.bump();
+						p!(p.run(Expr));
+					} else {
+						p.api.start_node_at(c, SyntaxKind::ArrayList);
+						p!(p.expect(T![,]));
+						p!(p.comma_sep_list(T![']'], Expr));
+					}
+				}
+				p.api.finish_node();
+				p!(p.expect(T![']']));
+
 				p.api.finish_node();
 			},
 			T!['{'] => p!(p.run(Block)),
