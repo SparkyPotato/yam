@@ -1,6 +1,5 @@
 use std::sync::Mutex;
 
-use codegen::codegen_declare;
 pub use codegen::{target, CodegenOptions};
 use diagnostics::{emit, DiagKind, FileCache, FilePath, FullDiagnostic};
 use hir::{
@@ -10,16 +9,10 @@ use hir::{
 	ItemDiagnostic,
 };
 use hir_lower::{
-	index::{
-		build_ast_map,
-		canonical::{canonicalize_tree, CanonicalTree},
-		local::{build_package_tree, generate_index, Index},
-		ModuleMap,
-		TempMap,
-	},
+	index::{build_ast_map, build_package_tree, generate_index, Index, ModuleMap, PackageTree, TempMap},
 	lower::{build_hir_sea, lower_to_hir},
+	prelude::{get_prelude, Prelude},
 	Module,
-	Packages,
 	TempDiagnostic,
 	VisiblePackages,
 };
@@ -27,7 +20,7 @@ use parse::ParseContext;
 use rayon::prelude::*;
 use rustc_hash::FxHashMap;
 use text::Text;
-use tracing::{span, Level};
+use tracing::{span, Level, Span};
 use tycheck::type_check;
 use verde::{db, Db, Id};
 
@@ -49,7 +42,8 @@ pub struct CompileInput {
 	pub codegen_options: CodegenOptions,
 	/// Output HIR.
 	pub emit_hir: bool,
-	pub output: FilePath,
+	/// If `None`, only check the code, emitting any errors.
+	pub output: Option<FilePath>,
 }
 
 /// The output of the compilation
@@ -67,11 +61,11 @@ pub fn compile(input: CompileInput) -> CompileOutput {
 	let dbc = input.db;
 	let db = &dbc as &(dyn Db + Send + Sync);
 
-	let (modules, cache) = parse(db, input.files);
-	let (indices, maps) = index_gen(db, &modules);
-	let (packages, tree) = packages(db, &indices);
-	let (items, lang_item_map, amap, tmap) = hir(db, &modules, maps, packages, tree);
-	let thir = tyck(db, items, lang_item_map);
+	let (modules, cache) = parse(&s, db, input.files);
+	let (indices, maps) = index_gen(&s, db, &modules);
+	let (tree, prelude, packages) = packages(&s, db, &indices);
+	let (items, lang_item_map, amap, tmap) = hir(&s, db, &modules, maps, tree, prelude, packages);
+	let thir = tyck(&s, db, items, lang_item_map);
 
 	if input.emit_hir {
 		for (p, &hir) in thir.hir.iter() {
@@ -81,8 +75,10 @@ pub fn compile(input: CompileInput) -> CompileOutput {
 	}
 
 	if should_codegen(db) {
-		let package = codegen(db, &input.codegen_options, &thir);
-		std::fs::write(input.output.path(), package).unwrap();
+		if let Some(path) = input.output {
+			let package = codegen(&s, db, &input.codegen_options, &thir);
+			std::fs::write(path.path(), package).unwrap();
+		}
 	}
 
 	emit_all(db, &cache, &amap, &tmap);
@@ -90,21 +86,31 @@ pub fn compile(input: CompileInput) -> CompileOutput {
 	CompileOutput { db: dbc }
 }
 
-fn parse(db: &(dyn Db + Send + Sync), files: Vec<SourceFile>) -> (Vec<Id<Module>>, FileCache) {
+fn parse(compile: &Span, db: &(dyn Db + Send + Sync), files: Vec<SourceFile>) -> (Vec<Id<Module>>, FileCache) {
 	let f = files.get(0).expect("No source files provided");
 	let parser = Parser::new(db, f.path);
-	let modules: Vec<_> = files.into_par_iter().map(|x| parser.parse(x)).collect();
+	let modules: Vec<_> = files
+		.into_par_iter()
+		.map(|x| {
+			let s = span!(parent: compile, Level::TRACE, "thread");
+			let _e = s.enter();
+			parser.parse(x)
+		})
+		.collect();
 	let cache = parser.finish();
 	(modules, cache)
 }
 
-fn index_gen(db: &(dyn Db + Send + Sync), modules: &[Id<Module>]) -> (Vec<Id<Index>>, Vec<ModuleMap>) {
+fn index_gen(compile: &Span, db: &(dyn Db + Send + Sync), modules: &[Id<Module>]) -> (Vec<Id<Index>>, Vec<ModuleMap>) {
 	let mut indices = Vec::with_capacity(modules.len());
 	let mut maps = Vec::with_capacity(modules.len());
 	modules
 		.par_iter()
 		.map(|&x| {
 			db.execute(|ctx| {
+				let s = span!(parent: compile, Level::TRACE, "thread");
+				let _e = s.enter();
+
 				let m = db.get(x);
 				let mut map = ModuleMap::new(m.path, m.file);
 				drop(m);
@@ -118,11 +124,11 @@ fn index_gen(db: &(dyn Db + Send + Sync), modules: &[Id<Module>]) -> (Vec<Id<Ind
 	(indices, maps)
 }
 
-fn packages(db: &(dyn Db + Send + Sync), indices: &[Id<Index>]) -> (Id<VisiblePackages>, Id<CanonicalTree>) {
-	let s = span!(Level::DEBUG, "build package tree");
-	let _e = s.enter();
-
+fn packages(
+	_: &Span, db: &(dyn Db + Send + Sync), indices: &[Id<Index>],
+) -> (Id<PackageTree>, Id<Prelude>, Id<VisiblePackages>) {
 	let tree = db.execute(|ctx| build_package_tree(ctx, &indices));
+	let prelude = db.execute(|ctx| get_prelude(ctx, tree));
 	let packages = db.set_input(VisiblePackages {
 		package: PackageId(0),
 		packages: {
@@ -131,26 +137,22 @@ fn packages(db: &(dyn Db + Send + Sync), indices: &[Id<Index>]) -> (Id<VisiblePa
 			p
 		},
 	});
-	let vis_packages = db.set_input(Packages {
-		id: (),
-		packages: {
-			let mut p = FxHashMap::default();
-			p.insert(PackageId(0), packages);
-			p
-		},
-	});
-	let tree = db.execute(|ctx| canonicalize_tree(ctx, tree, vis_packages));
-	(packages, tree)
+	(tree, prelude, packages)
 }
 
 fn hir(
-	db: &(dyn Db + Send + Sync), modules: &[Id<Module>], mut maps: Vec<ModuleMap>, packages: Id<VisiblePackages>,
-	tree: Id<CanonicalTree>,
+	compile: &Span, db: &(dyn Db + Send + Sync), modules: &[Id<Module>], mut maps: Vec<ModuleMap>,
+	tree: Id<PackageTree>, prelude: Id<Prelude>, packages: Id<VisiblePackages>,
 ) -> (FxHashMap<Id<AbsPath>, Id<hir::Item>>, Id<LangItemMap>, AstMap, TempMap) {
 	let modules: Vec<_> = modules
 		.into_par_iter()
 		.zip(maps.par_iter_mut())
-		.map(move |(&x, map)| db.execute(|ctx| lower_to_hir(ctx, x, packages, tree, map)))
+		.map(move |(&x, map)| {
+			let s = span!(parent: compile, Level::TRACE, "thread");
+			let _e = s.enter();
+
+			db.execute(|ctx| lower_to_hir(ctx, x, tree, prelude, packages, map))
+		})
 		.collect();
 	let (amap, tmap) = build_ast_map(maps);
 	let items = build_hir_sea(db, modules);
@@ -159,11 +161,15 @@ fn hir(
 }
 
 fn tyck(
-	db: &(dyn Db + Send + Sync), hir: FxHashMap<Id<AbsPath>, Id<hir::Item>>, lang_item_map: Id<LangItemMap>,
+	compile: &Span, db: &(dyn Db + Send + Sync), hir: FxHashMap<Id<AbsPath>, Id<hir::Item>>,
+	lang_item_map: Id<LangItemMap>,
 ) -> thir::Thir {
 	let decls: FxHashMap<_, _> = hir
 		.par_iter()
 		.map(|(&path, &item)| {
+			let s = span!(parent: compile, Level::TRACE, "thread");
+			let _e = s.enter();
+
 			(
 				path,
 				db.execute(|ctx| tycheck::decl::type_decl(ctx, item, lang_item_map, &hir)),
@@ -173,6 +179,9 @@ fn tyck(
 	let items = hir
 		.par_iter()
 		.map(|(&path, &item)| {
+			let s = span!(parent: compile, Level::TRACE, "thread");
+			let _e = s.enter();
+
 			(
 				path,
 				db.execute(|ctx| type_check(ctx, item, decls[&path], lang_item_map, &hir, &decls)),
@@ -189,14 +198,17 @@ fn should_codegen(db: &dyn Db) -> bool {
 	!r
 }
 
-fn codegen(db: &(dyn Db + Send + Sync), options: &CodegenOptions, thir: &thir::Thir) -> Vec<u8> {
+fn codegen(compile: &Span, db: &(dyn Db + Send + Sync), options: &CodegenOptions, thir: &thir::Thir) -> Vec<u8> {
 	let s = span!(Level::DEBUG, "codegen");
 	let _e = s.enter();
 
-	let decls = codegen_declare(db, options, thir);
-	thir.hir
-		.par_iter()
-		.for_each(|(id, &hir)| codegen::codegen_item(db, options, &decls, thir, hir, thir.items[id]));
+	let decls = codegen::declare(db, options, thir);
+	thir.hir.par_iter().for_each(|(id, &hir)| {
+		let s = span!(parent: compile, Level::TRACE, "thread");
+		let _e = s.enter();
+
+		codegen::item(db, options, &decls, thir, hir, thir.items[id])
+	});
 	decls.finish()
 }
 

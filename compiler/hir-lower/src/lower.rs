@@ -8,8 +8,9 @@ use tracing::{span, Level};
 use verde::{query, Ctx, Db, Id, Tracked};
 
 use crate::{
-	index::{canonical::CanonicalTree, local::name_of_item, ItemBuilder, ModuleMap, NameTy},
-	resolve::{NameExprResolution, NameResolver, ResPath, Resolution},
+	index::{name_of_item, ItemBuilder, ModuleMap, NameTy, PackageTree},
+	prelude::Prelude,
+	resolve::{GlobalResolver, NameExprResolution, NameResolver, ResPath, Resolution},
 	Module,
 	VisiblePackages,
 };
@@ -49,14 +50,24 @@ impl PartialEq for LoweredModule {
 /// The `ModuleMap` should be the same one that was used to generate the index.
 #[query]
 pub fn lower_to_hir(
-	ctx: &Ctx, module: Id<Module>, packages: Id<VisiblePackages>, tree: Id<CanonicalTree>,
+	ctx: &Ctx, module: Id<Module>, tree: Id<PackageTree>, prelude: Id<Prelude>, packages: Id<VisiblePackages>,
 	#[ignore] map: &mut ModuleMap,
 ) -> LoweredModule {
 	let module = ctx.get(module);
+	let prelude = ctx.get(prelude);
 
 	let s = span!(Level::DEBUG, "lower to HIR", path =%module.file);
 	let _e = s.enter();
 
+	GlobalResolver::new(
+		ctx,
+		module.path,
+		Some(module.file),
+		Some(&*prelude),
+		&*ctx.get(packages),
+		&*ctx.get(tree),
+	)
+	.verify_imports();
 	let items = module
 		.ast
 		.items()
@@ -64,7 +75,17 @@ pub fn lower_to_hir(
 		.flat_map(|x| {
 			name_of_item(&x).and_then(|(x, _)| x.text()).and_then(|name| {
 				let builder = map.define(name);
-				let item = lower_item(ctx, module.path, name, module.file, x, packages, tree, builder);
+				let item = lower_item(
+					ctx,
+					module.path,
+					name,
+					module.file,
+					x,
+					&*prelude,
+					tree,
+					packages,
+					builder,
+				);
 				item.map(|x| ctx.insert(x))
 			})
 		})
@@ -77,14 +98,24 @@ pub fn lower_to_hir(
 }
 
 fn lower_item(
-	ctx: &Ctx, module: Id<AbsPath>, name: Text, file: FilePath, item: ast::Item, packages: Id<VisiblePackages>,
-	tree: Id<CanonicalTree>, builder: ItemBuilder,
+	ctx: &Ctx, module: Id<AbsPath>, name: Text, file: FilePath, item: ast::Item, prelude: &Prelude,
+	tree: Id<PackageTree>, packages: Id<VisiblePackages>, builder: ItemBuilder,
 ) -> Option<hir::Item> {
 	let packages = ctx.get(packages);
 	let tree = ctx.get(tree);
 	let path = ctx.add(AbsPath::Name { prec: module, name });
 	let name = name_of_item(&item);
-	let mut lowerer = Lowerer::new(ctx, module, path, name.as_ref().map(|x| x.1), builder, &*packages, &*tree, file);
+	let mut lowerer = Lowerer::new(
+		ctx,
+		file,
+		module,
+		prelude,
+		&*tree,
+		&*packages,
+		builder,
+		path,
+		name.as_ref().map(|x| x.1),
+	);
 
 	let attrs = item.attributes().into_iter().filter_map(|x| lowerer.attr(x)).collect();
 
@@ -120,13 +151,13 @@ struct Lowerer<'a> {
 
 impl<'a> Lowerer<'a> {
 	fn new(
-		ctx: &'a Ctx<'a>, module: Id<AbsPath>, path: Id<AbsPath>, ty: Option<NameTy>, builder: ItemBuilder<'a>,
-		packages: &'a VisiblePackages, tree: &'a CanonicalTree, file: FilePath,
+		ctx: &'a Ctx<'a>, file: FilePath, module: Id<AbsPath>, prelude: &'a Prelude, tree: &'a PackageTree,
+		packages: &'a VisiblePackages, builder: ItemBuilder<'a>, path: Id<AbsPath>, ty: Option<NameTy>,
 	) -> Self {
 		Self {
 			ctx,
 			builder,
-			resolver: NameResolver::new(ctx, module, path, ty, packages, tree, file),
+			resolver: NameResolver::new(ctx, file, prelude, packages, tree, module, path, ty),
 			exprs: Arena::new(),
 			types: Arena::new(),
 			locals: Arena::new(),
@@ -240,7 +271,6 @@ impl<'a> Lowerer<'a> {
 	fn struct_(&mut self, s: ast::Struct) -> hir::Struct {
 		let name = self.name(s.name());
 		let fields = s.fields().into_iter().map(|x| self.param(x)).collect();
-
 		hir::Struct { name, fields }
 	}
 
@@ -252,14 +282,12 @@ impl<'a> Lowerer<'a> {
 			.flat_map(|x| x.variants())
 			.map(|x| hir::Variant(self.name(Some(x))))
 			.collect();
-
 		hir::Enum { name, variants }
 	}
 
 	fn type_alias(&mut self, t: ast::TypeAlias) -> hir::TypeAlias {
 		let name = self.name(t.name());
 		let ty = self.ty(t.type_());
-
 		hir::TypeAlias { name, ty }
 	}
 
@@ -267,7 +295,6 @@ impl<'a> Lowerer<'a> {
 		let name = self.name(s.name());
 		let ty = self.ty(s.type_());
 		let init = self.expr(s.init());
-
 		hir::Static { name, ty, init }
 	}
 
@@ -275,7 +302,6 @@ impl<'a> Lowerer<'a> {
 		let name = self.name(p.name());
 		let ty = self.ty(p.type_());
 		let id = self.builder.add(Some(p));
-
 		hir::Param { name, ty, id }
 	}
 
@@ -374,7 +400,7 @@ impl<'a> Lowerer<'a> {
 						.unwrap_or(i.span())
 						.with(self.file);
 					self.ctx
-						.push(span.error("internal items are not supported").label(span.mark()));
+						.push(span.error("internal items are not implemented").label(span.mark()));
 				},
 				ast::Stmt::Expr(e) => {
 					if let Some(v) = value {
@@ -428,7 +454,7 @@ impl<'a> Lowerer<'a> {
 				ast::Expr::ForExpr(_) => {
 					// TODO: for expressions
 					let span = e.span().with(self.file);
-					self.ctx.push(span.error("`for` expressions are not supported"));
+					self.ctx.push(span.error("`for` expressions are not implemented"));
 					None?
 				},
 				ast::Expr::IfExpr(i) => hir::ExprKind::Match(self.if_(i)),
@@ -585,14 +611,14 @@ impl<'a> Lowerer<'a> {
 						// TODO: support enums
 						let span = f.span().with(self.file);
 						self.ctx
-							.push(span.error("enums are not supported yet").label(span.mark()));
+							.push(span.error("enums are not implemented").label(span.mark()));
 						hir::ExprKind::Error
 					},
 					NameTy::TypeAlias => {
 						// TODO: support type aliases
 						let span = f.span().with(self.file);
 						self.ctx
-							.push(span.error("type aliases are not supported yet").label(span.mark()));
+							.push(span.error("type aliases are not implemented").label(span.mark()));
 						hir::ExprKind::Error
 					},
 					NameTy::Static => self.field_access(hir::ExprKind::Static(path), unresolved),
@@ -604,7 +630,6 @@ impl<'a> Lowerer<'a> {
 			None => {
 				let expr = self.expr(f.expr());
 				let field = self.name(f.name());
-
 				hir::ExprKind::Field(hir::FieldExpr { expr, field })
 			},
 		}
@@ -737,7 +762,6 @@ impl<'a> Lowerer<'a> {
 	fn ref_(&mut self, r: ast::RefExpr) -> hir::RefExpr {
 		let expr = self.expr(r.expr());
 		let mutable = r.mut_kw().is_some();
-
 		hir::RefExpr { expr, mutable }
 	}
 

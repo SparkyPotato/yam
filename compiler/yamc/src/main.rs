@@ -20,6 +20,8 @@ struct Options {
 	emit_hir: bool,
 	#[arg(long)]
 	emit_ir: bool,
+	#[arg(long)]
+	check: bool,
 }
 
 fn main() {
@@ -63,17 +65,19 @@ fn main() {
 			emit_ir: options.emit_ir,
 		},
 		emit_hir: options.emit_hir,
-		output: FilePath::new(
-			&options
-				.output
-				.unwrap_or_else(|| {
-					let mut path = options.path.clone();
-					path.set_extension("o");
-					path
-				})
-				.to_str()
-				.unwrap(),
-		),
+		output: (!options.check).then(|| {
+			FilePath::new(
+				&options
+					.output
+					.unwrap_or_else(|| {
+						let mut path = options.path.clone();
+						path.set_extension("o");
+						path
+					})
+					.to_str()
+					.unwrap(),
+			)
+		}),
 	});
 }
 

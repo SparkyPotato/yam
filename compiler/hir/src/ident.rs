@@ -13,6 +13,21 @@ pub enum AbsPath {
 	Name { prec: Id<AbsPath>, name: Text },
 }
 
+impl AbsPath {
+	pub fn segments(db: &dyn Db, mut path: Id<Self>) -> (PackageId, Vec<Text>) {
+		let mut names = Vec::new();
+		loop {
+			match *db.geti(path) {
+				Self::Package(id) => return (id, names),
+				Self::Name { prec, name } => {
+					path = prec;
+					names.push(name);
+				},
+			}
+		}
+	}
+}
+
 impl From<PackageId> for AbsPath {
 	fn from(x: PackageId) -> Self { Self::Package(x) }
 }

@@ -154,7 +154,7 @@ pub fn sig_of_type(
 	sig
 }
 
-pub fn codegen_declare(db: &dyn Db, options: &CodegenOptions, thir: &Thir) -> DeclaredPackage {
+pub fn declare(db: &dyn Db, options: &CodegenOptions, thir: &Thir) -> DeclaredPackage {
 	let mut builder = settings::builder();
 	builder.enable("is_pic").unwrap();
 	builder.enable("enable_atomics").unwrap();
@@ -237,7 +237,7 @@ pub fn codegen_declare(db: &dyn Db, options: &CodegenOptions, thir: &Thir) -> De
 	}
 }
 
-pub fn codegen_item(
+pub fn item(
 	db: &dyn Db, options: &CodegenOptions, decls: &DeclaredPackage, thir: &Thir, hir: Id<hir::Item>,
 	ithir: Id<thir::Item>,
 ) {

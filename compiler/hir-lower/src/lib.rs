@@ -1,3 +1,5 @@
+#![feature(drain_keep_rest)]
+#![feature(let_chains)]
 #![feature(try_blocks)]
 
 use std::path::Path;
@@ -13,6 +15,7 @@ use crate::index::ErasedTempId;
 
 pub mod index;
 pub mod lower;
+pub mod prelude;
 mod resolve;
 
 pub type TempDiagnostic = Diagnostic<ErasedTempId>;
@@ -24,17 +27,16 @@ pub struct Storage(
 	Module,
 	Packages,
 	VisiblePackages,
-	index::canonical::CanonicalIndex,
-	index::canonical::CanonicalTree,
-	index::canonical::ModuleTree,
-	index::canonical::canonicalize_module_tree,
-	index::canonical::canonicalize_tree,
-	index::local::Index,
-	index::local::PublicIndex,
-	index::local::ModuleTree,
-	index::local::PackageTree,
-	index::local::generate_index,
-	index::local::build_package_tree,
+	prelude::PackagePrelude,
+	prelude::Prelude,
+	prelude::get_prelude,
+	prelude::get_prelude_from_package,
+	index::Index,
+	index::PublicIndex,
+	index::ModuleTree,
+	index::PackageTree,
+	index::generate_index,
+	index::build_package_tree,
 	lower::LoweredModule,
 	lower::lower_to_hir,
 );
@@ -55,7 +57,7 @@ pub struct Module {
 impl Module {
 	pub fn new(ast: ast::File, file: FilePath, path: Id<AbsPath>) -> Self { Self { path, file, ast } }
 
-	/// Figure out the module's path from it's relative file path from a root file.
+	/// Figure out the module's path from its relative file path from a root file.
 	pub fn from_file(db: &dyn Db, root: FilePath, ast: ast::File, file: FilePath, package: PackageId) -> Self {
 		if root == file {
 			return Self::new(ast, file, db.add(package.into()));
@@ -116,4 +118,3 @@ fn is_child_of(ctx: &Ctx, parent: Id<AbsPath>, mut child: Id<AbsPath>) -> bool {
 		};
 	}
 }
-
