@@ -139,11 +139,7 @@ mod test {
 		sync::atomic::{AtomicU16, Ordering},
 	};
 
-	use parking_lot::{
-		lock_api::{RawMutex, RawMutexFair},
-		Mutex,
-		RwLock,
-	};
+	use parking_lot::{Mutex, RwLock};
 	use rustc_hash::FxHashMap;
 
 	use crate::{
@@ -151,25 +147,6 @@ mod test {
 		test::StorageType,
 		Db,
 	};
-
-	struct RouteIter<'a> {
-		mutex: &'a Mutex<Vec<Route>>,
-		iter: std::slice::Iter<'a, Route>,
-	}
-
-	impl Iterator for RouteIter<'_> {
-		type Item = Route;
-
-		fn next(&mut self) -> Option<Self::Item> { self.iter.next().copied() }
-	}
-
-	impl Drop for RouteIter<'_> {
-		fn drop(&mut self) {
-			unsafe {
-				self.mutex.raw().unlock_fair();
-			}
-		}
-	}
 
 	type GenFunc = Box<dyn FnOnce() -> (StorageType, u16) + Send>;
 
@@ -221,7 +198,6 @@ mod test {
 		routes: FxHashMap<TypeId, Route>,
 		type_names: FxHashMap<Route, &'static str>,
 		dynamic_storage_index: u16,
-		pushables: Vec<Route>,
 	}
 
 	impl Default for RoutingTableBuilder {
@@ -230,7 +206,6 @@ mod test {
 				routes: FxHashMap::default(),
 				type_names: FxHashMap::default(),
 				dynamic_storage_index: 1,
-				pushables: Vec::new(),
 			}
 		}
 	}
@@ -241,7 +216,6 @@ mod test {
 			RouteBuilder {
 				routes: &mut self.routes,
 				type_names: &mut self.type_names,
-				pushables: &mut self.pushables,
 				storage,
 			}
 		}
@@ -260,7 +234,6 @@ mod test {
 	pub struct RouteBuilder<'a> {
 		routes: &'a mut FxHashMap<TypeId, Route>,
 		type_names: &'a mut FxHashMap<Route, &'static str>,
-		pushables: &'a mut Vec<Route>,
 		storage: u16,
 	}
 

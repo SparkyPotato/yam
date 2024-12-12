@@ -181,9 +181,6 @@ fn ty() {
 #[test]
 fn items() {
 	let source = r#"
-		mod x;
-		mod sus;
-
 		struct Sus { inner: T, }
 
 		enum X { A, B, C, }
@@ -194,165 +191,136 @@ fn items() {
 
 	let ast = {
 		expect![[r#"
-    File@0..149
+    File@0..128
       Whitespace@0..3 "\n\t\t"
-      Item@3..12
-        Error@3..9
-          Ident@3..6 "mod"
-          Whitespace@6..7 " "
-          Ident@7..8 "x"
-          Semi@8..9 ";"
-        Whitespace@9..12 "\n\t\t"
-      Item@12..24
-        Error@12..20
-          Ident@12..15 "mod"
+      Item@3..31
+        Struct@3..27
+          StructKw@3..9 "struct"
+          Whitespace@9..10 " "
+          Name@10..13
+            Ident@10..13 "Sus"
+          Whitespace@13..14 " "
+          LBrace@14..15 "{"
           Whitespace@15..16 " "
-          Ident@16..19 "sus"
-          Semi@19..20 ";"
-        Whitespace@20..24 "\n\n\t\t"
-      Item@24..52
-        Struct@24..48
-          StructKw@24..30 "struct"
-          Whitespace@30..31 " "
-          Name@31..34
-            Ident@31..34 "Sus"
-          Whitespace@34..35 " "
-          LBrace@35..36 "{"
-          Whitespace@36..37 " "
-          Param@37..45
-            Name@37..42
-              Ident@37..42 "inner"
-            Colon@42..43 ":"
-            Whitespace@43..44 " "
-            PathType@44..45
-              Path@44..45
-                Name@44..45
-                  Ident@44..45 "T"
-          Comma@45..46 ","
-          Whitespace@46..47 " "
-          RBrace@47..48 "}"
-        Whitespace@48..52 "\n\n\t\t"
-      Item@52..75
-        Enum@52..75
-          EnumKw@52..56 "enum"
+          Param@16..24
+            Name@16..21
+              Ident@16..21 "inner"
+            Colon@21..22 ":"
+            Whitespace@22..23 " "
+            PathType@23..24
+              Path@23..24
+                Name@23..24
+                  Ident@23..24 "T"
+          Comma@24..25 ","
+          Whitespace@25..26 " "
+          RBrace@26..27 "}"
+        Whitespace@27..31 "\n\n\t\t"
+      Item@31..54
+        Enum@31..54
+          EnumKw@31..35 "enum"
+          Whitespace@35..36 " "
+          Name@36..37
+            Ident@36..37 "X"
+          Whitespace@37..38 " "
+          VariantList@38..50
+            LBrace@38..39 "{"
+            Whitespace@39..40 " "
+            Name@40..41
+              Ident@40..41 "A"
+            Comma@41..42 ","
+            Whitespace@42..43 " "
+            Name@43..44
+              Ident@43..44 "B"
+            Comma@44..45 ","
+            Whitespace@45..46 " "
+            Name@46..47
+              Ident@46..47 "C"
+            Comma@47..48 ","
+            Whitespace@48..49 " "
+            RBrace@49..50 "}"
+          Whitespace@50..54 "\n\n\t\t"
+      Item@54..78
+        Fn@54..78
+          FnKw@54..56 "fn"
           Whitespace@56..57 " "
-          Name@57..58
-            Ident@57..58 "X"
-          Whitespace@58..59 " "
-          VariantList@59..71
-            LBrace@59..60 "{"
-            Whitespace@60..61 " "
-            Name@61..62
-              Ident@61..62 "A"
-            Comma@62..63 ","
-            Whitespace@63..64 " "
-            Name@64..65
-              Ident@64..65 "B"
-            Comma@65..66 ","
-            Whitespace@66..67 " "
-            Name@67..68
-              Ident@67..68 "C"
-            Comma@68..69 ","
-            Whitespace@69..70 " "
-            RBrace@70..71 "}"
-          Whitespace@71..75 "\n\n\t\t"
-      Item@75..99
-        Fn@75..99
-          FnKw@75..77 "fn"
-          Whitespace@77..78 " "
-          Name@78..87
-            Ident@78..87 "something"
-          ParamList@87..93
-            LParen@87..88 "("
-            Param@88..92
-              Name@88..89
-                Ident@88..89 "p"
-              Colon@89..90 ":"
-              Whitespace@90..91 " "
-              PathType@91..92
-                Path@91..92
-                  Name@91..92
-                    Ident@91..92 "T"
-            RParen@92..93 ")"
-          Whitespace@93..94 " "
-          Block@94..96
-            LBrace@94..95 "{"
-            RBrace@95..96 "}"
-          Whitespace@96..99 "\n\t\t"
-      Item@99..149
-        Fn@99..149
-          FnKw@99..101 "fn"
-          Whitespace@101..102 " "
-          Name@102..109
-            Ident@102..109 "returns"
-          ParamList@109..133
-            LParen@109..110 "("
-            Param@110..116
-              Name@110..111
-                Ident@110..111 "x"
-              Colon@111..112 ":"
-              Whitespace@112..113 " "
-              PathType@113..116
-                Path@113..116
-                  Name@113..116
-                    Ident@113..116 "i32"
-            Comma@116..117 ","
-            Whitespace@117..118 " "
-            Param@118..124
-              Name@118..119
-                Ident@118..119 "y"
-              Colon@119..120 ":"
-              Whitespace@120..121 " "
-              PathType@121..124
-                Path@121..124
-                  Name@121..124
-                    Ident@121..124 "i32"
-            Comma@124..125 ","
-            Whitespace@125..126 " "
-            Param@126..132
-              Name@126..127
-                Ident@126..127 "z"
-              Colon@127..128 ":"
-              Whitespace@128..129 " "
-              PathType@129..132
-                Path@129..132
-                  Name@129..132
-                    Ident@129..132 "i32"
-            RParen@132..133 ")"
-          Whitespace@133..134 " "
-          RetTy@134..141
-            Arrow@134..136 "->"
-            Whitespace@136..137 " "
-            PathType@137..141
-              Path@137..141
-                Name@137..140
-                  Ident@137..140 "i32"
-                Whitespace@140..141 " "
-          Block@141..147
-            LBrace@141..142 "{"
-            Whitespace@142..143 " "
-            IntLit@143..145 "10"
-            Whitespace@145..146 " "
-            RBrace@146..147 "}"
-          Whitespace@147..149 "\n\t""#]]
+          Name@57..66
+            Ident@57..66 "something"
+          ParamList@66..72
+            LParen@66..67 "("
+            Param@67..71
+              Name@67..68
+                Ident@67..68 "p"
+              Colon@68..69 ":"
+              Whitespace@69..70 " "
+              PathType@70..71
+                Path@70..71
+                  Name@70..71
+                    Ident@70..71 "T"
+            RParen@71..72 ")"
+          Whitespace@72..73 " "
+          Block@73..75
+            LBrace@73..74 "{"
+            RBrace@74..75 "}"
+          Whitespace@75..78 "\n\t\t"
+      Item@78..128
+        Fn@78..128
+          FnKw@78..80 "fn"
+          Whitespace@80..81 " "
+          Name@81..88
+            Ident@81..88 "returns"
+          ParamList@88..112
+            LParen@88..89 "("
+            Param@89..95
+              Name@89..90
+                Ident@89..90 "x"
+              Colon@90..91 ":"
+              Whitespace@91..92 " "
+              PathType@92..95
+                Path@92..95
+                  Name@92..95
+                    Ident@92..95 "i32"
+            Comma@95..96 ","
+            Whitespace@96..97 " "
+            Param@97..103
+              Name@97..98
+                Ident@97..98 "y"
+              Colon@98..99 ":"
+              Whitespace@99..100 " "
+              PathType@100..103
+                Path@100..103
+                  Name@100..103
+                    Ident@100..103 "i32"
+            Comma@103..104 ","
+            Whitespace@104..105 " "
+            Param@105..111
+              Name@105..106
+                Ident@105..106 "z"
+              Colon@106..107 ":"
+              Whitespace@107..108 " "
+              PathType@108..111
+                Path@108..111
+                  Name@108..111
+                    Ident@108..111 "i32"
+            RParen@111..112 ")"
+          Whitespace@112..113 " "
+          RetTy@113..120
+            Arrow@113..115 "->"
+            Whitespace@115..116 " "
+            PathType@116..120
+              Path@116..120
+                Name@116..119
+                  Ident@116..119 "i32"
+                Whitespace@119..120 " "
+          Block@120..126
+            LBrace@120..121 "{"
+            Whitespace@121..122 " "
+            IntLit@122..124 "10"
+            Whitespace@124..125 " "
+            RBrace@125..126 "}"
+          Whitespace@126..128 "\n\t""#]]
 	};
 
-	let diags = expect![[r#"
-    Error: expected item
-       ,-[<unknown>:2:3]
-       |
-     2 |        mod x;
-       |        ^|^  
-       |         `--- found identifier
-    ---'
-    Error: expected item
-       ,-[<unknown>:3:3]
-       |
-     3 |        mod sus;
-       |        ^|^  
-       |         `--- found identifier
-    ---'
-"#]];
+	let diags = expect![""];
 
 	harness(source, ast, diags);
 }
